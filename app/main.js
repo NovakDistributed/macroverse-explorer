@@ -7,11 +7,6 @@ const aframe = require('aframe')
 // We want to set up web3 before truffle-contract because truffle-contract wants it
 const Web3 = require('web3')
 window.Web3 = Web3
-// Hack HttpProvider to expose the old sendAsync interface since truffle-contract hasn't been updated to use the new send
-//Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send
-// Even with the above patch, web3 1.0 doesn't work with truffle-contract that wants the 0.20 API.
-// It gets confused about things like the network ID
-// So we need to use web3 0.20.
 
 // Override window web3
 let web3 = new Web3(create_provider())
@@ -62,37 +57,35 @@ async function fetch_json(url) {
 }
 
 // Get an instance of a contract from a JSON URL.
-function get_instance(url) {
+async function get_instance(url) {
   // Grab contract JSON object
-  return fetch_json(url).then((contract_description) => {
+  let contract_description = await fetch_json(url)
 
-    // Fluff up into contract, making sure to use the parsed JSON and not text
-    console.log('Fluffing up: ', contract_description)
-    let truffle_contract = contract(contract_description)
-    // Show it the provider
-    truffle_contract.setProvider(get_provider())
 
-    console.log('Contract ' + url + ' is on networks: ', Object.keys(truffle_contract.networks))
+  // Fluff up into contract, making sure to use the parsed JSON and not text
+  console.log('Fluffing up: ', contract_description)
+  let truffle_contract = contract(contract_description)
+  // Show it the provider
+  truffle_contract.setProvider(get_provider())
 
-    // Find out the network we are on
-    let current_network = get_network_id()
-    if (!truffle_contract.networks.hasOwnProperty(current_network)) {
-      // Complain if the contract is not there
-      throw new Error('Contract ' + url + ' unavailable on network ' + current_network)
-    }
+  console.log('Contract ' + url + ' is on networks: ', Object.keys(truffle_contract.networks))
 
-    // Find the instance
-    console.log('Looking for instance of ', truffle_contract)
-    window.tc = truffle_contract
+  // Find out the network we are on
+  let current_network = get_network_id()
+  if (!truffle_contract.networks.hasOwnProperty(current_network)) {
+    // Complain if the contract is not there
+    throw new Error('Contract ' + url + ' unavailable on network ' + current_network)
+  }
+
+  // Find the instance
+  console.log('Looking for instance of ', truffle_contract)
+  window.tc = truffle_contract
   
-    return truffle_contract
-  }).then((truffle_contract) => {
-    return truffle_contract.deployed().then((deployed) => {
-      console.log('Found: ', deployed)
-      window.dp = deployed
-      return deployed
-    })
-  })
+  let deployed = await truffle_contract.deployed()
+
+  console.log('Found: ', deployed)
+  window.dp = deployed
+  return deployed
 }
 
 async function main() {
