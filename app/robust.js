@@ -1,5 +1,7 @@
 // robust.js: tools for retrying and timing out to work around flaky Ethereum nodes
 
+const RateLimiter = require('limiter').RateLimiter
+
 // How long should we wait for a promise when loading stars?
 let MAX_WAIT_TIME = 10000
 
@@ -43,6 +45,20 @@ async function hammer(closure, retries = 10) {
   }
 }
 
-module.exports = { timeoutPromise, hammer, MAX_WAIT_TIME }
+const global_limiter = new RateLimiter(5, 'minute')
+let reqNum = 0
+
+// Run the given function and resolve with its return value, subject to the global rate limit
+function rateLimit(callback) {
+  let thisReqNum = reqNum++
+  return new Promise((resolve, reject) => {
+    global_limiter.removeTokens(1, () => {
+      console.log('Make request ' + thisReqNum)
+      resolve(callback())
+    })
+  })
+}
+
+module.exports = { timeoutPromise, hammer, rateLimit, MAX_WAIT_TIME }
 
 

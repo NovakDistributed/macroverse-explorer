@@ -41,6 +41,14 @@ function arrayToColor(arr) {
   return hex
 }
 
+// Make a promise that waits for the given number of ms and then resolves
+function sleep(time) {
+  return new Promise((resolve, reject) => {
+    setTimeout(resolve, time)
+  })
+}
+
+
 async function main() {
 
   console.log('Macroverse Explorer starting on Ethereum network ' + eth.get_network_id())
@@ -53,68 +61,86 @@ async function main() {
   let scene = document.getElementById('scene')
 
   let starCount = await ctx.stars.getObjectCount(0, 0, 0)
+
+  // We fill this with promises for making all the stars, which are running in parallel.
+  let starPromises = []
+
   for (let i = 0; i < starCount; i++) {
     // For each star in the origin sector
-    let star = await ctx.stars.getObject(0, 0, 0, i)
-    // Make it a sprite
-    let sprite = document.createElement('a-entity')
-    sprite.setAttribute('id', 'star' + i)
+    let starPromise = ctx.stars.getObject(0, 0, 0, i).then((star) => {
+      // For each star object, when we get it
 
-    sprite.addEventListener('loaded', () => {
-      // We can't actually use any of the A-Frame overrides for element setup until A-Frame calls us back
+      // Make it a sprite
+      let sprite = document.createElement('a-entity')
+      sprite.setAttribute('id', 'star' + i)
 
-      // We also have to use objects instead of the strings we would use in
-      // HTML, a-entity for everything instead of the convenient primitive
-      // tags, and geometry/material instead of the shorthand color and so on
-      // on the primitives.
+      sprite.addEventListener('loaded', () => {
+        // We can't actually use any of the A-Frame overrides for element setup until A-Frame calls us back
 
-      // Make sure to center the 25 LY sector on the A-Frame origin
-      sprite.setAttribute('position', {x: star.x - 12.5, y: star.y - 12.5, z: star.z - 12.5})
+        // We also have to use objects instead of the strings we would use in
+        // HTML, a-entity for everything instead of the convenient primitive
+        // tags, and geometry/material instead of the shorthand color and so on
+        // on the primitives.
 
-      let starColor = arrayToColor(typeToColor[mv.spectralTypes[star.objType]])
+        // Make sure to center the 25 LY sector on the A-Frame origin
+        sprite.setAttribute('position', {x: star.x - 12.5, y: star.y - 12.5, z: star.z - 12.5})
 
-      // And make it the right color
-      sprite.setAttribute('material', {color: starColor})
+        let starColor = arrayToColor(typeToColor[mv.spectralTypes[star.objType]])
 
-      // Work out the size for it
-      let size = Math.pow(star.objMass, 1/4)
+        // And make it the right color
+        sprite.setAttribute('material', {color: starColor})
 
-      // Make the star sphere
-      sprite.setAttribute('geometry', {
-        primitive: 'sphere',
-        radius: size
+        // Work out the size for it
+        let size = Math.pow(star.objMass, 1/4)
+
+        // Make the star sphere
+        sprite.setAttribute('geometry', {
+          primitive: 'sphere',
+          radius: size
+        })
+
+        if (mv.objectClasses[star.objClass] != 'BlackHole') {
+          // We want it to glow
+
+          // Add a particle system.
+          // Note that we can't set spreads and things to 0 because then the preset's default will come through.
+          // TODO: The particles scale weirdly! See <https://github.com/IdeaSpaceVR/aframe-particle-system-component/issues/36>
+          // TODO: The particles also just draw over each other in order of system creation instead of in even system center Z order.
+          // TODO: The default textures are somehow magic and can be transparent. Applying a custom texture can't seem to do that even with a transparent png.
+          // TODO: The particle effect is weirdly pulsating due to uneven emission times.
+          // This is because we always try to make 200 particles to start and we can only make up to the max count.
+          sprite.setAttribute('particle-system', {
+            preset: 'snow',
+            color: [starColor, '#000000'],
+            size: size * 8,
+            type: 2, // Be a sphere
+            positionSpread: {x: size/2, y: size/2, z: size/2},
+            velocityValue: {x: 1E-10, y: 1E-10, z: 1E-10},
+            velocitySpread: {x: size/2, y: size/2, z: size/2},
+            accelerationValue: {x: 1E-10, y: 1E-10, z: 1E-10},
+            accelerationSpread: {x: 1E-10, y: 1E-10, z: 1E-10},
+            maxAge: 2,
+            blending: 2, // Do additive blending
+            texture: 'img/nova_1.png',
+            maxParticleCount: 50,
+            randomize: true
+          })
+        }
       })
 
-      // Add a particle system.
-      // Note that we can't set spreads and things to 0 because then the preset's default will come through.
-      // TODO: The particles scale weirdly! See <https://github.com/IdeaSpaceVR/aframe-particle-system-component/issues/36>
-      // TODO: The particles also just draw over each other in order of system creation instead of in even system center Z order.
-      // TODO: The default textures are somehow magic and can be transparent. Applying a custom texture can't seem to do that even with a transparent png.
-      // TODO: The particle effect is weirdly pulsating due to uneven emission times.
-      sprite.setAttribute('particle-system', {
-        preset: 'snow',
-        color: [starColor, '#000000'],
-        size: size * 8,
-        type: 2, // Be a sphere
-        positionSpread: {x: size/2, y: size/2, z: size/2},
-        velocityValue: {x: 1E-10, y: 1E-10, z: 1E-10},
-        velocitySpread: {x: size/2, y: size/2, z: size/2},
-        accelerationValue: {x: 1E-10, y: 1E-10, z: 1E-10},
-        accelerationSpread: {x: 1E-10, y: 1E-10, z: 1E-10},
-        maxAge: 2,
-        blending: 2, // Do additive blending
-        texture: 'img/nova_1.png',
-        maxParticleCount: 50,
-        randomize: true
-      })
+      // And display it
+      scene.appendChild(sprite)
 
-      console.log(sprite.getAttribute('particle-system'))
     })
 
-    // And display it
-    scene.appendChild(sprite)
-    
+    // Now we have a promise for this star's completion, so stick it in the array
+    starPromises.push(starPromise)
+
   }
+
+  // Now starPromises is populated, so we can wait on all of them
+  await Promise.all(starPromises)
+  console.log('All stars loaded')
 
 }
 
