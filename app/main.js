@@ -5,6 +5,8 @@
 const aframe = require('aframe')
 // And orbit controls
 const orbit_controls = require('aframe-orbit-controls-component-2')
+// And particles
+const particles = require('aframe-particle-system-component')
 
 // We want macroverse itself
 const mv = require('macroverse')
@@ -25,8 +27,18 @@ let typeToColor = {
   'NotApplicable': [128, 128, 128]
 }
 
+// Convert an array of 0-255 values into a hex color code.
+// It has to be hex because A-Frame particle systems only accept hex, not 'rgb()' notation
 function arrayToColor(arr) {
-  return 'rgb(' + arr[0] + ',' + arr[1] + ',' + arr[2] + ')'
+  
+  hex = '#'
+  for (let item of arr) {
+    if(item < 16) {
+      hex += '0'
+    }
+    hex += item.toString(16)
+  }
+  return hex
 }
 
 async function main() {
@@ -59,14 +71,44 @@ async function main() {
       // Make sure to center the 25 LY sector on the A-Frame origin
       sprite.setAttribute('position', {x: star.x - 12.5, y: star.y - 12.5, z: star.z - 12.5})
 
-      // And make it the right color
-      sprite.setAttribute('material', {color: arrayToColor(typeToColor[mv.spectralTypes[star.objType]])})
+      let starColor = arrayToColor(typeToColor[mv.spectralTypes[star.objType]])
 
-      // And make it the right size
+      // And make it the right color
+      sprite.setAttribute('material', {color: starColor})
+
+      // Work out the size for it
+      let size = Math.pow(star.objMass, 1/4)
+
+      // Make the star sphere
       sprite.setAttribute('geometry', {
         primitive: 'sphere',
-        radius: Math.pow(star.objMass, 1/4)
+        radius: size
       })
+
+      // Add a particle system.
+      // Note that we can't set spreads and things to 0 because then the preset's default will come through.
+      // TODO: The particles scale weirdly! See <https://github.com/IdeaSpaceVR/aframe-particle-system-component/issues/36>
+      // TODO: The particles also just draw over each other in order of system creation instead of in even system center Z order.
+      // TODO: The default textures are somehow magic and can be transparent. Applying a custom texture can't seem to do that even with a transparent png.
+      // TODO: The particle effect is weirdly pulsating due to uneven emission times.
+      sprite.setAttribute('particle-system', {
+        preset: 'snow',
+        color: [starColor, '#000000'],
+        size: size * 8,
+        type: 2, // Be a sphere
+        positionSpread: {x: size/2, y: size/2, z: size/2},
+        velocityValue: {x: 1E-10, y: 1E-10, z: 1E-10},
+        velocitySpread: {x: size/2, y: size/2, z: size/2},
+        accelerationValue: {x: 1E-10, y: 1E-10, z: 1E-10},
+        accelerationSpread: {x: 1E-10, y: 1E-10, z: 1E-10},
+        maxAge: 2,
+        blending: 2, // Do additive blending
+        texture: 'img/nova_1.png',
+        maxParticleCount: 50,
+        randomize: true
+      })
+
+      console.log(sprite.getAttribute('particle-system'))
     })
 
     // And display it
