@@ -3,7 +3,7 @@
     <script src="bundle.js"></script>
   </head>
   <body>
-    <a-scene id="scene">
+    <a-scene id="scene" cursor="rayOrigin:mouse">
       <!-- a-sky is broken for now, so use a manual sky. See https://github.com/aframevr/aframe/issues/3428 -->        
       <a-entity material="color: black; side: back; shader: flat" geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"></a-entity>
       <a-entity position="0 0 50" camera="active: true; near: 0.0005;" fov="60" orbit-controls="target: #sector; minDistance: 3; maxDistance: 100; enablePan: false;"></a-entity>
