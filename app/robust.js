@@ -2,6 +2,8 @@
 
 const RateLimiter = require('limiter').RateLimiter
 
+const timers = require('timers')
+
 // How long should we wait for a promise when loading stars?
 let MAX_WAIT_TIME = 10000
 
@@ -59,6 +61,81 @@ function rateLimit(callback) {
   })
 }
 
-module.exports = { timeoutPromise, hammer, rateLimit, MAX_WAIT_TIME }
+// Allow no more than a certian number of passed callbacks to be running at a time.
+// Converts callbacks to promises that resolve with their return values when they are evantually run.
+class InFlightLimiter {
+  constructor(max_in_flight) {
+    this.max_in_flight = max_in_flight
+    
+    // Queue of waiting tasks
+    this.waiting = []
+
+    // Set of running tasks
+    this.running = new Set()
+  }
+
+  // Queue the given callback to be run when there is a free slot.
+  // If the callback kicks off more async stuff it must return a promise so we can know when they are all done.
+  queue(callback) {
+    // Make a new promise
+    let promise = new Promise((resolve, reject) => {
+      // Save everything we need to actually finish it in the queue
+      this.waiting.push({
+        callback: callback,
+        resolve: resolve,
+        reject: reject
+      })
+    })
+
+    // Schedule the queue to be handled
+    timers.setImmediate(() => {
+      this.handle_queue()
+    })
+
+    return promise
+  }
+
+  // Asynchronously handle the queue.
+  // Kicked off when something is enqueued and when something finishes.
+  // Tracks how many child promises are currently running.
+  async handle_queue() {
+    if (this.running.size >= this.max_in_flight) {
+      // Nothing to do!
+      return
+    }
+    
+    if (this.waiting.length == 0) {
+      // Still nothing to do
+      return
+    }
+    
+    // Find a job to do and mark it running
+    let to_run = this.waiting.shift()
+    this.running.add(to_run)
+
+    let callback_return = undefined;
+    try {
+      // Call the callback, and wait for it to run and for any promise it returned to resolve or reject
+      callback_return = await to_run.callback()
+    } catch(e) {
+      // The error makes the promise for the queued result reject.
+      to_run.reject(e)
+    } finally {
+      // Whether it succeeded or not, it is done now so something else can have its place
+      this.running.delete(to_run)
+
+      // Next tick, check for more work to do
+      timers.setImmediate(() => {
+        this.handle_queue()
+      })
+    }
+
+    // Now the promise is done
+    to_run.resolve(callback_return)
+  }
+
+}
+
+module.exports = { timeoutPromise, hammer, rateLimit, InFlightLimiter, MAX_WAIT_TIME }
 
 
