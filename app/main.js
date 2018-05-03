@@ -79,6 +79,19 @@ async function main() {
 
         let planetCount = await ctx.planets.getObjectPlanetCount(star)
         console.log('Star ' + i + ' has ' + planetCount + ' planets.')
+
+        planetPromises = []
+        for (let j = 0; j < planetCount; j++) {
+          // Go get every planet
+          planetPromises.push(ctx.planets.getPlanet(star, j))
+        }
+
+        let planets = await Promise.all(planetPromises)
+
+        for (let j = 0; j < planets.length; j++) {
+          // Dump them all when they all come in
+          console.log('Star ' + i + ' planet ' + j + ': ', planets[j])
+        }
       })
 
       sprite.addEventListener('loaded', () => {

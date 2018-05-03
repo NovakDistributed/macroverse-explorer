@@ -14,7 +14,7 @@ class StarCache {
     // Save a reference to the backing MacroverseStarGenerator
     this.generator = MacroverseStarGeneratorInstance
     
-    // Maps from string paths to object
+    // Maps from string paths to object, or promise for object
     this.cache = {}
 
     // Limits simultaneous object downloads
@@ -27,14 +27,10 @@ class StarCache {
     let path = sectorX + ',' + sectorY + ',' + sectorZ + '/' + objectNumber
     
     if (!this.cache.hasOwnProperty(path)) {
-      // We don't have it, so queue up a job to go get it, and come back when it is got.
-      await this.queue.queue(async () => { 
+      // We don't have it, and nobody is getting it, so queue up a job to go get it, and come back when it is got.
+      this.cache[path] = this.queue.queue(async () => { 
         // OK it is our turn to try and get it
-        if (this.cache.hasOwnProperty(path)) {
-          // Someone else got it while we were waiting
-          return
-        }
-
+        
         console.log('Trying to load star ' + path)
 
         // Make a new object
@@ -59,10 +55,8 @@ class StarCache {
             
             obj.objMass = mv.fromReal(await timeoutPromise(this.generator.getObjectMass.call(obj.seed, obj.objClass, obj.objType)))
             
-            // Save it
-            this.cache[path] = obj
             console.log('Successfully loaded star ' + path)
-            break
+            return obj
             
           } catch (err) {
             // Ignore errors (probably lost RPC requests) and retry from the beginning
@@ -70,15 +64,26 @@ class StarCache {
             console.log('Retrying star ' + path + ' try ' + tryNumber + ' after error: ', err)
           }
         }
+        
+        // If we get here without returning we ran out of tries
+        throw new Error('Unable to load ' + path + ' from Ethereum blockchain. Check your RPC node!')
       })
-    }
-    
-    // When we get here, our load job has waited in the queue and then run. Or it wasn't necessary.
 
-    if (!this.cache.hasOwnProperty(path)) {
-      throw new Error('Unable to load ' + path + ' from Ethereum blockchain. Check your RPC node!')
+      // Get the actual promise result
+      let result = undefined;
+      try {
+        result = await this.cache[path]
+      } finally {
+        // If the promise rejected, the above will throw.
+        // Clear out the promise so we can try again
+        delete this.cache[path]
+      }
+      // We got a result. Save it so we don't try to await the same promise a lot.
+      this.cache[path] = result
     }
     
+    // We now know there is either a result or a promise for a result in the cache.
+    // Return it, whatever it is.
     return this.cache[path]
   }
   

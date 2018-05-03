@@ -21,64 +21,113 @@ class PlanetCache {
     this.queue = new InFlightLimiter(5)
   }
   
-  // Get the given object from the given sector, from either the blockchain or the cache.
-  async getObject(sectorX, sectorY, sectorZ, objectNumber) {
-    // Make a string path for the object
-    let path = sectorX + ',' + sectorY + ',' + sectorZ + '/' + objectNumber
+  // Get the given planet around the given stellar object, from either the blockchain or the cache.
+  async getPlanet(obj, planetNumber) {
+    // Make a string path for the planet
+    let path = obj.seed + '/' + planetNumber
     
     if (!this.cache.hasOwnProperty(path)) {
       // We don't have it, so queue up a job to go get it, and come back when it is got.
-      await this.queue.queue(async () => { 
-        // OK it is our turn to try and get it
-        if (this.cache.hasOwnProperty(path)) {
-          // Someone else got it while we were waiting
-          return
-        }
 
-        console.log('Trying to load star ' + path)
+      // But because orbits are generated inside to outside, we need to make
+      // sure we have the next-innermost planet before we get into the queue.
+      // Because our request for it needs to finish before we start.
+      let previousPlanet = null
+      if (planetNumber > 0) {
+        previousPlanet = await this.getPlanet(obj, planetNumber - 1)
+      }
 
-        // Make a new object
-        let obj = {number: objectNumber, sectorX, sectorY, sectorZ}
-        
-        for (let tryNumber = 0; tryNumber < 10; tryNumber++) {
+      if (!this.cache.hasOwnProperty(path)) {
+        // It still hasn't shown up
+
+        this.cache[path] = this.queue.queue(async () => { 
+          // OK it is our turn to try and get the planet we want
+          console.log('Trying to load planet ' + path)
+
+          // Make a new object
+          let planet = {number: planetNumber}
           
-          try {
-            // Work out the seed
-            obj.seed = await timeoutPromise(this.generator.getSectorObjectSeed.call(sectorX, sectorY, sectorZ, objectNumber))
+          for (let tryNumber = 0; tryNumber < 10; tryNumber++) {
             
-            // Decide on a position
-            let [ x, y, z] = await timeoutPromise(this.generator.getObjectPosition.call(obj.seed))
-            obj.x = mv.fromReal(x)
-            obj.y = mv.fromReal(y)
-            obj.z = mv.fromReal(z)
-            
-            obj.objClass = (await timeoutPromise(this.generator.getObjectClass.call(obj.seed))).toNumber()
-            obj.objType = (await timeoutPromise(this.generator.getObjectSpectralType.call(obj.seed, obj.objClass))).toNumber()
-            
-            obj.hasPlanets = await timeoutPromise(this.generator.getObjectHasPlanets.call(obj.seed, obj.objClass, obj.objType))
-            
-            obj.objMass = mv.fromReal(await timeoutPromise(this.generator.getObjectMass.call(obj.seed, obj.objClass, obj.objType)))
-            
-            // Save it
-            this.cache[path] = obj
-            console.log('Successfully loaded star ' + path)
-            break
-            
-          } catch (err) {
-            // Ignore errors (probably lost RPC requests) and retry from the beginning
-            // TODO: retry each query!
-            console.log('Retrying star ' + path + ' try ' + tryNumber + ' after error: ', err)
-          }
-        }
-      })
-    }
-    
-    // When we get here, our load job has waited in the queue and then run. Or it wasn't necessary.
+            try {
+              // Work out the seed
+              planet.seed = await timeoutPromise(this.generator.getPlanetSeed.call(obj.seed, planetNumber))
 
-    if (!this.cache.hasOwnProperty(path)) {
-      throw new Error('Unable to load ' + path + ' from Ethereum blockchain. Check your RPC node!')
+              // Get the total planets in the system
+              let totalPlanets = await this.getObjectPlanetCount(obj)
+              
+              // Determine the class of the planet based on its rank in the system
+              planet.planetClass = (await timeoutPromise(this.generator.getPlanetClass.call(planet.seed, planet.number, totalPlanets))).toNumber()
+              
+              // Then determine its mass
+              planet.planetMass = mv.fromReal(await timeoutPromise(this.generator.getPlanetMass.call(planet.seed, planet.planetClass)))
+
+              // Set up its orbit
+              planet.orbit = {}
+
+              // What is the previous clearance band extent?
+              // Use the stored bignum if there was a previous planet, or 0 otherwise.
+              let prevClearance = previousPlanet != null ? previousPlanet.orbit.realClearance : 0
+
+              // Download the orbit as bignums in case we want to know exactly what the smart contract does with it
+              planet.orbit.realPeriapsis = await timeoutPromise(this.generator.getPlanetPeriapsis.call(planet.seed, planet.planetClass, prevClearance))
+              planet.orbit.realApoapsis = await timeoutPromise(this.generator.getPlanetApoapsis.call(planet.seed, planet.planetClass, planet.orbit.realPeriapsis))
+              planet.orbit.realClearance = await timeoutPromise(this.generator.getPlanetClearance.call(planet.seed, planet.planetClass, planet.orbit.realApoapsis))
+
+              planet.orbit.realLan = await timeoutPromise(this.generator.getPlanetLan.call(planet.seed))
+              planet.orbit.realInclination = await timeoutPromise(this.generator.getPlanetInclination.call(planet.seed, planet.planetClass))
+              planet.orbit.realAop = await timeoutPromise(this.generator.getPlanetAop.call(planet.seed))
+              planet.orbit.realMeanAnomalyAtEpoch = await timeoutPromise(this.generator.getPlanetMeanAnomalyAtEpoch.call(planet.seed))
+
+              // Provide float versions of all those reals for use in JS
+              // Periapsis in meters from center of star
+              planet.orbit.periapsis = mv.fromReal(planet.orbit.realPeriapsis)
+              // Apoapsis in meters from center of star
+              planet.orbit.apoapsis = mv.fromReal(planet.orbit.realApoapsis)
+              // Cleared-out band in meters from center of star
+              // Not a real orbital element, but used to generate the next orbit
+              planet.orbit.clearance = mv.fromReal(planet.orbit.realClearance)
+              // Longitude of the ascending node, in radians
+              planet.orbit.lan = mv.fromReal(planet.orbit.realLan)
+              // Inclination, in radians. Always positive, as negative would swap the nodes.
+              planet.orbit.inclination = mv.fromReal(planet.orbit.realInclination)
+              // Argument of periapsis, in radians.
+              planet.orbit.aop = mv.fromReal(planet.orbit.realAop)
+              // Mean anomaly at epoch, in radians.
+              planet.orbit.meanAnomalyAtEpoch = mv.fromReal(planet.orbit.realMeanAnomalyAtEpoch)
+              
+              // Produce the generated planet in the cache
+              console.log('Successfully loaded planet ' + path)
+              return planet
+              
+            } catch (err) {
+              // Ignore errors (probably lost RPC requests) and retry from the beginning
+              // TODO: retry each query!
+              console.log('Retrying planet ' + path + ' try ' + tryNumber + ' after error: ', err)
+            }
+          }
+
+          // If we get here without returning we ran out of tries
+          throw new Error('Unable to load ' + path + ' from Ethereum blockchain. Check your RPC node!')
+
+        })
+
+        // Get the actual promise result
+        let result = undefined;
+        try {
+          result = await this.cache[path]
+        } finally {
+          // If the promise rejected, the above will throw.
+          // Clear out the promise so we can try again
+          delete this.cache[path]
+        }
+        // We got a result. Save it so we don't try to await the same promise a lot.
+        this.cache[path] = result
+      }
     }
     
+    // Now we know the planet or a promise for it is in the cache.
+    // Return it either way. 
     return this.cache[path]
   }
   
