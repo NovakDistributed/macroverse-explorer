@@ -18,7 +18,7 @@ class StarCache {
     this.cache = {}
 
     // Limits simultaneous object downloads
-    this.queue = new InFlightLimiter(2)
+    this.queue = new InFlightLimiter(5)
   }
   
   // Get the given object from the given sector, from either the blockchain or the cache.
