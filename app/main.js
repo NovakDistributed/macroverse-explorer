@@ -74,6 +74,13 @@ async function main() {
       let sprite = document.createElement('a-entity')
       sprite.setAttribute('id', 'star' + i)
 
+      sprite.addEventListener('click', async () => {
+        console.log('User clicked on star ' + i + ' with seed ' + star.seed)
+
+        let planetCount = await ctx.planets.getObjectPlanetCount(star)
+        console.log('Star ' + i + ' has ' + planetCount + ' planets.')
+      })
+
       sprite.addEventListener('loaded', () => {
         // We can't actually use any of the A-Frame overrides for element setup until A-Frame calls us back
 

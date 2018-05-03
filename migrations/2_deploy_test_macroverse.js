@@ -4,6 +4,7 @@ var RealMath = artifacts.require("RealMath")
 var RNG = artifacts.require("RNG")
 var MacroverseStarGenerator = artifacts.require("MacroverseStarGenerator")
 var MacroverseStarRegistry = artifacts.require("MacroverseStarRegistry")
+var MacroverseSystemGenerator = artifacts.require("MacroverseSystemGenerator")
 var MinimumBalanceAccessControl = artifacts.require("MinimumBalanceAccessControl")
 var MRVToken = artifacts.require("MRVToken")
 
@@ -19,6 +20,8 @@ module.exports = function(deployer, network, accounts) {
     deployer.deploy(RNG)
     deployer.link(RNG, MacroverseStarGenerator)
     deployer.link(RealMath, MacroverseStarGenerator)
+    deployer.link(RNG, MacroverseSystemGenerator)
+    deployer.link(RealMath, MacroverseSystemGenerator)
 
     
     // Deploy the token
@@ -28,6 +31,8 @@ module.exports = function(deployer, network, accounts) {
       return deployer.deploy(MacroverseStarGenerator, "FiatBlocks", MinimumBalanceAccessControl.address)
     }).then(function() {
       return deployer.deploy(MacroverseStarRegistry, MRVToken.address, web3.toWei(1000, "ether"))
+    }).then(function() {
+      return deployer.deploy(MacroverseSystemGenerator, MinimumBalanceAccessControl.address)
     }).then(function() {
       console.log("Macroverse deployed!")
       console.log("MacroverseStarGenerator is at " + MacroverseStarGenerator.address)

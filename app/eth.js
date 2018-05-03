@@ -45,7 +45,7 @@ function get_account() {
 async function fetch_json(url) {
   let response = await fetch(url)
   if (!response.ok) {
-    throw new Error("Negative response from server: " + response)
+    throw new Error("Negative response from server: " + JSON.stringify(response))
   }
   return await response.json()
 }

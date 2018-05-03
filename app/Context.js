@@ -8,6 +8,7 @@ const eth = require('./eth.js')
 
 // And the cache implementations
 const StarCache = require('./StarCache.js')
+const PlanetCache = require('./PlanetCache.js')
 
 // The actual context class. External interface.
 class Context {
@@ -18,6 +19,7 @@ class Context {
 
     // Set up some fields for the caches
     this.stars = undefined
+    this.planets = undefined
 
     // Say we aren't initializing yet
     this.initPromise = undefined
@@ -39,6 +41,10 @@ class Context {
 
         // Use it to back a cache
         this.stars = new StarCache(MacroverseStarGenerator)
+
+        // Same for the planets
+        let MacroverseSystemGenerator = await eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))
+        this.planets = new PlanetCache(MacroverseSystemGenerator)
 
       })()
     }
