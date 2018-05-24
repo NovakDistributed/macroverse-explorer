@@ -100,10 +100,15 @@ async function showSystem(ctx, star) {
 
   for (let i = 0; i < planets.length; i++) {
     let planetSprite = planetToSprite(planets[i])
+
+    // Compute orbit facts
+    let periapsis = planets[i].orbit.periapsis
+    let apoapsis = planets[i].orbit.apoapsis
+    console.log(periapsis)
     
     planetSprite.addEventListener('loaded', () => {
       // Line the planets up in x
-      planetSprite.setAttribute('position', {x: (i + 1) * 5, y: 0, z: 0})
+      planetSprite.setAttribute('position', {x: (periapsis + apoapsis) / 2, y: 0, z: 0})
     })
     
     root.appendChild(planetSprite)
@@ -141,7 +146,6 @@ function planetToSprite(planet) {
 
     // Work out the size for it
     let size = Math.pow(planet.planetMass, 1/4)
-    console.log('Planet size is ' + size + ' for mass ' + planet.planetMass)
 
     // Make the planet sphere
     sprite.setAttribute('geometry', {
