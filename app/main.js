@@ -56,6 +56,17 @@ async function showSystem(ctx, star) {
   // Figure out our place so we don't clobber later requests that finish earlier
   systemNonce++
   let ourNonce = systemNonce
+
+   // Find the system display holding node
+  let system = document.getElementById('system')
+  while (system.firstChild) {
+    // Clear out its existing children
+    system.removeChild(system.firstChild)
+  }
+
+  // Start upt he system loading throbber
+  let loader = document.getElementById('system-loading')
+  loader.setAttribute('visible', true)
   
   let planetCount = await ctx.planets.getObjectPlanetCount(star)
   console.log('Star ' + star.seed + ' has ' + planetCount + ' planets.')
@@ -67,11 +78,6 @@ async function showSystem(ctx, star) {
   }
 
   let planets = await Promise.all(planetPromises)
-
-  for (let j = 0; j < planets.length; j++) {
-    // Dump them all when they all come in
-    console.log('Star ' + star.seed + ' planet ' + j + ': ', planets[j])
-  }
 
   // Generate a system view
 
@@ -90,6 +96,8 @@ async function showSystem(ctx, star) {
 
   root.appendChild(sun);
 
+  // TODO: desynchronize() all this system construction to not be slow.
+
   for (let i = 0; i < planets.length; i++) {
     let planetSprite = planetToSprite(planets[i])
     
@@ -102,15 +110,11 @@ async function showSystem(ctx, star) {
   }
 
   if (ourNonce == systemNonce) {
-    // We won the race so display
-    // Find the system display holding node
-    let system = document.getElementById('system')
-    while (system.firstChild) {
-      // Clear out its existing children
-      system.removeChild(system.firstChild)
-    }
-    // Put in our child we made
+    // We won the race so display.
+    // Put in our child we made.
     system.appendChild(root)
+    // Loading is done
+    loader.setAttribute('visible', false)
   }
 
 }
