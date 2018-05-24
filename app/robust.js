@@ -138,6 +138,22 @@ class InFlightLimiter {
 
 }
 
-module.exports = { timeoutPromise, hammer, rateLimit, InFlightLimiter, MAX_WAIT_TIME }
+// Call the given callback later (like setImmediate, but working in a browser)
+// Returns a promise for the callback's return value
+function desynchronize(callback) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      let result
+      try {
+        result = callback()
+      } catch (e) {
+        reject(e)
+      }
+      resolve(result)
+    }, 0)
+  })
+}
+
+module.exports = { timeoutPromise, hammer, rateLimit, InFlightLimiter, desynchronize, MAX_WAIT_TIME }
 
 

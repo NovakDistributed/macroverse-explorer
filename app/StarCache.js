@@ -2,7 +2,7 @@
 
 
 // Pull in all the robustness tools
-const { timeoutPromise, hammer, InFlightLimiter, MAX_WAIT_TIME } = require('./robust.js')
+const { timeoutPromise, hammer, InFlightLimiter, desynchronize, MAX_WAIT_TIME } = require('./robust.js')
 
 const mv = require('macroverse')
 
@@ -31,12 +31,10 @@ class StarCache {
 
       if (fromLocalStorage != undefined) {
         // We had it in local storage, so use that.
-        this.cache[path] = new Promise((resolve, reject) => {
-          setTimeout(() => {
-            // Asynchronously load from local storage.
-            // Breaks up loading all the stars in a sector to not all happen at once.
-            resolve(JSON.parse(fromLocalStorage))
-          }, 0)
+        this.cache[path] = desynchronize(() => {
+          // Asynchronously load from local storage.
+          // Breaks up loading to not all happen at once.
+          return JSON.parse(fromLocalStorage)
         })
       } else {
 

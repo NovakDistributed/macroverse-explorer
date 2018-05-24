@@ -14,6 +14,7 @@ const mv = require('macroverse')
 // Load all the other parts of the code
 const Context = require('./Context.js')
 const eth = require('./eth.js')
+const {desynchronize} = require('./robust.js')
 
 // See http://www.isthe.com/chongo/tech/astro/HR-temp-mass-table-byhrclass.html for a nice table, also accounting for object class (IV/III/etc.) and 0-9 subtype.
 let typeToColor = {
@@ -235,36 +236,39 @@ async function showSector(ctx, x, y, z) {
 
   for (let i = 0; i < starCount; i++) {
     // For each star in the origin sector
-    let starPromise = ctx.stars.getObject(x, y, z, i).then((star) => {
-      // For each star object, when we get it
+    let starPromise = desynchronize(() => {
+      // Kick off loading all the stars asynchronously, so we don;t try and make too many sprites in one tick.
+      return ctx.stars.getObject(x, y, z, i).then((star) => {
+        // For each star object, when we get it
 
-      if (ourNonce != sectorNonce) {
-        // We are stale!
-        return
-      }
+        if (ourNonce != sectorNonce) {
+          // We are stale!
+          return
+        }
 
-      // Make a sprite
-      let sprite = starToSprite(star)
+        // Make a sprite
+        let sprite = starToSprite(star)
 
-      sprite.addEventListener('loaded', () => {
-        // When it loads, move it to the right spot in the sector.
-        // Make sure to center the 25 LY sector on the A-Frame origin
-        sprite.setAttribute('position', {x: star.x - 12.5, y: star.y - 12.5, z: star.z - 12.5})
+        sprite.addEventListener('loaded', () => {
+          // When it loads, move it to the right spot in the sector.
+          // Make sure to center the 25 LY sector on the A-Frame origin
+          sprite.setAttribute('position', {x: star.x - 12.5, y: star.y - 12.5, z: star.z - 12.5})
+        })
+
+        sprite.addEventListener('click', async () => {
+          // When the user clicks it, show that system.
+
+          console.log('User clicked on star ' + i + ' with seed ' + star.seed)
+          // Display the star's system in the system view.
+          await showSystem(ctx, star)
+        })
+
+        if (ourNonce == sectorNonce) {
+          // We are still the sector being drawn.
+          // Display the sprite.
+          sector.appendChild(sprite)
+        }
       })
-
-      sprite.addEventListener('click', async () => {
-        // When the user clicks it, show that system.
-
-        console.log('User clicked on star ' + i + ' with seed ' + star.seed)
-        // Display the star's system in the system view.
-        await showSystem(ctx, star)
-      })
-
-      if (ourNonce == sectorNonce) {
-        // We are still the sector being drawn.
-        // Display the sprite.
-        sector.appendChild(sprite)
-      }
     })
 
     // Now we have a promise for this star's completion, so stick it in the array
