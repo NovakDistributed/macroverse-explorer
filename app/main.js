@@ -160,9 +160,9 @@ function starToSprite(star) {
     // HTML, a-entity for everything instead of the convenient primitive
     // tags, and geometry/material instead of the shorthand color and so on
     // on the primitives.
-
+    
     let starColor = arrayToColor(typeToColor[mv.spectralTypes[star.objType]])
-
+      
     // And make it the right color
     sprite.setAttribute('material', {color: starColor})
 

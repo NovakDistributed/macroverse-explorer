@@ -63,23 +63,25 @@ function rateLimit(callback) {
 
 // Allow no more than a certian number of passed callbacks to be running at a time.
 // Converts callbacks to promises that resolve with their return values when they are evantually run.
+// Processes requests LIFO so that new user requests coming in are serviced before stale attempts to
+// load things the user has given up on. 
 class InFlightLimiter {
   constructor(max_in_flight) {
     this.max_in_flight = max_in_flight
     
-    // Queue of waiting tasks
+    // Stack of waiting tasks
     this.waiting = []
 
     // Set of running tasks
     this.running = new Set()
   }
 
-  // Queue the given callback to be run when there is a free slot.
+  // Submit the given callback to be run when there is a free slot.
   // If the callback kicks off more async stuff it must return a promise so we can know when they are all done.
-  queue(callback) {
+  submit(callback) {
     // Make a new promise
     let promise = new Promise((resolve, reject) => {
-      // Save everything we need to actually finish it in the queue
+      // Save everything we need to actually finish it
       this.waiting.push({
         callback: callback,
         resolve: resolve,
@@ -87,18 +89,18 @@ class InFlightLimiter {
       })
     })
 
-    // Schedule the queue to be handled
+    // Schedule the waiting tasks to be handled
     timers.setImmediate(() => {
-      this.handle_queue()
+      this.handle_waiting()
     })
 
     return promise
   }
 
-  // Asynchronously handle the queue.
-  // Kicked off when something is enqueued and when something finishes.
+  // Asynchronously handle the waiting tasks.
+  // Kicked off when something is submitted and when something finishes.
   // Tracks how many child promises are currently running.
-  async handle_queue() {
+  async handle_waiting() {
     if (this.running.size >= this.max_in_flight) {
       // Nothing to do!
       return
@@ -109,8 +111,8 @@ class InFlightLimiter {
       return
     }
     
-    // Find a job to do and mark it running
-    let to_run = this.waiting.shift()
+    // Find a job to do (most recently added) and mark it running
+    let to_run = this.waiting.pop()
     this.running.add(to_run)
 
     let callback_return = undefined;
@@ -118,7 +120,7 @@ class InFlightLimiter {
       // Call the callback, and wait for it to run and for any promise it returned to resolve or reject
       callback_return = await to_run.callback()
     } catch(e) {
-      // The error makes the promise for the queued result reject.
+      // The error makes the promise for the result reject.
       to_run.reject(e)
     } finally {
       // Whether it succeeded or not, it is done now so something else can have its place
@@ -126,7 +128,7 @@ class InFlightLimiter {
 
       // Next tick, check for more work to do
       timers.setImmediate(() => {
-        this.handle_queue()
+        this.handle_waiting()
       })
     }
 
