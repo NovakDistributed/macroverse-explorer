@@ -89,9 +89,6 @@ async function showSystem(ctx, star) {
   sun.addEventListener('loaded', () => {
     // Drop the sun in the center of the root entity
     sun.setAttribute('position', {x: 0, y: 0, z: 0})
-    // Scale it up
-    // TODO: Scaling does not work on the particle system!
-    sun.setAttribute('scale', {x: 2, y: 2, z: 2})
   })
 
   root.appendChild(sun);
@@ -100,10 +97,11 @@ async function showSystem(ctx, star) {
 
   for (let i = 0; i < planets.length; i++) {
     let planetSprite = planetToSprite(planets[i])
+    let orbitSprite = orbitToSprite(planets[i].orbit)
 
     // Compute orbit facts
-    let periapsis = planets[i].orbit.periapsis
-    let apoapsis = planets[i].orbit.apoapsis
+    let periapsis = planets[i].orbit.periapsis / mv.AU
+    let apoapsis = planets[i].orbit.apoapsis / mv.AU
     console.log(periapsis)
     
     planetSprite.addEventListener('loaded', () => {
@@ -112,6 +110,7 @@ async function showSystem(ctx, star) {
     })
     
     root.appendChild(planetSprite)
+    root.appendChild(orbitSprite)
   }
 
   if (ourNonce == systemNonce) {
@@ -145,13 +144,35 @@ function planetToSprite(planet) {
     sprite.setAttribute('material', {color: planetColor})
 
     // Work out the size for it
-    let size = Math.pow(planet.planetMass, 1/4)
+    let size = Math.pow(planet.planetMass, 1/4) / 2
 
     // Make the planet sphere
     sprite.setAttribute('geometry', {
       primitive: 'sphere',
       radius: size
     })
+  })
+
+  return sprite
+}
+
+// Given an orbit Javascript object, turn it into a sprite (probably a wireframe)
+function orbitToSprite(orbit) {
+  let sprite = document.createElement('a-entity')
+  
+  sprite.addEventListener('loaded', () => {
+    // Try to draw a pair of circles with a torus...
+    // TODO: get an elipse plugin for A-Frame
+    sprite.setAttribute('geometry', {
+      primitive: 'torus',
+      radius: orbit.apoapsis / mv.AU,
+      radiusTubular: (orbit.apoapsis - orbit.periapsis) / mv.AU / 2,
+      segmentsTubular: 32,
+      segmentsRadial: 6
+    })
+    sprite.setAttribute('material', {color: 'white', wireframe: true})
+    sprite.setAttribute('rotation', {x: 90, y: 0, z: 0})
+    sprite.setAttribute('scale', {x: 1, y: 1, z: 0.0001})
   })
 
   return sprite
