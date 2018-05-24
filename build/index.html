@@ -9,6 +9,13 @@
       <a-entity position="0 0 50" camera="active: true; near: 0.0005;" fov="60" orbit-controls="target: #sector; minDistance: 3; maxDistance: 100; enablePan: false;"></a-entity>
       <!-- Outline the sector -->
       <a-box id="sector" position="0 0 0" width="25" depth="25" height="25" color="#00FF00" wireframe="true"></a-box>
+      <!-- Add sector pan controls -->
+      <a-cone id="x-plus" color="red" position="15 0 0" radius-bottom="1" radius-top="0" height="2" rotation="0 0 -90"></a-cone>
+      <a-cone id="x-minus" color="red" position="-15 0 0" radius-bottom="1" radius-top="0" height="2" rotation="0 0 90"></a-cone>
+      <a-cone id="y-plus" color="green" position="0 15 0" radius-bottom="1" radius-top="0" height="2" rotation="0 0 0"></a-cone>
+      <a-cone id="y-minus" color="green" position="0 -15 0" radius-bottom="1" radius-top="0" height="2" rotation="180 0 0"></a-cone>
+      <a-cone id="z-plus" color="blue" position="0 0 15" radius-bottom="1" radius-top="0" height="2" rotation="90 0 0"></a-cone>
+      <a-cone id="z-minus" color="blue" position="0 0 -15" radius-bottom="1" radius-top="0" height="2" rotation="-90 0 0"></a-cone>
       <!-- Add a system view -->
       <a-entity id="system" position="0 25 0"></a-entity>
     </a-scene>
