@@ -5,26 +5,32 @@
   <body>
     <a-scene id="scene" cursor="rayOrigin:mouse">
       <!-- a-sky is broken for now, so use a manual sky. See https://github.com/aframevr/aframe/issues/3428 -->        
-      <a-entity material="color: #101010; side: back; shader: flat" geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"></a-entity>
+      <a-entity material="color: black; side: back; shader: flat" geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"></a-entity>
       <a-entity position="-10 20 50" camera="active: true; near: 0.0005;" fov="60" orbit-controls="target: #sector; minDistance: 3; maxDistance: 100; enablePan: false;"></a-entity>
       <!-- Outline the sector -->
       <a-box id="sector" position="0 0 0" width="25" depth="25" height="25" color="#00FF00" wireframe="true"></a-box>
       <!-- Add sector pan controls -->
-      <a-cone id="x-plus" color="red" position="15 0 0" radius-bottom="1" radius-top="0" height="2" rotation="0 0 -90"></a-cone>
-      <a-cone id="x-minus" color="red" position="-15 0 0" radius-bottom="1" radius-top="0" height="2" rotation="0 0 90"></a-cone>
-      <a-cone id="y-plus" color="green" position="0 15 0" radius-bottom="1" radius-top="0" height="2" rotation="0 0 0"></a-cone>
-      <a-cone id="y-minus" color="green" position="0 -15 0" radius-bottom="1" radius-top="0" height="2" rotation="180 0 0"></a-cone>
-      <a-cone id="z-plus" color="blue" position="0 0 15" radius-bottom="1" radius-top="0" height="2" rotation="90 0 0"></a-cone>
-      <a-cone id="z-minus" color="blue" position="0 0 -15" radius-bottom="1" radius-top="0" height="2" rotation="-90 0 0"></a-cone>
+      <a-cone id="x-plus" color="red" position="20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 -90"></a-cone>
+      <a-cone id="x-minus" color="red" position="-20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 90"></a-cone>
+      <a-cone id="y-plus" color="green" position="0 20 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 0"></a-cone>
+      <a-cone id="y-minus" color="green" position="0 -20 0" radius-bottom="2" radius-top="0" height="4" rotation="180 0 0"></a-cone>
+      <a-cone id="z-plus" color="blue" position="0 0 20" radius-bottom="2" radius-top="0" height="4" rotation="90 0 0"></a-cone>
+      <a-cone id="z-minus" color="blue" position="0 0 -20" radius-bottom="2" radius-top="0" height="4" rotation="-90 0 0"></a-cone>
       <!-- Add a loading throbber for the sector view -->
-      <a-entity id="sector-loading" scale="1 1 1">
+      <a-entity id="sector-loading">
         <a-cylinder color="green" wireframe="true" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
         <a-sphere color="green" wireframe="true" radius="1.000" position="0 0 0"></a-sphere>
         <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>
       </a-entity>
 
       <!-- Add a system view -->
-      <a-entity id="system" position="0 25 0"></a-entity>
+      <a-entity id="system" position="0 30 0"></a-entity>
+      <!-- And a loading throbber for it too -->
+      <a-entity id="system-loading" position="0 30 0" visible="false">
+        <a-cylinder color="green" wireframe="true" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
+        <a-sphere color="green" wireframe="true" radius="1.000" position="0 0 0"></a-sphere>
+        <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>
+      </a-entity>
     </a-scene>
   </body>
 </html>
