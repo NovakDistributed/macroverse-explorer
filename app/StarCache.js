@@ -31,7 +31,13 @@ class StarCache {
 
       if (fromLocalStorage != undefined) {
         // We had it in local storage, so use that.
-        this.cache[path] = JSON.parse(fromLocalStorage)
+        this.cache[path] = new Promise((resolve, reject) => {
+          setTimeout(() => {
+            // Asynchronously load from local storage.
+            // Breaks up loading all the stars in a sector to not all happen at once.
+            resolve(JSON.parse(fromLocalStorage))
+          }, 0)
+        })
       } else {
 
         // We don't have it, and nobody is getting it, so submit a job to go get it, and come back when it is got.
@@ -74,27 +80,27 @@ class StarCache {
           // If we get here without returning we ran out of tries
           throw new Error('Unable to load ' + path + ' from Ethereum blockchain. Check your RPC node!')
         })
+      }
 
-        // Get the actual promise result
-        let result = undefined;
-        try {
-          result = await this.cache[path]
-        } finally {
-          // If the promise rejected, the above will throw.
-          // Clear out the promise so we can try again
-          delete this.cache[path]
-        }
-
-        // We got a result. Save it so we don't try to await the same promise a lot.
-        this.cache[path] = result
-
+      // Get the actual promise result
+      let result = undefined;
+      try {
+        result = await this.cache[path]
+      } finally {
+        // If the promise rejected, the above will throw.
+        // Clear out the promise so we can try again
+        delete this.cache[path]
+      }
+      // We got a result. Save it so we don't try to await the same promise a lot.
+      this.cache[path] = result
+      
+      if (fromLocalStorage == undefined) {
         try {
           // Commit to local storage (if not full)
           window.localStorage.setItem(path, JSON.stringify(this.cache[path]))
         } catch (e) {
           console.log('Skipping cacheing to local storage due to ' , e)
         }
-
       }
     }
     

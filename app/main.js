@@ -214,8 +214,14 @@ async function showSector(ctx, x, y, z) {
   sectorNonce++
   let ourNonce = sectorNonce
 
+  console.log('Show sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
+
   // Find where we want to put things
   let sector = document.getElementById('sector')
+
+  // Find the loading throbber
+  let loader = document.getElementById('sector-loading')
+  loader.setAttribute('visible', true)
 
   // Clear out the sector
   while (sector.hasChildNodes()) {
@@ -270,6 +276,8 @@ async function showSector(ctx, x, y, z) {
   await Promise.all(starPromises)
   if (ourNonce == sectorNonce) {
     console.log('All stars loaded for sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
+    // Hide the loader
+    loader.setAttribute('visible', false)
   } else {
     console.log('Stale sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce + ' is done')
   }
