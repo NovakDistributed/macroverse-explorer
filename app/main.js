@@ -205,33 +205,8 @@ function starToSprite(star) {
       radius: size
     })
 
-    if (mv.objectClasses[star.objClass] != 'BlackHole') {
-      // We want it to glow
+    // TODO: A particle glow that doesn't look completely different across platforms
 
-      // Add a particle system.
-      // Note that we can't set spreads and things to 0 because then the preset's default will come through.
-      // TODO: The particles scale weirdly! See <https://github.com/IdeaSpaceVR/aframe-particle-system-component/issues/36>
-      // TODO: The particles also just draw over each other in order of system creation instead of in even system center Z order.
-      // TODO: The default textures are somehow magic and can be transparent. Applying a custom texture can't seem to do that even with a transparent png.
-      // TODO: The particle effect is weirdly pulsating due to uneven emission times.
-      // This is because we always try to make 200 particles to start and we can only make up to the max count.
-      sprite.setAttribute('particle-system', {
-        preset: 'snow',
-        color: [starColor, '#000000'],
-        size: size * 8,
-        type: 2, // Be a sphere
-        positionSpread: {x: size/2, y: size/2, z: size/2},
-        velocityValue: {x: 1E-10, y: 1E-10, z: 1E-10},
-        velocitySpread: {x: size/2, y: size/2, z: size/2},
-        accelerationValue: {x: 1E-10, y: 1E-10, z: 1E-10},
-        accelerationSpread: {x: 1E-10, y: 1E-10, z: 1E-10},
-        maxAge: 2,
-        blending: 2, // Do additive blending
-        texture: 'img/nova_1.png',
-        maxParticleCount: 50,
-        randomize: true
-      })
-    }
   })
 
   return sprite

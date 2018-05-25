@@ -3,14 +3,14 @@
     <script src="bundle.js"></script>
   </head>
   <body>
-    <a-scene id="scene" cursor="rayOrigin:mouse">
+    <a-scene id="scene" cursor="rayOrigin:mouse;" raycaster="objects::not(.cursor-ignore);">
       <!-- a-sky is broken for now, so use a manual sky. See https://github.com/aframevr/aframe/issues/3428 -->        
       <a-entity material="color: black; side: back; shader: flat" geometry="primitive: sphere; radius: 5000; segmentsWidth: 64; segmentsHeight: 32"></a-entity>
       <a-entity position="-10 20 50" camera="active: true; near: 0.0005;" fov="60" orbit-controls="target: #sector; minDistance: 3; maxDistance: 100; enablePan: false;"></a-entity>
       <!-- Outline the sector -->
-      <a-box id="sector" position="0 0 0" width="25" depth="25" height="25" color="#00FF00" wireframe="true"></a-box>
+      <a-box id="sector" position="0 0 0" width="25" depth="25" height="25" color="#00FF00" wireframe="true" class="cursor-ignore"></a-box>
       <!-- Add sector pan controls -->
-      <a-cone id="x-plus" color="red" position="20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 -90"></a-cone>
+      <a-cone id="x-plus" color="red" position="20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 -90" class="cursor-ignore"></a-cone>
       <a-cone id="x-minus" color="red" position="-20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 90"></a-cone>
       <a-cone id="y-plus" color="green" position="0 20 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 0"></a-cone>
       <a-cone id="y-minus" color="green" position="0 -20 0" radius-bottom="2" radius-top="0" height="4" rotation="180 0 0"></a-cone>
