@@ -98,18 +98,25 @@ async function showSystem(ctx, star) {
   for (let i = 0; i < planets.length; i++) {
     let planetSprite = planetToSprite(planets[i])
     let orbitSprite = orbitToSprite(planets[i].orbit)
-
+    
     // Compute orbit facts
     let periapsis = planets[i].orbit.periapsis / mv.AU
     let apoapsis = planets[i].orbit.apoapsis / mv.AU
-    console.log(periapsis)
     
     planetSprite.addEventListener('loaded', () => {
       // Line the planets up in x
       planetSprite.setAttribute('position', {x: (periapsis + apoapsis) / 2, y: 0, z: 0})
     })
     
-    root.appendChild(planetSprite)
+    // Put the planet on an arm that can make it spin around.
+    let rotatingSprite = document.createElement('a-entity')
+    rotatingSprite.addEventListener('loaded', () => {
+        rotatingSprite.setAttribute('rotation', {x: 0, y: mv.degrees(planets[i].orbit.meanAnomalyAtEpoch), z: 0})
+    })
+    
+    
+    root.appendChild(rotatingSprite)
+    rotatingSprite.appendChild(planetSprite)
     root.appendChild(orbitSprite)
   }
 
@@ -165,12 +172,12 @@ function orbitToSprite(orbit) {
     // TODO: get an elipse plugin for A-Frame
     sprite.setAttribute('geometry', {
       primitive: 'torus',
-      radius: orbit.apoapsis / mv.AU,
-      radiusTubular: (orbit.apoapsis - orbit.periapsis) / mv.AU / 2,
+      radius: (orbit.apoapsis + orbit.periapsis) / 2 / mv.AU,
+      radiusTubular: ((orbit.apoapsis - orbit.periapsis) / mv.AU) / 2,
       segmentsTubular: 32,
       segmentsRadial: 6
     })
-    sprite.setAttribute('material', {color: 'white', wireframe: true})
+    sprite.setAttribute('material', {color: 'white', wireframe: true, wireframeLinewidth: 1})
     sprite.setAttribute('rotation', {x: 90, y: 0, z: 0})
     sprite.setAttribute('scale', {x: 1, y: 1, z: 0.0001})
   })
