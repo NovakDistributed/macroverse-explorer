@@ -163,26 +163,75 @@ function planetToSprite(planet) {
   return sprite
 }
 
-// Given an orbit Javascript object, turn it into a sprite (probably a wireframe)
-function orbitToSprite(orbit) {
-  let sprite = document.createElement('a-entity')
-  
-  sprite.addEventListener('loaded', () => {
-    // Try to draw a pair of circles with a torus...
-    // TODO: get an elipse plugin for A-Frame
-    sprite.setAttribute('geometry', {
-      primitive: 'torus',
-      radius: (orbit.apoapsis + orbit.periapsis) / 2 / mv.AU,
-      radiusTubular: ((orbit.apoapsis - orbit.periapsis) / mv.AU) / 2,
-      segmentsTubular: 32,
-      segmentsRadial: 6
-    })
-    sprite.setAttribute('material', {color: 'white', wireframe: true, wireframeLinewidth: 1})
-    sprite.setAttribute('rotation', {x: 90, y: 0, z: 0})
-    sprite.setAttribute('scale', {x: 1, y: 1, z: 0.0001})
+// Mount the given node on a parent, translated by the given translation, and then rotate the parent by the given rotation.
+// Returns the parent. Rotations are in degrees, to match A-Frame.
+// Order of rotations is undefined if multiple axes are used at once.
+function mountTranslateRotate(childNode, xTrans, yTrans, zTrans, xRot, yRot, zRot) {
+  childNode.addEventListener('loaded', () => {
+    // Translate the child
+    childNode.setAttribute('translation', {x: xTrans, y: yTrans, z: zTrans})
   })
 
-  return sprite
+  // Make the parent
+  let parentNode = document.createElement('a-entity')
+  parentNode.addEventListener('loaded', () => {
+    // And rotate it
+    parentNode.setAttribute('rotation', {x: xRot, y: yRot, z: zRot})
+  })
+
+  parentNode.appendChild(childNode)
+
+  return parentNode
+
+}
+
+// Given an orbit Javascript object, turn it into a sprite (probably a wireframe)
+function orbitToSprite(orbit) {
+
+  // Compute sizes in A-Frame units (AU for system display)
+  let apoapsis = orbit.apoapsis / mv.AU
+  let periapsis = orbit.periapsis / mv.AU
+
+  // Semimajor is arithmetic mean
+  let semimajor = (apoapsis + periapsis) / 2
+  // Semiminor is geometric mean
+  let semiminor = Math.sqrt(apoapsis * periapsis)
+
+  // Make an elipse of the right shape radius in the XZ plane
+  let circleNode = document.createElement('a-entity')
+  circleNode.addEventListener('loaded', () => {
+    // Make it a circle (actually a ring, since "circles" have center vertices.)
+    circleNode.setAttribute('geometry', {
+      primitive: 'ring',
+      radiusInner: semiminor,
+      radiusOuter: semiminor - 0.001
+    })
+    // Give it a color and stuff
+    circleNode.setAttribute('material', {color: 'white', wireframe: true, wireframeLinewidth: 1})
+
+    // Stretch it out in X to be the semimajor radius
+    circleNode.setAttribute('scale', {x: semimajor/semiminor, y: 1, z: 1})
+
+    // Then rotate it from the XY plane to the XZ plane
+    circleNode.setAttribute('rotation', {x: -90, y: 0, z: 0})
+  })
+
+  // Work out how far we have to budge from the center of the elipse to the apoapsis/periapsis junction (focus)
+  // This is the amount of distance the apoapsis steals over what it would have if it were the semimajor axis
+  let budge = semimajor - apoapsis
+
+  // Mount the elipse on another scene node so the little lobe (periapsis) is +X
+  // (toward the right) from the origin (where the parent body goes) and rotate
+  // that around Y by the AoP. We have to move towards -X.
+  let mounted1 = mountTranslateRotate(circleNode, -budge, 0, 0, 0, mv.degrees(orbit.aop), 0) 
+
+  // Then mount that and rotate it in Z by the inclination
+  let mounted2 = mountTranslateRotate(mounted1, 0, 0, 0, 0, 0, mv.degrees(orbit.inclination))
+
+  // Then mount that and rotate it in Y by the LAN
+  let mounted3 = mountTranslateRotate(mounted2, 0, 0, 0, 0, mv.degrees(orbit.lan))
+
+  return mounted3
 }
 
 // Given a star object from the cache, return a DOM node for a sprite to represent the star
