@@ -11,6 +11,9 @@ const particles = require('aframe-particle-system-component')
 // We want macroverse itself
 const mv = require('macroverse')
 
+// We want someone else's implementation of orbital mechanics
+const orb = require('orbjs')
+
 // Load all the other parts of the code
 const Context = require('./Context.js')
 const eth = require('./eth.js')
@@ -103,9 +106,25 @@ async function showSystem(ctx, star) {
     let periapsis = planets[i].orbit.periapsis / mv.AU
     let apoapsis = planets[i].orbit.apoapsis / mv.AU
     
+    let update = () => {
+      // Work out where the planet belongs at this time
+      let planetPos = computeOrbitPositionInAU(planets[i].orbit, star.objMass, getRenderTime())
+      // Put it there
+      planetSprite.setAttribute('position', planetPos)
+    }
+
     planetSprite.addEventListener('loaded', () => {
-      // Line the planets up in x
-      planetSprite.setAttribute('position', {x: (periapsis + apoapsis) / 2, y: 0, z: 0})
+      update()
+      let interval = setInterval(() => {
+        if (planetSprite.parentNode != null) {
+          // We are still visible
+
+          update()
+        } else {
+          // Stop updating
+          clearInterval(interval)
+        }
+      }, 20)
     })
     
     // Put the planet on an arm that can make it spin around.
@@ -232,6 +251,42 @@ function orbitToSprite(orbit) {
   let mounted3 = mountTranslateRotate(mounted2, 0, 0, 0, 0, mv.degrees(orbit.lan))
 
   return mounted3
+}
+
+// Compute where a planet ought to be in Cartesian coordinates, at a given time.
+// Takes mass in sols and time in seconds. Returns an {x:, y:, z: } object
+// Used to animate the planet motion.
+function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
+
+  // Correct the mass for use with orbjs
+
+  // Macroverse uses G=132712875029098577920 m^3 s^-2 sols^-1
+  // orbjs uses orb.constants.common.G = 6.67384e-11 m^3 kg^-1 s^-2
+  // For these two numbers to be equal, how big is a solar mass in kg?
+  // TODO: Move the Macroverse G constant into the Macroverse module!
+  let sol = 132712875029098577920 / orb.constants.common.G
+
+  // Compute semimajor axis (still in meters)
+  let semimajor = (orbit.apoapsis + orbit.periapsis) / 2
+  // And eccentricity
+  let eccentricity = (orbit.apoapsis - orbit.periapsis) / (orbit.apoapsis + orbit.periapsis)
+
+  // Compute position and velocity
+  let [x, xDot] = orb.position.keplerian(semimajor, eccentricity, orbit.inclination, orbit.lan, orbit.aop,
+    secondsSinceEpoch, 0, orbit.meanAnomalyAtEpoch, centralMassSols * sol)
+
+  // Swap axes around to Minecraft-style Y-up
+  // Also convert from meters to AU
+  return {x: x[0] / mv.AU, y: x[2] / mv.AU, z: x[1] / mv.AU}
+
+}
+
+// Return the time to draw right now, in seconds since epoch
+function getRenderTime() {
+  let unixTime = (new Date()).getTime() / 1000
+  let macroverseTime = unixTime - mv.EPOCH
+  // Add a super speed scaling factor
+  return macroverseTime * 100000000
 }
 
 // Given a star object from the cache, return a DOM node for a sprite to represent the star
