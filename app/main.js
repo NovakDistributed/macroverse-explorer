@@ -16,23 +16,29 @@ const Context = require('./Context.js')
 const eth = require('./eth.js')
 const {desynchronize} = require('./robust.js')
 const sprites = require('./sprites.js')
+const Infobox = require('./Infobox.js')
 
-// Make a promise that waits for the given number of ms and then resolves
+/// Make a promise that waits for the given number of ms and then resolves
 function sleep(time) {
   return new Promise((resolve, reject) => {
     setTimeout(resolve, time)
   })
 }
 
+// Nonce for remembering which system was most recenty requested
 let systemNonce = 0
 
-// Show the planetary system of the given star object, using the given Macroverse context
-async function showSystem(ctx, star) {
+/// Show the planetary system of the given star object, using the given Macroverse context.
+/// Uses the given infobox for 2D UI.
+async function showSystem(ctx, infobox, star) {
   // Figure out our place so we don't clobber later requests that finish earlier
   systemNonce++
   let ourNonce = systemNonce
 
-   // Find the system display holding node
+  // Show the infobox
+  infobox.showStar(star)
+
+  // Find the system display holding node
   let system = document.getElementById('system')
   while (system.firstChild) {
     // Clear out its existing children
@@ -85,9 +91,12 @@ async function showSystem(ctx, star) {
 
 }
 
+// Nonce for remembering which sector was most recently requested
 let sectorNonce = 0
 
-async function showSector(ctx, x, y, z) {
+/// Display the sector with the given coordinates.
+/// Uses the given context for talking to Macroverse, and the given infobox for 2D UI.
+async function showSector(ctx, infobox, x, y, z) {
   // Figure out our place so we don't clobber later requests that finish earlier
   sectorNonce++
   let ourNonce = sectorNonce
@@ -130,7 +139,7 @@ async function showSector(ctx, x, y, z) {
           // When the user clicks it, show that system.
           console.log('User clicked on star ' + i + ' with seed ' + star.seed)
           // Display the star's system in the system view.
-          await showSystem(ctx, star)
+          await showSystem(ctx, infobox, star)
         })
 
         if (ourNonce == sectorNonce) {
@@ -162,8 +171,8 @@ let curX = 0
 let curY = 0
 let curZ = 0
 
-// Return a function that will pan the currenc cursor by the specified amount and kick of the display of the new sector.
-// Basically an event handler factory.
+/// Return a function that will pan the currenc cursor by the specified amount and kick of the display of the new sector.
+/// Basically an event handler factory.
 function make_pan_handler(ctx, deltaX, deltaY, deltaZ) {
   return function() {
     curX += deltaX
@@ -173,16 +182,43 @@ function make_pan_handler(ctx, deltaX, deltaY, deltaZ) {
   }
 }
 
+/// Return a promise that fulfills when the page finishes downloading.
+/// Only works if called *before* DOM content has loaded.
+function waitForDom() {
+  return new Promise((resolve, reject) => {
+    try {
+      // Wait for the DOMContentLoaded event
+      document.addEventListener('DOMContentLoaded', (ev) => {
+        // And when it happens resolve
+        resolve()
+      })
+    } catch (e) {
+      // Problems!
+      reject(e)
+    }
+  })
+}
+
+/// Main entry point
 async function main() {
 
-  console.log('Macroverse Explorer starting on Ethereum network ' + eth.get_network_id())
+  console.log('Macroverse Explorer initializing...')
+  // We need to run this script *before* the dom sets up so the A-Frame elements can be handled properly.
+  // But we want to wait for the DOM to actually exist before we start tinkering about with the page itself.
+  await waitForDom()
+
+  console.log('Starting on Ethereum network ' + eth.get_network_id())
   console.log('Using account ' + eth.get_account())
+
+  // Make an infobox object
+  let infoboxElement = document.getElementById('infobox')
+  let infobox = new Infobox(infoboxElement)
 
   // Get ahold of a global Macroverse context.
   let ctx = await Context('contracts/')
 
   // Show the initial sector
-  showSector(ctx, curX, curY, curZ)
+  showSector(ctx, infobox, curX, curY, curZ)
 
   // Hook up pan handlers
   document.getElementById('x-plus').addEventListener('click', make_pan_handler(ctx, 1, 0, 0))
@@ -192,8 +228,6 @@ async function main() {
   document.getElementById('z-plus').addEventListener('click', make_pan_handler(ctx, 0, 0, 1))
   document.getElementById('z-minus').addEventListener('click', make_pan_handler(ctx, 0, 0, -1))
   
-  
-
 }
 
 // Actually run the entry point
