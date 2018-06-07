@@ -127,15 +127,7 @@ async function showSystem(ctx, star) {
       }, 20)
     })
     
-    // Put the planet on an arm that can make it spin around.
-    let rotatingSprite = document.createElement('a-entity')
-    rotatingSprite.addEventListener('loaded', () => {
-        rotatingSprite.setAttribute('rotation', {x: 0, y: mv.degrees(planets[i].orbit.meanAnomalyAtEpoch), z: 0})
-    })
-    
-    
-    root.appendChild(rotatingSprite)
-    rotatingSprite.appendChild(planetSprite)
+    root.appendChild(planetSprite)
     root.appendChild(orbitSprite)
   }
 
@@ -187,8 +179,8 @@ function planetToSprite(planet) {
 // Order of rotations is undefined if multiple axes are used at once.
 function mountTranslateRotate(childNode, xTrans, yTrans, zTrans, xRot, yRot, zRot) {
   childNode.addEventListener('loaded', () => {
-    // Translate the child
-    childNode.setAttribute('translation', {x: xTrans, y: yTrans, z: zTrans})
+    // Position the child
+    childNode.setAttribute('position', {x: xTrans, y: yTrans, z: zTrans})
   })
 
   // Make the parent
@@ -237,15 +229,16 @@ function orbitToSprite(orbit) {
 
   // Work out how far we have to budge from the center of the elipse to the apoapsis/periapsis junction (focus)
   // This is the amount of distance the apoapsis steals over what it would have if it were the semimajor axis
-  let budge = semimajor - apoapsis
+  let budge = apoapsis - semimajor
+  console.log(budge)
 
   // Mount the elipse on another scene node so the little lobe (periapsis) is +X
   // (toward the right) from the origin (where the parent body goes) and rotate
   // that around Y by the AoP. We have to move towards -X.
   let mounted1 = mountTranslateRotate(circleNode, -budge, 0, 0, 0, mv.degrees(orbit.aop), 0) 
 
-  // Then mount that and rotate it in Z by the inclination
-  let mounted2 = mountTranslateRotate(mounted1, 0, 0, 0, 0, 0, mv.degrees(orbit.inclination))
+  // Then mount that and rotate it in X by the inclination
+  let mounted2 = mountTranslateRotate(mounted1, 0, 0, 0, mv.degrees(orbit.inclination), 0, 0)
 
   // Then mount that and rotate it in Y by the LAN
   let mounted3 = mountTranslateRotate(mounted2, 0, 0, 0, 0, mv.degrees(orbit.lan))
@@ -272,12 +265,12 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
   let eccentricity = (orbit.apoapsis - orbit.periapsis) / (orbit.apoapsis + orbit.periapsis)
 
   // Compute position and velocity
-  let [x, xDot] = orb.position.keplerian(semimajor, eccentricity, orbit.inclination, orbit.lan, orbit.aop,
+  let [pos, vel] = orb.position.keplerian(semimajor, eccentricity, orbit.inclination, orbit.lan, orbit.aop,
     secondsSinceEpoch, 0, orbit.meanAnomalyAtEpoch, centralMassSols * sol)
 
-  // Swap axes around to Minecraft-style Y-up
+  // Swap axes around to Minecraft-style Y-up (swap Y and Z, and negate Z)
   // Also convert from meters to AU
-  return {x: x[0] / mv.AU, y: x[2] / mv.AU, z: x[1] / mv.AU}
+  return {x: pos[0] / mv.AU, y: pos[2] / mv.AU, z: -pos[1] / mv.AU}
 
 }
 
