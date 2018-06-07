@@ -230,7 +230,6 @@ function orbitToSprite(orbit) {
   // Work out how far we have to budge from the center of the elipse to the apoapsis/periapsis junction (focus)
   // This is the amount of distance the apoapsis steals over what it would have if it were the semimajor axis
   let budge = apoapsis - semimajor
-  console.log(budge)
 
   // Mount the elipse on another scene node so the little lobe (periapsis) is +X
   // (toward the right) from the origin (where the parent body goes) and rotate
