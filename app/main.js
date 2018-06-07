@@ -79,6 +79,14 @@ async function showSystem(ctx, infobox, star) {
     
     root.appendChild(planetSprite)
     root.appendChild(orbitSprite)
+
+    let clickHandler = () => {
+      // When clicked, show planet infobox
+      infobox.showPlanet(planets[i], star)
+    }
+
+    planetSprite.addEventListener('click', clickHandler)
+    orbitSprite.addEventListener('click', clickHandler)
   }
 
   if (ourNonce == systemNonce) {
@@ -116,6 +124,14 @@ async function showSector(ctx, infobox, x, y, z) {
   }
 
   let starCount = await ctx.stars.getObjectCount(x, y, z)
+
+  if (ourNonce == sectorNonce) {
+    // Still want this sector.
+    // TODO: Work out how to not clobber stars/planets
+    
+    // Show the infobox
+    infobox.showSector(x, y, z, starCount)
+  }
 
   // We fill this with promises for making all the stars, which are running in parallel.
   let starPromises = []
