@@ -194,12 +194,12 @@ let curZ = 0
 
 /// Return a function that will pan the currenc cursor by the specified amount and kick of the display of the new sector.
 /// Basically an event handler factory.
-function make_pan_handler(ctx, deltaX, deltaY, deltaZ) {
+function make_pan_handler(ctx, infobox, deltaX, deltaY, deltaZ) {
   return function() {
     curX += deltaX
     curY += deltaY
     curZ += deltaZ
-    showSector(ctx, curX, curY, curZ)
+    showSector(ctx, infobox, curX, curY, curZ)
   }
 }
 
@@ -242,12 +242,12 @@ async function main() {
   showSector(ctx, infobox, curX, curY, curZ)
 
   // Hook up pan handlers
-  document.getElementById('x-plus').addEventListener('click', make_pan_handler(ctx, 1, 0, 0))
-  document.getElementById('x-minus').addEventListener('click', make_pan_handler(ctx, -1, 0, 0))
-  document.getElementById('y-plus').addEventListener('click', make_pan_handler(ctx, 0, 1, 0))
-  document.getElementById('y-minus').addEventListener('click', make_pan_handler(ctx, 0, -1, 0))
-  document.getElementById('z-plus').addEventListener('click', make_pan_handler(ctx, 0, 0, 1))
-  document.getElementById('z-minus').addEventListener('click', make_pan_handler(ctx, 0, 0, -1))
+  document.getElementById('x-plus').addEventListener('click', make_pan_handler(ctx, infobox, 1, 0, 0))
+  document.getElementById('x-minus').addEventListener('click', make_pan_handler(ctx, infobox, -1, 0, 0))
+  document.getElementById('y-plus').addEventListener('click', make_pan_handler(ctx, infobox, 0, 1, 0))
+  document.getElementById('y-minus').addEventListener('click', make_pan_handler(ctx, infobox, 0, -1, 0))
+  document.getElementById('z-plus').addEventListener('click', make_pan_handler(ctx, infobox, 0, 0, 1))
+  document.getElementById('z-minus').addEventListener('click', make_pan_handler(ctx, infobox, 0, 0, -1))
   
 }
 
