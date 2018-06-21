@@ -69,6 +69,11 @@ async function showSystem(ctx, infobox, star) {
   let sun = sprites.starToSprite(star, false)
   root.appendChild(sun);
 
+  sun.addEventListener('click', () => {
+    // Show the infobox for the star when the star is clicked again.
+    infobox.showStar(star)
+  })
+
   // TODO: desynchronize() all this system construction to not be slow.
 
   for (let i = 0; i < planets.length; i++) {

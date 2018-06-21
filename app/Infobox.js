@@ -55,6 +55,10 @@ class Infobox {
             <td>${star.objMass.toFixed(2)} M<sub>☉</sub></td>
           </tr>
           <tr>
+            <td>Luminosity</td>
+            <td>${star.luminosity.toFixed(2)} L<sub>☉</sub></td>
+          </tr>
+          <tr>
             <td>Planets?</td>
             <td class="${star.hasPlanets ? "yes" : "no"}">${star.hasPlanets ? "Yes" : "No"}</td>
           </tr>
@@ -81,7 +85,7 @@ class Infobox {
             <td colspan="2">${planet.planetMass.toFixed(2)} M<sub>⊕</sub></td>
           </tr>
           <tr>
-            <td rowspan="3">Orbit</td>
+            <td rowspan="4">Orbit</td>
             <td>Minimum</td>
             <td>${(planet.orbit.periapsis / mv.AU).toFixed(2)} AU</td>
           </tr>
@@ -90,8 +94,18 @@ class Infobox {
             <td>${(planet.orbit.apoapsis / mv.AU).toFixed(2)} AU</td>
           </tr>
           <tr>
+            <td>Period</td>
+            <td>${(planet.orbit.period / mv.SIDERIAL_YEAR).toFixed(2)} Y<sub>s</sub></td>
+          </tr>
+          <tr>
             <td>Inclination</td>
             <td>${mv.degrees(planet.orbit.inclination).toFixed(2)}&deg;</td>
+          </tr>
+          <tr>
+            <td>Climate</td>
+            <td>Normal Irradiance</td>
+            <!-- Earth is like 1.3-1.5k or something -->
+            <td>${planet.apoapsisIrradiance.toFixed(2)} - ${planet.periapsisIrradiance.toFixed(2)} W/m<sup>2</sup></td>
           </tr>
         </table>
       </div>

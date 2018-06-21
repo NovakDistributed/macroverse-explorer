@@ -64,6 +64,11 @@ class StarCache {
               obj.hasPlanets = await timeoutPromise(this.generator.getObjectHasPlanets.call(obj.seed, obj.objClass, obj.objType))
               
               obj.objMass = mv.fromReal(await timeoutPromise(this.generator.getObjectMass.call(obj.seed, obj.objClass, obj.objType)))
+
+              // Compute some secondary properties
+
+              // Lumionosity in solar luminosities
+              obj.luminosity = mv.luminosity(obj.objMass)
               
               console.log('Successfully loaded star ' + path)
               return obj

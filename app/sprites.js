@@ -39,8 +39,6 @@ function planetToSprite(planet, star) {
   let sprite = document.createElement('a-entity')
 
   sprite.addEventListener('loaded', () => {
-    // TODO: Move this stuff to the macroverse module
-    let planetClasses = ['Lunar', 'Terrestrial', 'Uranian', 'Jovian', 'AsteroidBelt']
     let planetColors = {
       'Lunar': 'white',
       'Terrestrial': 'blue',
@@ -48,7 +46,7 @@ function planetToSprite(planet, star) {
       'Jovian': 'orange',
       'AsteroidBelt': 'gray'
     }
-    let planetColor = planetColors[planetClasses[planet.planetClass]]
+    let planetColor = planetColors[mv.planetClasses[planet.planetClass]]
 
     // And make it the right color
     sprite.setAttribute('material', {color: planetColor})
@@ -121,12 +119,8 @@ function orbitToSprite(orbit) {
 
   // Compute sizes in A-Frame units (AU for system display)
   let apoapsis = orbit.apoapsis / mv.AU
-  let periapsis = orbit.periapsis / mv.AU
-
-  // Semimajor is arithmetic mean
-  let semimajor = (apoapsis + periapsis) / 2
-  // Semiminor is geometric mean
-  let semiminor = Math.sqrt(apoapsis * periapsis)
+  let semimajor = orbit.semimajor / mv.AU
+  let semiminor = orbit.semiminor / mv.AU
 
   // Make an elipse of the right shape radius in the XZ plane
   let circleNode = document.createElement('a-entity')
@@ -197,8 +191,8 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
 function getRenderTime() {
   let unixTime = (new Date()).getTime() / 1000
   let macroverseTime = unixTime - mv.EPOCH
-  // Show at 1 year per second
-  return macroverseTime * 31557600
+  // Show at 1 year per 10 seconds
+  return macroverseTime * 3155760
 }
 
 // Given a star object from the cache, return a DOM node for a sprite to represent the star.

@@ -106,7 +106,23 @@ class PlanetCache {
                 planet.orbit.aop = mv.fromReal(planet.orbit.realAop)
                 // Mean anomaly at epoch, in radians.
                 planet.orbit.meanAnomalyAtEpoch = mv.fromReal(planet.orbit.realMeanAnomalyAtEpoch)
-                
+
+                // Compute some secondary characteristics
+
+                // Semimajor and semiminor axes
+                planet.orbit.semimajor = (planet.orbit.apoapsis + planet.orbit.periapsis) / 2
+                planet.orbit.semiminor = Math.sqrt(planet.orbit.apoapsis * planet.orbit.periapsis)
+
+                // Orbital period in seconds
+                planet.orbit.period = 2 * Math.PI * Math.sqrt(Math.pow(planet.orbit.semimajor, 3) / (mv.G_PER_SOL * obj.objMass))
+
+                // Simple climate-related stuff (just math, no generation)
+                // What's the stellar energy density per square meter at the periapsis?
+                // This is also the "Direct Solar Irradiance" at periapsis
+                planet.periapsisIrradiance = obj.luminosity * mv.SOLAR_LUMINOSITY / (4 * Math.PI * Math.pow(planet.orbit.periapsis, 2))
+                // Ansd the apoapsis
+                planet.apoapsisIrradiance = obj.luminosity * mv.SOLAR_LUMINOSITY / (4 * Math.PI * Math.pow(planet.orbit.apoapsis, 2))
+
                 // Produce the generated planet in the cache
                 console.log('Successfully loaded planet ' + path)
                 return planet
