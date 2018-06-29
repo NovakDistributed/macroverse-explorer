@@ -34,7 +34,8 @@ function arrayToColor(arr) {
 
 // Given a planet object from the cache, return a DOM node for a sprite to represent the planet
 // The planet will automatically orbit on the orbit it carries, if the star is passed.
-function planetToSprite(planet, star) {
+// Scales the system by the given scale factor from a default 1 unit per AU
+function planetToSprite(planet, star, scale) {
   // Make it a sprite
   let sprite = document.createElement('a-entity')
 
@@ -71,6 +72,10 @@ function planetToSprite(planet, star) {
     let update = () => {
       // Work out where the planet belongs at this time
       let planetPos = computeOrbitPositionInAU(planet.orbit, star.objMass, getRenderTime())
+      // Convert to 3d system units
+      planetPos.x *= scale
+      planetPos.y *= scale
+      planetPos.z *= scale
       // Put it there
       sprite.setAttribute('position', planetPos)
     }
@@ -114,8 +119,9 @@ function mountTranslateRotate(childNode, xTrans, yTrans, zTrans, xRot, yRot, zRo
 
 }
 
-// Given an orbit Javascript object, turn it into a sprite (probably a wireframe)
-function orbitToSprite(orbit) {
+// Given an orbit Javascript object, turn it into a sprite (probably a wireframe).
+// Scales by the given factor from a default 1 unit per AU
+function orbitToSprite(orbit, scale) {
 
   // Compute sizes in A-Frame units (AU for system display)
   let apoapsis = orbit.apoapsis / mv.AU
@@ -128,8 +134,8 @@ function orbitToSprite(orbit) {
     // Make it a circle (actually a ring, since "circles" have center vertices.)
     circleNode.setAttribute('geometry', {
       primitive: 'ring',
-      radiusInner: semiminor,
-      radiusOuter: semiminor - 0.001
+      radiusInner: semiminor * scale,
+      radiusOuter: semiminor * scale - 0.001
     })
     // Give it a color and stuff
     circleNode.setAttribute('material', {color: 'white', wireframe: true, wireframeLinewidth: 1})
@@ -143,7 +149,7 @@ function orbitToSprite(orbit) {
 
   // Work out how far we have to budge from the center of the elipse to the apoapsis/periapsis junction (focus)
   // This is the amount of distance the apoapsis steals over what it would have if it were the semimajor axis
-  let budge = apoapsis - semimajor
+  let budge = (apoapsis - semimajor) * scale
 
   // Mount the elipse on another scene node so the little lobe (periapsis) is +X
   // (toward the right) from the origin (where the parent body goes) and rotate
@@ -191,8 +197,8 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
 function getRenderTime() {
   let unixTime = (new Date()).getTime() / 1000
   let macroverseTime = unixTime - mv.EPOCH
-  // Show at 1 year per 10 seconds
-  return macroverseTime * 3155760
+  // Show at 1 day per second speed, about
+  return macroverseTime * 60 * 60 * 24
 }
 
 // Given a star object from the cache, return a DOM node for a sprite to represent the star.
@@ -230,7 +236,7 @@ function starToSprite(star, positionSelf) {
       // When it loads, move it to the right spot in the sector.
       // Make sure to center the 25 LY sector on the A-Frame origin
       sprite.setAttribute('position', {x: star.x - 12.5, y: star.y - 12.5, z: star.z - 12.5})
-    }
+    } 
 
   })
 

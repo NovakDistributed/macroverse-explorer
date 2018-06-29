@@ -92,7 +92,7 @@ class PlanetCache {
 
                 // Provide float versions of all those reals for use in JS
                 // Periapsis in meters from center of star
-                planet.orbit.periapsis = mv.fromReal(planet.orbit.realPeriapsis)
+                planet.orbit.periapsis = mv.fromReal(planet.orbit.realPeriapsis) 
                 // Apoapsis in meters from center of star
                 planet.orbit.apoapsis = mv.fromReal(planet.orbit.realApoapsis)
                 // Cleared-out band in meters from center of star

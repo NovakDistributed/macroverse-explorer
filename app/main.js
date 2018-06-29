@@ -4,9 +4,11 @@
 // We will use A-Frame
 const aframe = require('aframe')
 // And orbit controls
-const orbit_controls = require('aframe-orbit-controls-component-2')
+const aframe_orbit_controls = require('aframe-orbit-controls-component-2')
 // And particles
-const particles = require('aframe-particle-system-component')
+const aframe_particles = require('aframe-particle-system-component')
+// And animations
+const aframe_animation = require('aframe-animation-component')
 
 // We want macroverse itself
 const mv = require('macroverse')
@@ -28,6 +30,22 @@ function sleep(time) {
 // Nonce for remembering which system was most recenty requested
 let systemNonce = 0
 
+/// Animate the camera's focus to the given position
+function moveCameraFocus(position) {
+  let dolly = document.getElementById('dolly')
+
+  let oldPos = dolly.getAttribute('position');
+
+  dolly.setAttribute('animation', {
+    property: 'position',
+    // We need to break up the position vectors since passing a real Vector3 to the animation component crashes it...
+    from: {x: oldPos.x, y: oldPos.y, z: oldPos.z},
+    to: {x: position.x, y: position.y, x: position.z},
+    dur: 500
+  })
+
+}
+
 /// Show the planetary system of the given star object, using the given Macroverse context.
 /// Uses the given infobox for 2D UI.
 async function showSystem(ctx, infobox, star) {
@@ -48,7 +66,11 @@ async function showSystem(ctx, infobox, star) {
   // Start up the system loading throbber
   let loader = document.getElementById('system-loading')
   loader.setAttribute('visible', true)
+
+  // Focus the system view
+  moveCameraFocus(system.getAttribute('position'))
   
+  // Go get the system data
   let planetCount = await ctx.planets.getObjectPlanetCount(star)
   console.log('Star ' + star.seed + ' has ' + planetCount + ' planets.')
 
@@ -65,9 +87,35 @@ async function showSystem(ctx, infobox, star) {
   // Make a root node
   let root = document.createElement('a-entity')
 
-  // Make a sun sprite at 0,0,0
+  // We want to displace the sun up for readability
+  let SUN_LINE_HEIGHT = 3
+
+  // Make a sun sprite, elevated above the center so as not to eat the planets
   let sun = sprites.starToSprite(star, false)
   root.appendChild(sun);
+  sun.addEventListener('loaded', () => {
+    sun.setAttribute('position', {x: 0, y: SUN_LINE_HEIGHT, z: 0})
+  })
+
+  // The sun shall go on a stick
+  let stick = document.createElement('a-entity')
+  root.appendChild(stick)
+  stick.addEventListener('loaded', () => {
+    // It shall be stick-shaped
+    stick.setAttribute('geometry', {
+      primitive: 'cylinder',
+      radius: 0.001,
+      height: SUN_LINE_HEIGHT
+    })
+    // And a white line
+    stick.setAttribute('material', {
+      color: 'white',
+      wireframe: true,
+      wireframeLinewidth: 1
+    })
+    // And it will connect the sun to the orbital plane
+    stick.setAttribute('position', {x: 0, y: SUN_LINE_HEIGHT / 2, z: 0})
+  })
 
   sun.addEventListener('click', () => {
     // Show the infobox for the star when the star is clicked again.
@@ -76,11 +124,38 @@ async function showSystem(ctx, infobox, star) {
 
   // TODO: desynchronize() all this system construction to not be slow.
 
+  // Compute the system's scale factor, so we can fit it in a reasonable space
+  let scale = 1.0
+  if (planets.length > 0) {
+    // We have planets and may need to adjust the scale
+    let minAU = planets[0].orbit.periapsis / mv.AU
+    let maxAU = planets[planets.length-1].orbit.apoapsis / mv.AU
+    
+    // We would prefer to scale up the innermost orbit to 10 units
+    let minAUWantsScale = 10 / minAU
+
+    // We would prefer to scale down the outermost orbit to 30 units
+    let maxAUWantsScale = 30 / maxAU
+
+    console.log('Want to scale up by ' + minAUWantsScale + ' and down by ' + maxAUWantsScale)
+
+    if (maxAUWantsScale < 1) {
+      // Scale down
+      scale = maxAUWantsScale
+    } else if (minAUWantsScale > 1) {
+      // Scale up
+      scale = Math.min(minAUWantsScale, maxAUWantsScale)
+    }
+
+    // Otherwise leave scale alone
+
+  }
+
   for (let i = 0; i < planets.length; i++) {
     // Make a planet sprite that moves with the orbit
-    let planetSprite = sprites.planetToSprite(planets[i], star)
+    let planetSprite = sprites.planetToSprite(planets[i], star, scale)
     // Make an orbit line sprite
-    let orbitSprite = sprites.orbitToSprite(planets[i].orbit)
+    let orbitSprite = sprites.orbitToSprite(planets[i].orbit, scale)
     
     root.appendChild(planetSprite)
     root.appendChild(orbitSprite)
@@ -127,6 +202,9 @@ async function showSector(ctx, infobox, x, y, z) {
   while (sector.hasChildNodes()) {
     sector.removeChild(sector.lastChild);
   }
+
+  // Focus the sector
+  moveCameraFocus(sector.getAttribute('position'))
 
   let starCount = await ctx.stars.getObjectCount(x, y, z)
 
