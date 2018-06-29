@@ -68,7 +68,12 @@ class StarCache {
               // Compute some secondary properties
 
               // Lumionosity in solar luminosities
-              obj.luminosity = mv.luminosity(obj.objMass)
+              if (obj.objClass == mv.objectClass['BlackHole']) {
+                // TODO: how bright is a black hole? Do we count an accretion disk?
+                obj.luminosity = 0
+              } else {
+                obj.luminosity = mv.luminosity(obj.objMass)
+              }
               
               console.log('Successfully loaded star ' + path)
               return obj
