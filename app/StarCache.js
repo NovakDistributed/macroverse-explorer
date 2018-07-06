@@ -9,10 +9,13 @@ const mv = require('macroverse')
 // Represents a cache over the MacroverseStarGenerator.
 // Internally handles retry logic to read from the blockchain.
 class StarCache {
-  // Construct a cache in front of a TruffleContract for the MacroverseStarGenerator
-  constructor(MacroverseStarGeneratorInstance) {
+  // Construct a cache in front of a TruffleContract for the MacroverseStarGenerator.
+  // Also needs access to the MacroverseSystemGenerator which defines some other useful properties (luminosity, planet count).
+  constructor(MacroverseStarGeneratorInstance, MacroverseSystemGeneratorInstance) {
     // Save a reference to the backing MacroverseStarGenerator
-    this.generator = MacroverseStarGeneratorInstance
+    this.starGenerator = MacroverseStarGeneratorInstance
+    // And the system generator
+    this.systemGenerator = MacroverseSystemGeneratorInstance
     
     // Maps from string paths to object, or promise for object
     this.cache = {}
@@ -50,31 +53,41 @@ class StarCache {
             
             try {
               // Work out the seed
-              obj.seed = await timeoutPromise(this.generator.getSectorObjectSeed.call(sectorX, sectorY, sectorZ, objectNumber))
+              obj.seed = await timeoutPromise(this.starGenerator.getSectorObjectSeed.call(sectorX, sectorY, sectorZ, objectNumber))
               
               // Decide on a position
-              let [ x, y, z] = await timeoutPromise(this.generator.getObjectPosition.call(obj.seed))
+              let [ x, y, z] = await timeoutPromise(this.starGenerator.getObjectPosition.call(obj.seed))
               obj.x = mv.fromReal(x)
               obj.y = mv.fromReal(y)
               obj.z = mv.fromReal(z)
               
-              obj.objClass = (await timeoutPromise(this.generator.getObjectClass.call(obj.seed))).toNumber()
-              obj.objType = (await timeoutPromise(this.generator.getObjectSpectralType.call(obj.seed, obj.objClass))).toNumber()
+              obj.objClass = (await timeoutPromise(this.starGenerator.getObjectClass.call(obj.seed))).toNumber()
+              obj.objType = (await timeoutPromise(this.starGenerator.getObjectSpectralType.call(obj.seed, obj.objClass))).toNumber()
               
-              obj.hasPlanets = await timeoutPromise(this.generator.getObjectHasPlanets.call(obj.seed, obj.objClass, obj.objType))
+              obj.hasPlanets = await timeoutPromise(this.starGenerator.getObjectHasPlanets.call(obj.seed, obj.objClass, obj.objType))
               
-              obj.objMass = mv.fromReal(await timeoutPromise(this.generator.getObjectMass.call(obj.seed, obj.objClass, obj.objType)))
+              let realMass = await timeoutPromise(this.starGenerator.getObjectMass.call(obj.seed, obj.objClass, obj.objType))
+              obj.objMass = mv.fromReal(realMass)
+              
+              // Compute some secondary properties using the system generator.
+              // It makes sense to keep them on the star object.
 
-              // Compute some secondary properties
+              // Compute planet count
+              obj.planetCount = obj.hasPlanets ? await timeoutPromise(this.systemGenerator.getObjectPlanetCount.call(obj.seed, obj.objClass, obj.objType)) : 0
 
-              // Lumionosity in solar luminosities
-              if (obj.objClass == mv.objectClass['BlackHole']) {
-                // TODO: how bright is a black hole? Do we count an accretion disk?
-                obj.luminosity = 0
-              } else {
-                obj.luminosity = mv.luminosity(obj.objMass)
-              }
-              
+              // Compute luminosity in solar luminosities
+              // TODO: We could do this locally but the math is hard.
+              let realLuminosity = await timeoutPromise(this.systemGenerator.getObjectLuminosity.call(obj.seed, obj.objClass, realMass))
+              obj.luminosity = mv.fromReal(realLuminosity)
+
+              // Compute habitable zone bounds, which planet orbit determination needs as reals
+              obj.habitableZone = {}
+              let [realHabStart, realHabEnd] = await timeoutPromise(this.systemGenerator.getObjectHabitableZone.call(realLuminosity))
+              obj.habitableZone.realStart = realHabStart
+              obj.habitableZone.realEnd = realHabEnd
+              obj.habitableZone.start = mv.fromReal(realHabStart)
+              obj.habitableZone.end = mv.fromReal(realHabEnd)
+
               console.log('Successfully loaded star ' + path)
               return obj
               
@@ -129,7 +142,7 @@ class StarCache {
         // If we haven't counted the stars in the sector yet, go do it.
         let bignum = await this.limiter.submit(async () => { 
           return hammer(() => {
-            return this.generator.getSectorObjectCount.call(sectorX, sectorY, sectorZ)
+            return this.starGenerator.getSectorObjectCount.call(sectorX, sectorY, sectorZ)
           })
         })
 

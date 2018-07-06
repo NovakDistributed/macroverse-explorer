@@ -39,11 +39,11 @@ class Context {
         // Find the MacroverseStarGenerator instance
         let MacroverseStarGenerator = await eth.get_instance(this.getContractPath('MacroverseStarGenerator'))
 
-        // Use it to back a cache
-        this.stars = new StarCache(MacroverseStarGenerator)
-
-        // Same for the planets
+        // And the generator for planets (which fills in some more star properties relevant for planets)
         let MacroverseSystemGenerator = await eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))
+        
+        // Use them to back the caches
+        this.stars = new StarCache(MacroverseStarGenerator, MacroverseSystemGenerator)
         this.planets = new PlanetCache(MacroverseSystemGenerator)
 
       })()

@@ -59,8 +59,12 @@ class Infobox {
             <td>${star.luminosity.toFixed(2)} L<sub>☉</sub></td>
           </tr>
           <tr>
-            <td>Planets?</td>
-            <td class="${star.hasPlanets ? "yes" : "no"}">${star.hasPlanets ? "Yes" : "No"}</td>
+            <td>Habitable Zone</td>
+            <td>${(star.habitableZone.start / mv.AU).toFixed(2)} - ${(star.habitableZone.end / mv.AU).toFixed(2)} AU</td>
+          </tr>
+          <tr>
+            <td>Planets</td>
+            <td>${star.planetCount}</td>
           </tr>
         </table>
       </div>

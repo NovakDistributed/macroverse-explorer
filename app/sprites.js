@@ -53,7 +53,7 @@ function planetToSprite(planet, star, scale) {
     sprite.setAttribute('material', {color: planetColor})
 
     // Work out the size for it
-    let size = Math.pow(planet.planetMass, 1/4) / 2
+    let size = Math.max(Math.log10(planet.planetMass) + 3, 1) / 10
 
     // Make the planet sphere
     sprite.setAttribute('geometry', {
@@ -222,7 +222,7 @@ function starToSprite(star, positionSelf) {
     sprite.setAttribute('material', {color: starColor})
 
     // Work out the size for it
-    let size = Math.pow(star.objMass, 1/4)
+    let size = Math.max(Math.log10(star.objMass) + 3, 1) / 5
 
     // Make the star sphere
     sprite.setAttribute('geometry', {
