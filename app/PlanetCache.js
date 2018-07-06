@@ -81,7 +81,8 @@ class PlanetCache {
                 let prevClearance = previousPlanet != null ? previousPlanet.orbit.realClearance : 0
 
                 // Download the orbit as bignums in case we want to know exactly what the smart contract does with it
-                let parts = await timeoutPromise(this.generator.getPlanetOrbitDimensions.call(obj.objClass, obj.objType, planet.seed, planet.planetClass, prevClearance))
+                let parts = await timeoutPromise(this.generator.getPlanetOrbitDimensions.call(obj.habitableZone.realStart, obj.habitableZone.realEnd,
+                  planet.seed, planet.planetClass, prevClearance))
 
                 // Unpack
                 planet.orbit.realPeriapsis = parts[0]
