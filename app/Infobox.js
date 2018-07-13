@@ -21,7 +21,11 @@ class Infobox {
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.add('infobox-sector')
     this.infobox.innerHTML = `
-      <div class="infobox-title">Sector ${x},${y},${z}</div>
+      <div class="infobox-header">
+        <span class="infobox-title">
+          Sector ${x},${y},${z}
+        </span>
+      </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
@@ -33,13 +37,18 @@ class Infobox {
     `
   }
 
-  /// Show the infobox for the given star
-  showStar(star) {
+  /// Show the infobox for the given star. If the user goes back, call the given callback.
+  showStar(star, back) {
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.remove('infobox-sector')
     this.infobox.classList.add('infobox-star')
     this.infobox.innerHTML = `
-      <div class="infobox-title">Star ${star.sectorX},${star.sectorY},${star.sectorZ}/${star.number}</div>
+      <div class="infobox-header">
+        <button class="infobox-back" id="infobox-back">&lt;</button>
+        <span class="infobox-title">
+          Star ${star.sectorX},${star.sectorY},${star.sectorZ}/${star.number}
+        </span>
+      </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
@@ -69,15 +78,23 @@ class Infobox {
         </table>
       </div>
     `
+
+    // Listen for back clicks
+    this.infobox.querySelector('#infobox-back').addEventListener('click', back)
   }
 
-  /// Show the infobox for the given planet, orbiting the given star
-  showPlanet(planet, star) {
+  /// Show the infobox for the given planet, orbiting the given star. If the user goes back, call the given callback.
+  showPlanet(planet, star, back) {
     this.infobox.classList.remove('infobox-star')
     this.infobox.classList.remove('infobox-sector')
     this.infobox.classList.add('infobox-planet')
     this.infobox.innerHTML = `
-      <div class="infobox-title">Planet ${star.sectorX},${star.sectorY},${star.sectorZ}/${star.number}/${planet.number}</div>
+      <div class="infobox-header">
+        <button class="infobox-back" id="infobox-back">&lt;</button>
+        <span class="infobox-title">
+          Planet ${star.sectorX},${star.sectorY},${star.sectorZ}/${star.number}/${planet.number}
+        </span>
+      </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
@@ -114,6 +131,9 @@ class Infobox {
         </table>
       </div>
     `
+
+    // Listen for back clicks
+    this.infobox.querySelector('#infobox-back').addEventListener('click', back)
   }
 }
 

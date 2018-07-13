@@ -30,12 +30,20 @@ body {
   border: 1px solid var(--dark);
 }
 
-.infobox-title {
+.infobox-header {
   color: var(--light);
   background-color: var(--dark);
   font-family: 'Voltaire', sans-serif;
   text-align: center;
   font-size: 20px;
+  height: 25px;
+}
+
+.infobox-back {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  height: 21px;
 }
 
 .infobox-body {

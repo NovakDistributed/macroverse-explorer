@@ -54,7 +54,12 @@ async function showSystem(ctx, infobox, star) {
   let ourNonce = systemNonce
 
   // Show the infobox
-  infobox.showStar(star)
+  infobox.showStar(star, async () => {
+    // If the user goes up, show the sector again
+    let sector = document.getElementById('sector')
+    moveCameraFocus(sector.getAttribute('position'))
+    infobox.showSector(curX, curY, curZ, await ctx.stars.getObjectCount(curX, curY, curZ))
+  })
 
   // Find the system display holding node
   let system = document.getElementById('system')
@@ -119,7 +124,12 @@ async function showSystem(ctx, infobox, star) {
 
   sun.addEventListener('click', () => {
     // Show the infobox for the star when the star is clicked again.
-    infobox.showStar(star)
+    infobox.showStar(star, async () => {
+      // If the user goes up, show the sector again
+      let sector = document.getElementById('sector')
+      moveCameraFocus(sector.getAttribute('position'))
+      infobox.showSector(curX, curY, curZ, await ctx.stars.getObjectCount(curX, curY, curZ))
+    })
   })
 
   // TODO: desynchronize() all this system construction to not be slow.
@@ -162,7 +172,16 @@ async function showSystem(ctx, infobox, star) {
 
     let clickHandler = () => {
       // When clicked, show planet infobox
-      infobox.showPlanet(planets[i], star)
+      infobox.showPlanet(planets[i], star, () => {
+        // If the user goes up, show the star infobox
+        infobox.showStar(star, async () => {
+          // If the user goes up, show the sector again
+          let sector = document.getElementById('sector')
+          moveCameraFocus(sector.getAttribute('position'))
+          infobox.showSector(curX, curY, curZ, await ctx.stars.getObjectCount(curX, curY, curZ))
+          // TODO: this code is repeated like 3 times and relies on hoping a promise is in the cache...
+        })
+      })
     }
 
     planetSprite.addEventListener('click', clickHandler)
