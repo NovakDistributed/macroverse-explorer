@@ -349,6 +349,7 @@ async function main() {
   })
 
   ds.request('0.0.0.objectCount')
+  ds.request('0.0.0.5.hasPlanets')
 
   // Show the initial sector
   showSector(ctx, infobox, curX, curY, curZ)
