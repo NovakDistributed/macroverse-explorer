@@ -15,6 +15,7 @@ const mv = require('macroverse')
 
 // Load all the other parts of the code
 const Context = require('./Context.js')
+const Datasource = require('./Datasource.js')
 const eth = require('./eth.js')
 const {desynchronize} = require('./robust.js')
 const sprites = require('./sprites.js')
@@ -334,6 +335,15 @@ async function main() {
 
   // Get ahold of a global Macroverse context.
   let ctx = await Context('contracts/')
+
+  // Make a Datasource
+  let ds = await Datasource('contracts/')
+ 
+  ds.onAny((event_name, event_arg) => {
+    console.log('Event ' + event_name + ' with arg ' + event_arg)
+  })
+
+  ds.request('0.0.0.objectCount')
 
   // Show the initial sector
   showSector(ctx, infobox, curX, curY, curZ)

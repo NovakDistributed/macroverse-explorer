@@ -11,7 +11,7 @@ const StarCache = require('./StarCache.js')
 const PlanetCache = require('./PlanetCache.js')
 
 // And the event emitter which we use to structure our API
-const EventEmitter = require('events')
+const { EventEmitter2 } = require('eventemitter2')
 
 // And the timers module which we use to defer our queue processing
 const timers = require('timers')
@@ -78,9 +78,11 @@ function setKeypath(obj, keypath, value) {
 }
 
 // The actual Datasource class. External interface.
-class Datasource extends EventEmitter {
+class Datasource extends EventEmitter2 {
   // Construct a Datasource using the specified base path for fetching contracts. 
   constructor(basePath) {
+    super()
+
     // Save the base path
     this.basePath = basePath
 
@@ -147,6 +149,8 @@ class Datasource extends EventEmitter {
     // TODO: It would be more debuggable to vet it here
     this.stack.push(keypath)
 
+    console.log('Looking for ' + keypath)
+
     if (this.stack.length == 1) {
       // We just made the stack non-empty, so kcick off processing it
     
@@ -159,7 +163,13 @@ class Datasource extends EventEmitter {
 
   // Worker function which processes the top thing on the stack each call through.
   async processStack() {
+    if (this.stack.length == 0) {
+      return
+    }
+
     let keypath = this.stack.pop()
+
+    console.log('Stack top: ' + keypath)
 
     // See if we have it already
     let found = getKeypath(this.memCache, keypath)
@@ -167,11 +177,16 @@ class Datasource extends EventEmitter {
     if (found === undefined) {
       // We have to go get it
 
+      console.log('Actually retrieving ' + keypath)
+
+      // We will put it in here
+      var value;
+
       // Parse out the parts
       let parts = keypath.split('.')
 
       if (parts.length < 4) {
-        // We need at least the sector position and the star nu,ber/property
+        // We need at least the sector position and the star number/property
         throw new Error("Invalid keypath: " + keypath)
       }
 
@@ -184,33 +199,113 @@ class Datasource extends EventEmitter {
 
       if (isNaN(parts[3])) {
         // If the next part is a property, go get it
-        let value = await getSectorProperty(x, y, z, parts[3])
+        let property = parts.slice(3).join('.')
+        try {
+          value = await this.getSectorProperty(x, y, z, parts[3])
+        } catch (err) {
+          // If it doesn't come in, try again
+          console.log(err)
+          value = undefined
+          this.stack.push(keypath)
+        }
+      } else {
+        // Otherwise it's a star number
+        let star = parts[3]
 
-        // TODO: save it and process another tick
+        if (parts.length < 4) {
+          // If that's it, go get the whole star
+          // TODO: Enqueue all the features of a star
+        } else {
+          if (isNaN(parts[4])) {
+            // Otherwise, if it's a property, get it
+            let property = parts.slice(4).join('.')
+            try {
+              // If the next part is a property, go get it
+              value = await this.getStarProperty(x, y, z, star, property)
+            } catch (err) {
+              // If it doesn't come in, try again
+              console.log(err)
+              value = undefined
+              this.stack.push(keypath)
+            }
+          } else {
+            // Otherwise, it is a planet number
+            let planet = parts[4]
+            
+            if(parts.length < 5) {
+              // If that's it, get the whole planet
+              // TODO: Enqueue all the features of a planet
+            } else {
+              if (isNaN(parts[5])) {
+                // Otherwise, if it's a property, get it
+                let property = parts.slice(5).join('.')
+                try {
+                  // If the next part is a property, go get it
+                  value = await this.getPlanetProperty(x, y, z, star, planet, property)
+                } catch (err) {
+                  // If it doesn't come in, try again
+                  console.log(err)
+                  value = undefined
+                  this.stack.push(keypath)
+                }
+              } else {
+                // Otherwise, if it's a number, it's a moon number
+
+                // TODO: moons
+                throw new Error("Moons not supported")
+              }
+            }
+          }
+        }
       }
 
+      if (value === undefined) {
+        // We had an error and couldn't get the value
+        this.stack.push(keypath)
+      }
 
-      // Otherwise it's a star number
+      // Otherwise, we got it
+      // It will already have been sent out
 
-      // If that's it, go get the whole star
-
-      // Otherwise, if it's a property, get it
-
-      // Otherwise, it is a planet number
-
-      // If that's it, get the whole planet
-
-      // Otherwise, if it's a property, get it
-
-      // Otherwise, if it's a number, it's a moon number
-
-      // TODO: moons
-
+    } else {
+      // It was cached. Send it out again, because someone asked for it.
+      console.log('Retrieved cached ' + keypath)
+      saveKeypath(keypath, found)
     }
 
+    // Whether we got it or not, kick off another tick
+    timers.setImmediate(() => {
+      //this.processStack()
+    })
   }
 
+  // Record that the given keypath has been resolved with the given value in the cache.
+  // Dispatch the keypath events
+  async saveKeypath(keypath, value) {
+    // Store the value in the cache
+    setKeypath(this.memCache, keypath, value)
+    // Emit the value to anyone listening for it
+    this.emit(keypath, value)
+  }
+
+  // Get the given property of the sector from the blockchain.
+  // Save it and any properties retrieved at the same time in the cache.
+  // Return the property's value.
   async getSectorProperty(x, y, z, keypath) {
+    console.log('Get property ' + keypath + ' of sector ' + x + ', ' + y + ', ' + z)
+    switch(keypath) {
+    case 'objectCount':
+      let value = (await this.MacroverseStarGenerator.getSectorObjectCount.call(x, y, z)).toNumber()
+      await this.saveSectorProperty(x, y, z, keypath, value)
+      return value
+    default:
+      throw new Error('Unknown property: ' + keypath);
+    }
+  }
+
+  // Save and dispatch events for the given property of the given sector
+  async saveSectorProperty(x, y, z, keypath, value) {
+    await this.saveKeypath(x + '.' + y + '.' + z + '.' + keypath, value)
   }
 
   // '' keypath = whole star
@@ -232,4 +327,4 @@ async function get_datasource(basePath) {
   return source
 }
 
-module.exports = get_context
+module.exports = get_datasource
