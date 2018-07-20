@@ -41,7 +41,7 @@ function getKeypath(obj, keypath) {
   let rest = keypath.substr(dot + 1, (keypath.length - dot - 1))
 
   // Look up one step of the keypath and recurse for the rest
-  return getKeypath(first, rest)
+  return getKeypath(obj[first], rest)
 }
 
 // Set the value in the given object of the given keypath to the given value. Creates any missing intermediate objects.
@@ -144,12 +144,20 @@ class Datasource extends EventEmitter2 {
   // <x>.<y>.<z>.<objectNumber>.<palnetNumber>.<moonNumber>.<propertyName>
   // Moon properties are the same as planet properties
   //
+  // Returns a promise that resolves with the value when it eventually comes in.
+  // The request will be retried until it succeeds, so don't go asking for things that don't exist.
+  //
   request(keypath) {
     // Just dump it into the stack.
     // TODO: It would be more debuggable to vet it here
     this.stack.push(keypath)
 
     console.log('Looking for ' + keypath)
+
+    // Set up a promise for when the result comes in
+    let promise = new Promise((resolve, reject) => {
+      this.once(keypath, resolve)
+    })
 
     if (this.stack.length == 1) {
       // We just made the stack non-empty, so kcick off processing it
@@ -159,6 +167,8 @@ class Datasource extends EventEmitter2 {
         this.processStack()
       })
     }
+
+    return promise
   }
 
   // Worker function which processes the top thing on the stack each call through.
@@ -177,7 +187,8 @@ class Datasource extends EventEmitter2 {
     if (found === undefined) {
       // We have to go get it
 
-      console.log('Actually retrieving ' + keypath)
+      console.log('Actually retrieving ' + keypath + ' which is not in cache')
+      console.log(this.memCache)
 
       // We will put it in here
       var value;
@@ -270,18 +281,19 @@ class Datasource extends EventEmitter2 {
     } else {
       // It was cached. Send it out again, because someone asked for it.
       console.log('Retrieved cached ' + keypath)
-      saveKeypath(keypath, found)
+      this.publishKeypath(keypath, found)
     }
 
     // Whether we got it or not, kick off another tick
     timers.setImmediate(() => {
-      //this.processStack()
+      this.processStack()
     })
   }
 
   // Record that the given keypath has been resolved with the given value in the cache.
   // Dispatch the keypath events
-  async saveKeypath(keypath, value) {
+  async publishKeypath(keypath, value) {
+    console.log('Cache ' + keypath)
     // Store the value in the cache
     setKeypath(this.memCache, keypath, value)
     // Emit the value to anyone listening for it
@@ -305,7 +317,7 @@ class Datasource extends EventEmitter2 {
 
   // Save and dispatch events for the given property of the given sector
   async saveSectorProperty(x, y, z, keypath, value) {
-    await this.saveKeypath(x + '.' + y + '.' + z + '.' + keypath, value)
+    await this.publishKeypath(x + '.' + y + '.' + z + '.' + keypath, value)
   }
 
   // '' keypath = whole star

@@ -226,7 +226,9 @@ async function showSector(ctx, infobox, x, y, z) {
   // Focus the sector
   moveCameraFocus(sector.getAttribute('position'))
 
-  let starCount = await ctx.stars.getObjectCount(x, y, z)
+  // Go get the sector object count via the new Datasource interface
+  let sectorPath = x + '.' + y + '.' + z
+  let starCount = await ctx.ds.request(sectorPath + '.objectCount')
 
   if (ourNonce == sectorNonce) {
     // Still want this sector.
@@ -338,6 +340,9 @@ async function main() {
 
   // Make a Datasource
   let ds = await Datasource('contracts/')
+
+  // Hide it in the context
+  ctx.ds = ds
  
   ds.onAny((event_name, event_arg) => {
     console.log('Event ' + event_name + ' with arg ' + event_arg)
