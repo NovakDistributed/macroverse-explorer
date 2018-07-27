@@ -16,6 +16,8 @@ const { EventEmitter2 } = require('eventemitter2')
 // And the timers module which we use to defer our queue processing
 const timers = require('timers')
 
+const mv = require('macroverse')
+
 // We define a tiny keypath get/set library
 
 // Return the value of the given keypath, or undefined if it or any parent is not present
@@ -48,12 +50,12 @@ function getKeypath(obj, keypath) {
 function setKeypath(obj, keypath, value) {
   if (obj == undefined) {
     // Error! Can't set in nothing!
-    throw new Error("Can't set " + keypath + " = " + value + " in undefined!")
+    throw new Error("Can't set keypath '" + keypath + "' = '" + value + "' in undefined!")
   }
 
   if (keypath == '') {
     // Error! Can't set the thing itself!
-    throw new Error("Can't set " + keypath + " = " + value + " in " + obj)
+    throw new Error("Can't set empty keypath = '" + value + "' in an object")
   }
 
   // Look for a delimiter
@@ -87,8 +89,8 @@ class Datasource extends EventEmitter2 {
     this.basePath = basePath
 
     // Set up some fields for the generators 
-    this.MacroverseStarGenerator = undefined
-    this.MacroverseSystemGenerator = undefined
+    this.star = undefined
+    this.sys = undefined
 
     // Set up the stack of keypaths we are going to request.
     // It is OK if things go on the stack multiple times because we will just see later that we got them earlier.
@@ -116,10 +118,10 @@ class Datasource extends EventEmitter2 {
         // Do the actual init work here.
 
         // Find the MacroverseStarGenerator instance
-        this.MacroverseStarGenerator = await eth.get_instance(this.getContractPath('MacroverseStarGenerator'))
+        this.star = await eth.get_instance(this.getContractPath('MacroverseStarGenerator'))
 
         // And the generator for planets (which fills in some more star properties relevant for planets)
-        this.MacroverseSystemGenerator = await eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))
+        this.sys = await eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))
       })()
     }
     return this.initPromise
@@ -159,7 +161,10 @@ class Datasource extends EventEmitter2 {
 
     // Set up a promise for when the result comes in
     let promise = new Promise((resolve, reject) => {
-      this.once(keypath, resolve)
+      this.once(keypath, (value) => {
+        console.log('Resolving request for ' + keypath)
+        resolve(value)
+      })
     })
 
     if (!this.running) {
@@ -189,9 +194,13 @@ class Datasource extends EventEmitter2 {
 
     console.log('Stack top: ' + keypath)
 
-    // Do the top thing on the stack
-    await this.resolveImmediately(keypath)
+    // Do the top thing on the stack, and get the value it produces
+    let value = await this.resolveImmediately(keypath)
     // Note that it may call resolveImmediately to get keys it depends on
+
+    // Emit the event for it.
+    // Don't emit events for everything it caches.
+    this.publishKeypath(keypath, value)
 
     console.log('Process next stack entry')
 
@@ -210,11 +219,6 @@ class Datasource extends EventEmitter2 {
     
     // We will fill this in with the value when we get it
     var value = undefined;
-
-    this.once(keypath, (got) => {
-      // When we get the value, fill it in
-      value = got
-    })
 
     // See if we have it already
     let found = getKeypath(this.memCache, keypath)
@@ -243,11 +247,11 @@ class Datasource extends EventEmitter2 {
         // If the next part is a property, go get it
         let property = parts.slice(3).join('.')
         try {
-          await this.getSectorProperty(x, y, z, parts[3])
+          value = await this.getSectorProperty(x, y, z, parts[3])
         } catch (err) {
           // If it doesn't come in, try again
           console.log(err)
-          await this.resolveImmediately(keypath)
+          value = await this.resolveImmediately(keypath)
         }
       } else {
         // Otherwise it's a star number
@@ -255,18 +259,19 @@ class Datasource extends EventEmitter2 {
 
         if (parts.length < 4) {
           // If that's it, go get the whole star
-          // TODO: Enqueue all the features of a star
+          value = await this.getStarProperty(x, y, z, star, '')
         } else {
           if (isNaN(parts[4])) {
             // Otherwise, if it's a property, get it
             let property = parts.slice(4).join('.')
             try {
               // If the next part is a property, go get it
-              await this.getStarProperty(x, y, z, star, property)
+              value = await this.getStarProperty(x, y, z, star, property)
             } catch (err) {
               // If it doesn't come in, try again
-              console.log(err)
-              await this.resolveImmediately(keypath)
+              console.log('Could not get ' + property, err)
+              throw err
+              //value = await this.resolveImmediately(keypath)
             }
           } else {
             // Otherwise, it is a planet number
@@ -274,18 +279,18 @@ class Datasource extends EventEmitter2 {
             
             if(parts.length < 5) {
               // If that's it, get the whole planet
-              // TODO: Enqueue all the features of a planet
+              await this.getPlanetProperty(x, y, z, star, planet, '')
             } else {
               if (isNaN(parts[5])) {
                 // Otherwise, if it's a property, get it
                 let property = parts.slice(5).join('.')
                 try {
                   // If the next part is a property, go get it
-                  await this.getPlanetProperty(x, y, z, star, planet, property)
+                  value = await this.getPlanetProperty(x, y, z, star, planet, property)
                 } catch (err) {
                   // If it doesn't come in, try again
                   console.log(err)
-                  await this.resolveImmediately(keypath)
+                  value = await this.resolveImmediately(keypath)
                 }
               } else {
                 // Otherwise, if it's a number, it's a moon number
@@ -301,7 +306,7 @@ class Datasource extends EventEmitter2 {
     } else {
       // It was cached. Send it out again, because someone asked for it.
       console.log('Retrieved cached ' + keypath)
-      this.publishKeypath(keypath, found)
+      value = found
     }
 
     // We pick up the value from the published message and send it to our caller.
@@ -321,12 +326,14 @@ class Datasource extends EventEmitter2 {
 
   // Get the given property of the sector from the blockchain.
   // Save it and any properties retrieved at the same time in the cache.
+  // Returns a promise for its value.
   async getSectorProperty(x, y, z, keypath) {
     console.log('Get property ' + keypath + ' of sector ' + x + ', ' + y + ', ' + z)
     switch(keypath) {
     case 'objectCount':
-      let value = (await this.MacroverseStarGenerator.getSectorObjectCount.call(x, y, z)).toNumber()
+      let value = (await this.star.getSectorObjectCount.call(x, y, z)).toNumber()
       await this.saveSectorProperty(x, y, z, keypath, value)
+      return value
       break
     default:
       throw new Error('Unknown property: ' + keypath);
@@ -340,6 +347,7 @@ class Datasource extends EventEmitter2 {
 
   // Get the given property of the star from the blockchain.
   // Save it and any properties retrieved at the same time in the cache.
+  // Returns a promise for its value
   // '' keypath = whole star
   async getStarProperty(x, y, z, starNumber, keypath) {
     console.log('Get property ' + keypath + ' of sector ' + x + ', ' + y + ', ' + z + ' star ' + starNumber)
@@ -347,13 +355,36 @@ class Datasource extends EventEmitter2 {
     // Lots of star properties depend on other ones
     let starKey = x + '.' + y + '.' + z + '.' + starNumber
 
+    // Use this to save a property of the star
+    let save = async (prop, value) => {
+      await this.saveStarProperty(x, y, z, starNumber, prop, value)
+    }
+
+    // And this to get one
+    let get = async (prop) => {
+      return await this.resolveImmediately(starKey + '.' + prop)
+    }
+
     // Star properties
     // seed, x, y, z, objClass, objType, realMass, objMass, realLuminosity, luminosity, hasPlanets, planetCount, habitableZone (which has start, end, realStart, realEnd)
     switch(keypath) {
+    case '':
+      {
+        let value = {}
+        for (let key of ['x', 'y', 'z', 'objClass', 'objType', 'realMass', 'objMass',
+          'realLuminosity', 'luminosity', 'hasPlanets', 'planetCount', 'habitableZone']) {
+          // Go get and fill in all the properties
+          value[key] = await get(key)
+        }
+        await save(keypath, value)
+        return value
+      }
+      break
     case 'seed':
       {
-        let value = (await this.MacroverseStarGenerator.getSectorObjectSeed.call(x, y, z, starNumber)).toNumber()
-        await this.saveSectorProperty(x, y, z, starNumber, keypath, value)
+        let value = await this.star.getSectorObjectSeed.call(x, y, z, starNumber)
+        await save(keypath, value)
+        return value
       }
       break
     case 'x':
@@ -362,58 +393,145 @@ class Datasource extends EventEmitter2 {
       {
         // We need the seed for this.
         // So recursively resolve it if needed.
-        let seed = await this.resolveImmediately(starKey + '.seed')
-        let [ obj_x, obj_y, obj_z] = await this.MacroverseStarGenerator.getObjectPosition.call(seed)
-        console.log(obj_x)
-        console.log(obj_y)
-        console.log(obj_z)
-        await this.saveSectorProperty(x, y, z, starNumber, 'x', obj_x.toNumber())
-        await this.saveSectorProperty(x, y, z, starNumber, 'y', obj_y.toNumber())
-        await this.saveSectorProperty(x, y, z, starNumber, 'z', obj_z.toNumber())
+        let seed = await get('seed')
+        let [ obj_x, obj_y, obj_z] = await this.star.getObjectPosition.call(seed)
+        await save('x', mv.fromReal(obj_x))
+        await save('y', mv.fromReal(obj_y))
+        await save('z', mv.fromReal(obj_z))
+        return {x: x, y: y, z: z}[keypath]
       }
       break
     case 'objClass':
       {
-        let seed = await this.resolveImmediately(starKey + '.seed')
-        let value = (await this.MacroverseStarGenerator.getObjectClass.call(seed)).toNumber()
-        await this.saveSectorProperty(x, y, z, starNumber, keypath, value)
+        let seed = await get('seed')
+        let value = mv.fromReal(await this.star.getObjectClass.call(seed)).toNumber()
+        await save(keypath, value)
+        return value
       }
       break
     case 'objType':
       {
-        let seed = await this.resolveImmediately(starKey + '.seed')
-        let value = (await this.MacroverseStarGenerator.getObjectSpectralType.call(seed)).toNumber()
-        await this.saveSectorProperty(x, y, z, starNumber, keypath, value)
+        let seed = await get('seed')
+        let objClass = await get('objClass')
+        let value = (await this.star.getObjectSpectralType.call(seed, objClass)).toNumber()
+        await save(keypath, value)
+        return value
       }
       break
     case 'hasPlanets':
       {
-        let seed = await this.resolveImmediately(starKey + '.seed')
-        let objClass = await this.resolveImmediately(starKey + '.objClass')
-        let objType = await this.resolveImmediately(starKey + 'objType')
-        let value = await this.MacroverseStarGenerator.getObjectHasPlanets.call(seed)
-        await this.saveSectorProperty(x, y, z, starNumber, keypath, value)
+        let seed = await get('seed')
+        let objClass = await get('objClass')
+        let objType = await get('objType')
+        let value = await this.star.getObjectHasPlanets.call(seed, objClass, objType)
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'planetCount':
+      {
+        var value;
+        if (await get('hasPlanets')) {
+          let seed = await get('seed')
+          let objClass = await get('objClass')
+          let objType = await get('objType')
+          value = (await this.sys.getObjectPlanetCount.call(seed, objClass, objType)).toNumber()
+        } else {
+          value = 0
+        }
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'realMass':
+    case 'objMass':
+      {
+        let seed = await get('seed')
+        let objClass = await get('objClass')
+        let objType = await get('objType')
+        let realMass = await this.star.getObjectMass.call(seed, objClass, objType)
+        let objMass = mv.fromReal(realMass)
+        await save('realMass', realMass)
+        await save('objMass', objMass)
+        let value = {realMass, objMass}[keypath]
+        return value
+      }
+      break
+    case 'realLuminosity':
+    case 'luminosity':
+      {
+        let seed = await get('seed')
+        let objClass = await get('objClass')
+        let realMass = await get('objMass')
+        let realLuminosity = await this.sys.getObjectLuminosity.call(seed, objClass, realMass)
+        let luminosity = mv.fromReal(realLuminosity)
+        await save('realLuminosity', realLuminosity)
+        await save('luminosity', luminosity)
+        let value = {realLuminosity, luminosity}[keypath]
+        return value
+      }
+      break
+    case 'habitableZone.realStart':
+    case 'habitableZone.realEnd':
+    case 'habitableZone.start':
+    case 'habitableZone.end':
+      {
+        let realLuminosity = await get('realLuminosity')
+        let [realHabStart, realHabEnd] = await this.sys.getObjectHabitableZone.call(realLuminosity)
+        let start = mv.fromReal(realHabStart)
+        let end = mv.fromReal(realHabEnd)
+        await save('habitableZone.realStart', realHabStart)
+        await save('habitableZone.realEnd', realHabEnd)
+        await save('habitableZone.start', start)
+        await save('habitableZone.end', end)
+        let value = {'habitableZone.realStart': realHabStart, 'habitableZone.realEnd': realHabEnd,
+          'habitableZone.start': start, 'habitableZone.end': end}[keypath]
+        return value
+      }
+      break
+    case 'habitableZone':
+      {
+        value = {}
+        for (let key of ['realStart', 'realEnd', 'start', 'end']) {
+          value[key] = await get('habitableZone.' + key)
+        }
+        await save(keypath, value)
+        return value
       }
       break
     default:
       throw new Error('Unknown property: ' + keypath);
     }
     
-    await this.saveStarProperty(x, y, z, starNumber, keypath, value)
   }
 
-  // Save and dispatch events for the given property of the given star
+  // Save and dispatch events for the given property of the given star.
+  // Using a keypath of '' indicates the whole star.
   async saveStarProperty(x, y, z, starNumber, keypath, value) {
-    await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + keypath, value)
+    if (keypath == '') {
+      // This is the whole star
+      await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber, value)
+    } else {
+      // This is a property
+      await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + keypath, value)
+    }
   }
 
+  // Get the given property of the planet from the blockchain.
+  // Save it and any properties retrieved at the same time in the cache.
+  // Returns a promise for its value.
   // '' keypath = whole planet
   async getPlanetProperty(x, y, z, starNumber, planetNumber, keypath) {
   }
 
-  // Save and dispatch events for the given property of the given planet
+  // Save and dispatch events for the given property of the given planet.
+  // Using a keypath of '' indicates the whole planet.
   async savePlanetProperty(x, y, z, starNumber, planetNumber, keypath, value) {
-    await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + planetNumber + '.' + keypath, value)
+    if (keypath == '') {
+      await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + planetNumber, value)
+    } else {
+      await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + planetNumber + '.' + keypath, value)
+    }
   }
 
 
