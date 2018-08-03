@@ -395,16 +395,17 @@ class Datasource extends EventEmitter2 {
         // So recursively resolve it if needed.
         let seed = await get('seed')
         let [ obj_x, obj_y, obj_z] = await this.star.getObjectPosition.call(seed)
-        await save('x', mv.fromReal(obj_x))
-        await save('y', mv.fromReal(obj_y))
-        await save('z', mv.fromReal(obj_z))
-        return {x: x, y: y, z: z}[keypath]
+        let position = {x: mv.fromReal(obj_x), y: mv.fromReal(obj_y), z: mv.fromReal(obj_z)}
+        for (let prop in position) {
+            await save(prop, position[prop])
+        }
+        return position[keypath]
       }
       break
     case 'objClass':
       {
         let seed = await get('seed')
-        let value = mv.fromReal(await this.star.getObjectClass.call(seed)).toNumber()
+        let value = (await this.star.getObjectClass.call(seed)).toNumber()
         await save(keypath, value)
         return value
       }
