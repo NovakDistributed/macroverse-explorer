@@ -40,43 +40,45 @@ class Infobox {
     })
   }
 
+  // Everything that needs a child picker can use this one
+  // Turns a keypath and a number of children into a dropdown that shows the child selected
+  makeChildPicker(keypath, count) {
+    let root = document.createElement('select')
+    root.classList.add('infobox-child-list')
+
+    // Have an option that is a header/please-select value
+    let header = document.createElement('option')
+    header.innerText = 'Select...'
+    root.appendChild(header)
+
+    root.addEventListener('change', () => {
+      // When an option is chosen, show the star
+      if (root.selectedIndex == 0) {
+        // They picked the placeholder header
+        return
+      }
+      // Tell the context bus what we want to look at
+      this.ctx.emit('show', keypath + '.' + (root.selectedIndex - 1))
+    })
+    
+    for (let i = 0; i < count; i++) {
+      // Make a button for each star
+      let option = document.createElement('option')
+      option.classList.add('infobox-child')
+      option.innerText = i
+      root.appendChild(option)
+    }
+
+    return root
+  }
+
+
   /// Show the infobox for a sector
   showSector(keypath) {
     // Prep the infobox
     this.infobox.classList.remove('infobox-star')
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.add('infobox-sector')
-
-    // We will want to build a widget to jump to a child, as soon as we know how many exist
-    let makeStarPicker = (count) => {
-      let root = document.createElement('select')
-      root.classList.add('infobox-child-list')
-
-      // Have an option that is a header/please-select value
-      let header = document.createElement('option')
-      header.innerText = 'Select...'
-      root.appendChild(header)
-
-      root.addEventListener('change', () => {
-        // When an option is chosen, show the star
-        if (root.selectedIndex == 0) {
-          // They picked the placeholder header
-          return
-        }
-        // Tell the context bus what we want to look at
-        this.ctx.emit('show', keypath + '.' + (root.selectedIndex - 1))
-      })
-      
-      for (let i = 0; i < count; i++) {
-        // Make a button for each star
-        let option = document.createElement('option')
-        option.classList.add('infobox-child')
-        option.innerText = i
-        root.appendChild(option)
-      }
-  
-      return root
-    }
 
     // Set up the main template
     this.infobox.innerHTML = `
@@ -93,7 +95,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Children</td>
-            <td>${this.when(keypath + '.objectCount', makeStarPicker)}</td>
+            <td>${this.when(keypath + '.objectCount', x => this.makeChildPicker(keypath, x))}</td>
           </td>
         </table>
       </div>
@@ -105,6 +107,7 @@ class Infobox {
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.remove('infobox-sector')
     this.infobox.classList.add('infobox-star')
+
     this.infobox.innerHTML = `
       <div class="infobox-header">
         <button class="infobox-back" id="infobox-back">&lt;</button>
@@ -139,6 +142,10 @@ class Infobox {
             <td>Planets</td>
             <td>${this.when(keypath + '.planetCount')}</td>
           </tr>
+          <tr>
+            <td>Children</td>
+            <td>${this.when(keypath + '.planetCount', x => this.makeChildPicker(keypath, x))}</td>
+          </td>
         </table>
 
       </div>
