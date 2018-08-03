@@ -247,9 +247,6 @@ async function showSector(ctx, infobox, x, y, z) {
       // Kick off loading all the stars asynchronously, so we don;t try and make too many sprites in one tick.
       return ctx.ds.request(sectorPath + '.' + i).then((star) => {
 
-        console.log('Got star ' + i)
-        console.log(star)
-
         // For each star object, when we get it
 
         if (ourNonce != sectorNonce) {
@@ -349,13 +346,12 @@ async function main() {
   ctx.ds = ds
  
   ds.onAny((event_name, event_arg) => {
-    console.log('Event ' + event_name + ' with arg ' + event_arg)
+    //console.log('Event ' + event_name + ' with arg ' + event_arg)
   })
 
-  ds.request('0.0.0.1.x')
+  ds.request('0.0.0.5.realLuminosity')
   //ds.request('0.0.0.objectCount')
   //ds.request('0.0.0.5.hasPlanets')
-  
 
   // Show the initial sector
   showSector(ctx, infobox, curX, curY, curZ)

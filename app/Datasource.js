@@ -157,12 +157,10 @@ class Datasource extends EventEmitter2 {
     // TODO: It would be more debuggable to vet it here
     this.stack.push(keypath)
 
-    console.log('Looking for ' + keypath)
 
     // Set up a promise for when the result comes in
     let promise = new Promise((resolve, reject) => {
       this.once(keypath, (value) => {
-        console.log('Resolving request for ' + keypath)
         resolve(value)
       })
     })
@@ -170,7 +168,6 @@ class Datasource extends EventEmitter2 {
     if (!this.running) {
       // We just disturbed a sleeping Datasource, so start processing stuff
       
-      console.log('Stack not running. Starting...')
       this.running = true
 
       // Schedule the waiting tasks to be handled
@@ -192,8 +189,6 @@ class Datasource extends EventEmitter2 {
     // What should we go get?
     let keypath = this.stack.pop()
 
-    console.log('Stack top: ' + keypath)
-
     // Do the top thing on the stack, and get the value it produces
     let value = await this.resolveImmediately(keypath)
     // Note that it may call resolveImmediately to get keys it depends on
@@ -201,8 +196,6 @@ class Datasource extends EventEmitter2 {
     // Emit the event for it.
     // Don't emit events for everything it caches.
     this.publishKeypath(keypath, value)
-
-    console.log('Process next stack entry')
 
     // Check again for things on the stack
     timers.setImmediate(() => {
@@ -220,13 +213,16 @@ class Datasource extends EventEmitter2 {
     // We will fill this in with the value when we get it
     var value = undefined;
 
-    // See if we have it already
-    let found = getKeypath(this.memCache, keypath)
+    // See if we have it already in the first level of cache
+    var found = getKeypath(this.memCache, keypath)
 
-    if (found === undefined) {
+    if (found === undefined || found === null) {
+        // Try the second level of cache
+        found = JSON.parse(window.localStorage.getItem(keypath))
+    }
+
+    if (found === undefined || found === null) {
       // We have to go get it
-
-      console.log('Actually retrieving ' + keypath + ' which is not in cache')
 
       // Parse out the parts
       let parts = keypath.split('.')
@@ -305,7 +301,6 @@ class Datasource extends EventEmitter2 {
 
     } else {
       // It was cached. Send it out again, because someone asked for it.
-      console.log('Retrieved cached ' + keypath)
       value = found
     }
 
@@ -316,9 +311,14 @@ class Datasource extends EventEmitter2 {
   // Record that the given keypath has been resolved with the given value in the cache.
   // Dispatch the keypath events
   async publishKeypath(keypath, value) {
-    console.log('Cache ' + keypath)
     // Store the value in the cache
     setKeypath(this.memCache, keypath, value)
+
+    if (value != null && (typeof value !== 'object' || value.constructor.name == 'BigNumber')) {
+        // This isn't an internal node in the keypath tree. It is a real value to cache. Save it.
+        // Note that BigNumber objects stringify as digit strings, which should be fine to hand back to web3, which is all we do with them.
+        window.localStorage.setItem(keypath, JSON.stringify(value))
+    }
 
     // Emit the value to anyone listening for it
     this.emit(keypath, value)
@@ -328,7 +328,6 @@ class Datasource extends EventEmitter2 {
   // Save it and any properties retrieved at the same time in the cache.
   // Returns a promise for its value.
   async getSectorProperty(x, y, z, keypath) {
-    console.log('Get property ' + keypath + ' of sector ' + x + ', ' + y + ', ' + z)
     switch(keypath) {
     case 'objectCount':
       let value = (await this.star.getSectorObjectCount.call(x, y, z)).toNumber()
@@ -350,7 +349,6 @@ class Datasource extends EventEmitter2 {
   // Returns a promise for its value
   // '' keypath = whole star
   async getStarProperty(x, y, z, starNumber, keypath) {
-    console.log('Get property ' + keypath + ' of sector ' + x + ', ' + y + ', ' + z + ' star ' + starNumber)
     
     // Lots of star properties depend on other ones
     let starKey = x + '.' + y + '.' + z + '.' + starNumber
@@ -371,7 +369,7 @@ class Datasource extends EventEmitter2 {
     case '':
       {
         let value = {}
-        for (let key of ['x', 'y', 'z', 'objClass', 'objType', 'realMass', 'objMass',
+        for (let key of ['seed', 'x', 'y', 'z', 'objClass', 'objType', 'realMass', 'objMass',
           'realLuminosity', 'luminosity', 'hasPlanets', 'planetCount', 'habitableZone']) {
           // Go get and fill in all the properties
           value[key] = await get(key)
@@ -463,7 +461,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let objClass = await get('objClass')
-        let realMass = await get('objMass')
+        let realMass = await get('realMass')
         let realLuminosity = await this.sys.getObjectLuminosity.call(seed, objClass, realMass)
         let luminosity = mv.fromReal(realLuminosity)
         await save('realLuminosity', realLuminosity)

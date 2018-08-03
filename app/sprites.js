@@ -21,6 +21,11 @@ let typeToColor = {
 // Convert an array of 0-255 values into a hex color code.
 // It has to be hex because A-Frame particle systems only accept hex, not 'rgb()' notation
 function arrayToColor(arr) {
+
+  if(arr === undefined) {
+    // This is bad
+    return '#FF00FF'
+  }
   
   hex = '#'
   for (let item of arr) {
