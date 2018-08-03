@@ -29,6 +29,38 @@ class Infobox {
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.add('infobox-sector')
 
+    // We will want to build a widget to jump to a child, as soon as we know how many exist
+    let makeStarPicker = (count) => {
+      let root = document.createElement('select')
+      root.classList.add('infobox-child-list')
+
+      // Have an option that is a header/please-select value
+      let header = document.createElement('option')
+      header.innerText = 'Select...'
+      root.appendChild(header)
+
+      root.addEventListener('change', () => {
+        // When an option is chosen, show the star
+        if (root.selectedIndex == 0) {
+          // They picked the placeholder header
+          return
+        }
+        this.showStar(keypath + '.' + (root.selectedIndex - 1), () => {
+          this.showSector(keypath)
+        })
+      })
+      
+      for (let i = 0; i < count; i++) {
+        // Make a button for each star
+        let option = document.createElement('option')
+        option.classList.add('infobox-child')
+        option.innerText = i
+        root.appendChild(option)
+      }
+  
+      return root
+    }
+
     // Set up the main template
     this.infobox.innerHTML = `
       <div class="infobox-header">
@@ -42,6 +74,10 @@ class Infobox {
             <td>Number of Systems</td>
             <td>${this.when(keypath + '.objectCount')}</td>
           </tr>
+          <tr>
+            <td>Children</td>
+            <td>${this.when(keypath + '.objectCount', makeStarPicker)}</td>
+          </td>
         </table>
       </div>
     `
@@ -87,6 +123,7 @@ class Infobox {
             <td>${this.when(keypath + '.planetCount')}</td>
           </tr>
         </table>
+
       </div>
     `
 
@@ -148,10 +185,10 @@ class Infobox {
   }
 
   /// Internal function to lazy-load and format data from the Datasource.
-  /// Takes a string keypath.
+  /// Takes a string keypath and an optional callback.
   /// Returns the text for an HTML element that looks like a throbber, and
-  /// later replaces itself with the text returned from the callback called with
-  /// the keypath's value, when it arrives.
+  /// later replaces itself with the text or DOM node returned from the callback called with
+  /// the keypath's value, or the text value if there is no callback, when it arrives.
   when(keypath, callback) {
     // Come up with a unique HTML ID for the element we will return.
     let id = 'infobox-when-' + this.nextId
@@ -166,8 +203,17 @@ class Infobox {
       if (waiting) {
         // It's still there and not gone.
         if (callback) {
-          // Replace it with the returned string, parsed as HTML
-          waiting.outerHTML = callback(value)
+          // Run the callback with the value
+          let result = callback(value)
+
+          if (result instanceof HTMLElement) {
+            // It is a dom node, so replace this one
+            waiting.parentNode.insertBefore(result, waiting)
+            waiting.parentNode.removeChild(waiting)
+          } else {
+            // Replace it with the returned string, parsed as HTML
+            waiting.outerHTML = callback(value)
+          }
         } else {
           // Replace it with the text of the actual value, not parsed as HTML
           waiting.parentNode.insertBefore(document.createTextNode(value), waiting)
