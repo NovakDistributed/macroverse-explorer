@@ -15,22 +15,17 @@ const mv = require('macroverse')
 
 // Load all the other parts of the code
 const Context = require('./Context.js')
-const Datasource = require('./Datasource.js')
 const eth = require('./eth.js')
 const {desynchronize} = require('./robust.js')
 const sprites = require('./sprites.js')
 const Infobox = require('./Infobox.js')
+const {parentOf} = require('./keypath.js')
 
 /// Make a promise that waits for the given number of ms and then resolves
 function sleep(time) {
   return new Promise((resolve, reject) => {
     setTimeout(resolve, time)
   })
-}
-
-// Make a function that gets keypath parents
-function parentOf(keypath) {
-  return keypath.substr(0, keypath.lastIndexOf('.'))
 }
 
 // Nonce for remembering which system was most recenty requested
@@ -181,7 +176,7 @@ async function showSystem(ctx, infobox, keypath) {
 
     let clickHandler = () => {
       // When clicked, show planet infobox
-      infobox.showPlanet(planets[i], star, () => {
+      infobox.showPlanet(keypath + '.' + i, () => {
         // If the user goes up, show the star infobox again
         infobox.showStar(keypath, async () => {
           // If the user goes up, show the sector again
@@ -338,22 +333,16 @@ async function main() {
   // Get ahold of a global Macroverse context.
   let ctx = await Context('contracts/')
 
-  // Make a Datasource
-  let ds = await Datasource('contracts/')
-
-  // Hide it in the context
-  ctx.ds = ds
-
   // Make an infobox object with access to the data source
   // It will look up values for whatever we tell it to display
   let infoboxElement = document.getElementById('infobox')
-  let infobox = new Infobox(infoboxElement, ds)
+  let infobox = new Infobox(infoboxElement, ctx)
 
-  ds.onAny((event_name, event_arg) => {
+  ctx.ds.onAny((event_name, event_arg) => {
     //console.log('Event ' + event_name + ' with arg ' + event_arg)
   })
 
-  ds.request('0.0.0.5.realLuminosity')
+  ctx.ds.request('0.0.0.5.realLuminosity')
   //ds.request('0.0.0.objectCount')
   //ds.request('0.0.0.5.hasPlanets')
 

@@ -1,6 +1,8 @@
 // Infobox.js: Defines an Infobox class which can be told to display
 // information on a star, planet, etc. in an element.
 
+const {parentOf, lastComponent} = require('./keypath.js')
+
 const mv = require('macroverse')
 
 // TODO: Move this stuff to the macroverse module
@@ -9,13 +11,13 @@ let planetClasses = ['Lunar', 'Terrestrial', 'Uranian', 'Jovian', 'AsteroidBelt'
 class Infobox {
   
   /// Construct an infobox rooted at the given HTML element, getting data to display from the given Datasource
-  constructor(infobox, datasource) {
+  constructor(infobox, context) {
     // Save and set up the root element
     this.infobox = infobox
     this.infobox.classList.add('infobox')
 
-    // Save the Datasource
-    this.ds = datasource
+    // Save the context
+    this.ctx = context
 
     // Set up our unique ID generator.
     // TODO: No more than 1 Infobox per page unless we unique-ify this!
@@ -45,9 +47,8 @@ class Infobox {
           // They picked the placeholder header
           return
         }
-        this.showStar(keypath + '.' + (root.selectedIndex - 1), () => {
-          this.showSector(keypath)
-        })
+        // Tell the context bus what we want to look at
+        this.ctx.emit('show', keypath + '.' + (root.selectedIndex - 1))
       })
       
       for (let i = 0; i < count; i++) {
@@ -83,8 +84,8 @@ class Infobox {
     `
   }
 
-  /// Show the infobox for the given star. If the user goes back, call the given callback.
-  showStar(keypath, back) {
+  /// Show the infobox for the given star.
+  showStar(keypath) {
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.remove('infobox-sector')
     this.infobox.classList.add('infobox-star')
@@ -128,11 +129,18 @@ class Infobox {
     `
 
     // Listen for back clicks
-    this.infobox.querySelector('#infobox-back').addEventListener('click', back)
+    this.infobox.querySelector('#infobox-back').addEventListener('click', () => {
+      this.ctx.emit('show', parentOf(keypath))  
+    })
   }
 
-  /// Show the infobox for the given planet, orbiting the given star. If the user goes back, call the given callback.
-  showPlanet(planet, star, back) {
+  /// Show the infobox for the given planet, orbiting the given star.
+  async showPlanet(keypath) {
+
+    // TODO: we still use the old whole-object system
+    let star = await this.ctx.ds.request(parentOf(keypath))
+    let planet = await this.ctx.planets.getPlanet(star, lastComponent(keypath))
+
     this.infobox.classList.remove('infobox-star')
     this.infobox.classList.remove('infobox-sector')
     this.infobox.classList.add('infobox-planet')
@@ -181,7 +189,9 @@ class Infobox {
     `
 
     // Listen for back clicks
-    this.infobox.querySelector('#infobox-back').addEventListener('click', back)
+    this.infobox.querySelector('#infobox-back').addEventListener('click', () => {
+      this.ctx.emit('show', parentOf(keypath))
+    })
   }
 
   /// Internal function to lazy-load and format data from the Datasource.
@@ -198,7 +208,7 @@ class Infobox {
     let throbber = `<span id="${id}" class="infobox-throbber">???</span>`
 
     // Set up the event handler
-    this.ds.once(keypath, (value) => {
+    this.ctx.ds.once(keypath, (value) => {
       let waiting = document.getElementById(id)
       if (waiting) {
         // It's still there and not gone.
@@ -223,7 +233,7 @@ class Infobox {
       }
     })
     // Ask for the thing to actually be sent to us
-    this.ds.request(keypath)
+    this.ctx.ds.request(keypath)
 
     // TODO: We assume the throbber makes it on to the actual page before the event handler can possibly run
     return throbber

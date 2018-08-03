@@ -6,14 +6,23 @@
 // Load up the facade over web3 and truffle-contract
 const eth = require('./eth.js')
 
+// And the event emitter which we use to be a bus for global navigation events
+const { EventEmitter2 } = require('eventemitter2')
+
 // And the cache implementations
 const StarCache = require('./StarCache.js')
 const PlanetCache = require('./PlanetCache.js')
 
+// And the datasource we are replacing them with
+const Datasource = require('./Datasource.js')
+
 // The actual context class. External interface.
-class Context {
+// Users should listen to the 'show' event for keypaths to draw, and raise it when they want to navigate.
+class Context extends EventEmitter2 {
   // Construct a context using the specified base path for fetching contracts. 
   constructor(basePath) {
+    super()
+
     // Save the base path
     this.basePath = basePath
 
@@ -45,6 +54,9 @@ class Context {
         // Use them to back the caches
         this.stars = new StarCache(MacroverseStarGenerator, MacroverseSystemGenerator)
         this.planets = new PlanetCache(MacroverseSystemGenerator)
+
+        // Make a Datasource
+        this.ds = await Datasource(this.basePath)
 
       })()
     }
