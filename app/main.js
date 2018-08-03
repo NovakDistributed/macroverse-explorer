@@ -28,6 +28,11 @@ function sleep(time) {
   })
 }
 
+// Make a function that gets keypath parents
+function parentOf(keypath) {
+  return keypath.substr(0, keypath.lastIndexOf('.'))
+}
+
 // Nonce for remembering which system was most recenty requested
 let systemNonce = 0
 
@@ -47,19 +52,19 @@ function moveCameraFocus(position) {
 
 }
 
-/// Show the planetary system of the given star object, using the given Macroverse context.
+/// Show the planetary system of the star with the given keypath, using the given Macroverse context.
 /// Uses the given infobox for 2D UI.
-async function showSystem(ctx, infobox, star) {
+async function showSystem(ctx, infobox, keypath) {
   // Figure out our place so we don't clobber later requests that finish earlier
   systemNonce++
   let ourNonce = systemNonce
 
   // Show the infobox
-  infobox.showStar(star, async () => {
+  infobox.showStar(keypath, async () => {
     // If the user goes up, show the sector again
     let sector = document.getElementById('sector')
     moveCameraFocus(sector.getAttribute('position'))
-    infobox.showSector(curX, curY, curZ, await ctx.stars.getObjectCount(curX, curY, curZ))
+    infobox.showSector(parentOf(keypath))
   })
 
   // Find the system display holding node
@@ -75,6 +80,9 @@ async function showSystem(ctx, infobox, star) {
 
   // Focus the system view
   moveCameraFocus(system.getAttribute('position'))
+
+  // Get the actual star object
+  let star = await ctx.ds.request(keypath)
   
   // Go get the system data
   let planetCount = await ctx.planets.getObjectPlanetCount(star)
@@ -129,7 +137,7 @@ async function showSystem(ctx, infobox, star) {
       // If the user goes up, show the sector again
       let sector = document.getElementById('sector')
       moveCameraFocus(sector.getAttribute('position'))
-      infobox.showSector(curX, curY, curZ, await ctx.stars.getObjectCount(curX, curY, curZ))
+      infobox.showSector(parentOf(keypath))
     })
   })
 
@@ -174,13 +182,13 @@ async function showSystem(ctx, infobox, star) {
     let clickHandler = () => {
       // When clicked, show planet infobox
       infobox.showPlanet(planets[i], star, () => {
-        // If the user goes up, show the star infobox
-        infobox.showStar(star, async () => {
+        // If the user goes up, show the star infobox again
+        infobox.showStar(keypath, async () => {
           // If the user goes up, show the sector again
           let sector = document.getElementById('sector')
           moveCameraFocus(sector.getAttribute('position'))
-          infobox.showSector(curX, curY, curZ, await ctx.stars.getObjectCount(curX, curY, curZ))
-          // TODO: this code is repeated like 3 times and relies on hoping a promise is in the cache...
+          infobox.showSector(parentOf(keypath))
+          // TODO: this code is repeated like 3 times. The infobox now has keypaths and can know how to go up.
         })
       })
     }
@@ -212,7 +220,7 @@ async function showSector(ctx, infobox, x, y, z) {
   console.log('Show sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
 
   // Start the infobox waiting
-  infobox.showSector(x, y, z)
+  infobox.showSector(x + '.' + y + '.' + z)
 
   // Find where we want to put things
   let sector = document.getElementById('sector')
@@ -256,7 +264,7 @@ async function showSector(ctx, infobox, x, y, z) {
           // When the user clicks it, show that system.
           console.log('User clicked on star ' + i + ' with seed ' + star.seed)
           // Display the star's system in the system view.
-          await showSystem(ctx, infobox, star)
+          await showSystem(ctx, infobox, sectorPath + '.' + i)
         })
 
         if (ourNonce == sectorNonce) {

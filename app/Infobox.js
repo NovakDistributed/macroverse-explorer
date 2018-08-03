@@ -10,16 +10,20 @@ class Infobox {
   
   /// Construct an infobox rooted at the given HTML element, getting data to display from the given Datasource
   constructor(infobox, datasource) {
+    // Save and set up the root element
     this.infobox = infobox
     this.infobox.classList.add('infobox')
 
+    // Save the Datasource
     this.ds = datasource
-  }
-  
 
+    // Set up our unique ID generator.
+    // TODO: No more than 1 Infobox per page unless we unique-ify this!
+    this.nextId = 0
+  }
 
   /// Show the infobox for a sector
-  showSector(x, y, z) {
+  showSector(keypath) {
     // Prep the infobox
     this.infobox.classList.remove('infobox-star')
     this.infobox.classList.remove('infobox-planet')
@@ -29,30 +33,22 @@ class Infobox {
     this.infobox.innerHTML = `
       <div class="infobox-header">
         <span class="infobox-title">
-          Sector ${x},${y},${z}
+          Sector ${keypath}
         </span>
       </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
             <td>Number of Systems</td>
-            <td id="infobox-system-count"></td>
+            <td>${this.when(keypath + '.objectCount')}</td>
           </tr>
         </table>
       </div>
     `
-
-    // When the system count comes in, show it.
-    // Select the cell now rather than later to let the DOM worry about the node being gone later
-    let systemCountCell = this.infobox.querySelector('#infobox-system-count')
-    this.ds.once(x + '.' + y + '.' + z + '.objectCount', (count) => {
-      systemCountCell.innerText = count
-    })
-    this.ds.request(x + '.' + y + '.' + z + '.objectCount')
   }
 
   /// Show the infobox for the given star. If the user goes back, call the given callback.
-  showStar(star, back) {
+  showStar(keypath, back) {
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.remove('infobox-sector')
     this.infobox.classList.add('infobox-star')
@@ -60,34 +56,35 @@ class Infobox {
       <div class="infobox-header">
         <button class="infobox-back" id="infobox-back">&lt;</button>
         <span class="infobox-title">
-          Star ${star.sectorX},${star.sectorY},${star.sectorZ}/${star.number}
+          Star ${keypath}
         </span>
       </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
             <td>Object Class</td>
-            <td>${mv.objectClasses[star.objClass]}</td>
+            <td>${this.when(keypath + '.objClass', (x) => mv.objectClasses[x])}</td>
           </tr>
           <tr>
             <td>Spectral Type</td>
-            <td>${mv.spectralTypes[star.objType]}</td>
+            <td>${this.when(keypath + '.objType', (x) => mv.spectralTypes[x])}</td>
           </tr>
           <tr>
             <td>Mass</td>
-            <td>${star.objMass.toFixed(2)} M<sub>☉</sub></td>
+            <td>${this.when(keypath + '.objMass', (x) => x.toFixed(2))} M<sub>☉</sub></td>
           </tr>
           <tr>
             <td>Luminosity</td>
-            <td>${star.luminosity.toFixed(2)} L<sub>☉</sub></td>
+            <td>${this.when(keypath + '.luminosity', (x) => x.toFixed(2))} L<sub>☉</sub></td>
           </tr>
           <tr>
             <td>Habitable Zone</td>
-            <td>${(star.habitableZone.start / mv.AU).toFixed(2)} - ${(star.habitableZone.end / mv.AU).toFixed(2)} AU</td>
+            <td>${this.when(keypath + '.habitableZone.start', (x) => (x / mv.AU).toFixed(2))} - 
+            ${this.when(keypath + '.habitableZone.end', (x) => (x / mv.AU).toFixed(2))} AU</td>
           </tr>
           <tr>
             <td>Planets</td>
-            <td>${star.planetCount}</td>
+            <td>${this.when(keypath + '.planetCount')}</td>
           </tr>
         </table>
       </div>
@@ -148,6 +145,42 @@ class Infobox {
 
     // Listen for back clicks
     this.infobox.querySelector('#infobox-back').addEventListener('click', back)
+  }
+
+  /// Internal function to lazy-load and format data from the Datasource.
+  /// Takes a string keypath.
+  /// Returns the text for an HTML element that looks like a throbber, and
+  /// later replaces itself with the text returned from the callback called with
+  /// the keypath's value, when it arrives.
+  when(keypath, callback) {
+    // Come up with a unique HTML ID for the element we will return.
+    let id = 'infobox-when-' + this.nextId
+    this.nextId++
+
+    // Define the throbber HTML
+    let throbber = `<span id="${id}" class="infobox-throbber">???</span>`
+
+    // Set up the event handler
+    this.ds.once(keypath, (value) => {
+      let waiting = document.getElementById(id)
+      if (waiting) {
+        // It's still there and not gone.
+        if (callback) {
+          // Replace it with the returned string, parsed as HTML
+          waiting.outerHTML = callback(value)
+        } else {
+          // Replace it with the text of the actual value, not parsed as HTML
+          waiting.parentNode.insertBefore(document.createTextNode(value), waiting)
+          // Delete the throbber itself
+          waiting.parentNode.removeChild(waiting)
+        }
+      }
+    })
+    // Ask for the thing to actually be sent to us
+    this.ds.request(keypath)
+
+    // TODO: We assume the throbber makes it on to the actual page before the event handler can possibly run
+    return throbber
   }
 }
 
