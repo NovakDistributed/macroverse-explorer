@@ -43,6 +43,10 @@ class Infobox {
   // Everything that needs a child picker can use this one
   // Turns a keypath and a number of children into a dropdown that shows the child selected
   makeChildPicker(keypath, count) {
+    if (count == 0) {
+      return 'None'
+    }
+
     let root = document.createElement('select')
     root.classList.add('infobox-child-list')
 
