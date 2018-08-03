@@ -211,6 +211,9 @@ async function showSector(ctx, infobox, x, y, z) {
 
   console.log('Show sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
 
+  // Start the infobox waiting
+  infobox.showSector(x, y, z)
+
   // Find where we want to put things
   let sector = document.getElementById('sector')
 
@@ -229,14 +232,6 @@ async function showSector(ctx, infobox, x, y, z) {
   // Go get the sector object count via the new Datasource interface
   let sectorPath = x + '.' + y + '.' + z
   let starCount = await ctx.ds.request(sectorPath + '.objectCount')
-
-  if (ourNonce == sectorNonce) {
-    // Still want this sector.
-    // TODO: Work out how to not clobber stars/planets
-    
-    // Show the infobox
-    infobox.showSector(x, y, z, starCount)
-  }
 
   // We fill this with promises for making all the stars, which are running in parallel.
   let starPromises = []
@@ -332,10 +327,6 @@ async function main() {
   console.log('Starting on Ethereum network ' + eth.get_network_id())
   console.log('Using account ' + eth.get_account())
 
-  // Make an infobox object
-  let infoboxElement = document.getElementById('infobox')
-  let infobox = new Infobox(infoboxElement)
-
   // Get ahold of a global Macroverse context.
   let ctx = await Context('contracts/')
 
@@ -344,7 +335,12 @@ async function main() {
 
   // Hide it in the context
   ctx.ds = ds
- 
+
+  // Make an infobox object with access to the data source
+  // It will look up values for whatever we tell it to display
+  let infoboxElement = document.getElementById('infobox')
+  let infobox = new Infobox(infoboxElement, ds)
+
   ds.onAny((event_name, event_arg) => {
     //console.log('Event ' + event_name + ' with arg ' + event_arg)
   })

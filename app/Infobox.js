@@ -8,18 +8,24 @@ let planetClasses = ['Lunar', 'Terrestrial', 'Uranian', 'Jovian', 'AsteroidBelt'
 
 class Infobox {
   
-  /// Construct an infobox rooted at the given HTML element
-  constructor(infobox) {
+  /// Construct an infobox rooted at the given HTML element, getting data to display from the given Datasource
+  constructor(infobox, datasource) {
     this.infobox = infobox
     this.infobox.classList.add('infobox')
+
+    this.ds = datasource
   }
   
+
+
   /// Show the infobox for a sector
-  /// TODO: Create a sector object
-  showSector(x, y, z, count) {
+  showSector(x, y, z) {
+    // Prep the infobox
     this.infobox.classList.remove('infobox-star')
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.add('infobox-sector')
+
+    // Set up the main template
     this.infobox.innerHTML = `
       <div class="infobox-header">
         <span class="infobox-title">
@@ -30,11 +36,19 @@ class Infobox {
         <table class="infobox-table">
           <tr>
             <td>Number of Systems</td>
-            <td>${count}</td>
+            <td id="infobox-system-count"></td>
           </tr>
         </table>
       </div>
     `
+
+    // When the system count comes in, show it.
+    // Select the cell now rather than later to let the DOM worry about the node being gone later
+    let systemCountCell = this.infobox.querySelector('#infobox-system-count')
+    this.ds.once(x + '.' + y + '.' + z + '.objectCount', (count) => {
+      systemCountCell.innerText = count
+    })
+    this.ds.request(x + '.' + y + '.' + z + '.objectCount')
   }
 
   /// Show the infobox for the given star. If the user goes back, call the given callback.
