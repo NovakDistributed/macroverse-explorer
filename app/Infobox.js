@@ -22,6 +22,22 @@ class Infobox {
     // Set up our unique ID generator.
     // TODO: No more than 1 Infobox per page unless we unique-ify this!
     this.nextId = 0
+
+    // Set up listeners to context show messages, so we know what to look at
+    this.ctx.on('show', (keypath) => {
+      let parts = keypath.split('.')
+
+      if (parts.length == 3) {
+        // We want a sector
+        this.showSector(keypath)
+      } else if (parts.length == 4) {
+        // This is a star
+        this.showStar(keypath) 
+      } else if (parts.length == 5) {
+        // This is a planet
+        this.showPlanet(keypath)
+      }
+    })
   }
 
   /// Show the infobox for a sector

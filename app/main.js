@@ -48,20 +48,11 @@ function moveCameraFocus(position) {
 }
 
 /// Show the planetary system of the star with the given keypath, using the given Macroverse context.
-/// Uses the given infobox for 2D UI.
-async function showSystem(ctx, infobox, keypath) {
+async function showSystem(ctx, keypath) {
   // Figure out our place so we don't clobber later requests that finish earlier
   systemNonce++
   let ourNonce = systemNonce
-
-  // Show the infobox
-  infobox.showStar(keypath, async () => {
-    // If the user goes up, show the sector again
-    let sector = document.getElementById('sector')
-    moveCameraFocus(sector.getAttribute('position'))
-    infobox.showSector(parentOf(keypath))
-  })
-
+  
   // Find the system display holding node
   let system = document.getElementById('system')
   while (system.firstChild) {
@@ -127,13 +118,9 @@ async function showSystem(ctx, infobox, keypath) {
   })
 
   sun.addEventListener('click', () => {
-    // Show the infobox for the star when the star is clicked again.
-    infobox.showStar(star, async () => {
-      // If the user goes up, show the sector again
-      let sector = document.getElementById('sector')
-      moveCameraFocus(sector.getAttribute('position'))
-      infobox.showSector(parentOf(keypath))
-    })
+    // Show the star when the star is clicked again.
+    // TODO: won't this re-build everything?
+    ctx.emit('show', keypath)
   })
 
   // TODO: desynchronize() all this system construction to not be slow.
@@ -175,17 +162,8 @@ async function showSystem(ctx, infobox, keypath) {
     root.appendChild(orbitSprite)
 
     let clickHandler = () => {
-      // When clicked, show planet infobox
-      infobox.showPlanet(keypath + '.' + i, () => {
-        // If the user goes up, show the star infobox again
-        infobox.showStar(keypath, async () => {
-          // If the user goes up, show the sector again
-          let sector = document.getElementById('sector')
-          moveCameraFocus(sector.getAttribute('position'))
-          infobox.showSector(parentOf(keypath))
-          // TODO: this code is repeated like 3 times. The infobox now has keypaths and can know how to go up.
-        })
-      })
+      // When clicked, show planet 
+      ctx.emit('show', keypath + '.' + i)
     }
 
     planetSprite.addEventListener('click', clickHandler)
@@ -206,16 +184,13 @@ async function showSystem(ctx, infobox, keypath) {
 let sectorNonce = 0
 
 /// Display the sector with the given coordinates.
-/// Uses the given context for talking to Macroverse, and the given infobox for 2D UI.
-async function showSector(ctx, infobox, x, y, z) {
+/// Uses the given context for talking to Macroverse and for moving to other places.
+async function showSector(ctx, x, y, z) {
   // Figure out our place so we don't clobber later requests that finish earlier
   sectorNonce++
   let ourNonce = sectorNonce
 
   console.log('Show sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
-
-  // Start the infobox waiting
-  infobox.showSector(x + '.' + y + '.' + z)
 
   // Find where we want to put things
   let sector = document.getElementById('sector')
@@ -258,8 +233,8 @@ async function showSector(ctx, infobox, x, y, z) {
         sprite.addEventListener('click', async () => {
           // When the user clicks it, show that system.
           console.log('User clicked on star ' + i + ' with seed ' + star.seed)
-          // Display the star's system in the system view.
-          await showSystem(ctx, infobox, sectorPath + '.' + i)
+          // Display the star's system
+          ctx.emit('show', sectorPath + '.' + i)
         })
 
         if (ourNonce == sectorNonce) {
@@ -293,12 +268,12 @@ let curZ = 0
 
 /// Return a function that will pan the currenc cursor by the specified amount and kick of the display of the new sector.
 /// Basically an event handler factory.
-function make_pan_handler(ctx, infobox, deltaX, deltaY, deltaZ) {
+function make_pan_handler(ctx, deltaX, deltaY, deltaZ) {
   return function() {
     curX += deltaX
     curY += deltaY
     curZ += deltaZ
-    showSector(ctx, infobox, curX, curY, curZ)
+    ctx.emit('show', curX + '.' + curY + '.' + curZ)
   }
 }
 
@@ -346,16 +321,32 @@ async function main() {
   //ds.request('0.0.0.objectCount')
   //ds.request('0.0.0.5.hasPlanets')
 
-  // Show the initial sector
-  showSector(ctx, infobox, curX, curY, curZ)
+  // Hook up an event listener to show things in the 3d view
+  ctx.on('show', (keypath) => {
+    console.log('Event to move to ' + keypath)
+    let parts = keypath.split('.')
+
+    if (parts.length == 3) {
+      // We want a sector. Pass along the context.
+      showSector(ctx, parts[0], parts[1], parts[2])
+    } else if (parts.length == 4) {
+      // This is a star
+      showSystem(ctx, keypath) 
+    }
+    // Otherwise it's a planet and we don't move.
+  })
+
 
   // Hook up pan handlers
-  document.getElementById('x-plus').addEventListener('click', make_pan_handler(ctx, infobox, 1, 0, 0))
-  document.getElementById('x-minus').addEventListener('click', make_pan_handler(ctx, infobox, -1, 0, 0))
-  document.getElementById('y-plus').addEventListener('click', make_pan_handler(ctx, infobox, 0, 1, 0))
-  document.getElementById('y-minus').addEventListener('click', make_pan_handler(ctx, infobox, 0, -1, 0))
-  document.getElementById('z-plus').addEventListener('click', make_pan_handler(ctx, infobox, 0, 0, 1))
-  document.getElementById('z-minus').addEventListener('click', make_pan_handler(ctx, infobox, 0, 0, -1))
+  document.getElementById('x-plus').addEventListener('click', make_pan_handler(ctx, 1, 0, 0))
+  document.getElementById('x-minus').addEventListener('click', make_pan_handler(ctx, -1, 0, 0))
+  document.getElementById('y-plus').addEventListener('click', make_pan_handler(ctx, 0, 1, 0))
+  document.getElementById('y-minus').addEventListener('click', make_pan_handler(ctx, 0, -1, 0))
+  document.getElementById('z-plus').addEventListener('click', make_pan_handler(ctx, 0, 0, 1))
+  document.getElementById('z-minus').addEventListener('click', make_pan_handler(ctx, 0, 0, -1))
+
+  // Show the initial sector
+  ctx.emit('show', curX + '.' + curY + '.' + curZ)
   
 }
 
