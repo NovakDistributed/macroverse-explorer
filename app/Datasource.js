@@ -11,7 +11,7 @@ const StarCache = require('./StarCache.js')
 const PlanetCache = require('./PlanetCache.js')
 
 // And the keypath manipulatioin code
-const {getKeypath, setKeypath} = require('./keypath.js')
+const {getKeypath, setKeypath, lastComponent} = require('./keypath.js')
 
 // And the event emitter which we use to structure our API
 const { EventEmitter2 } = require('eventemitter2')
@@ -188,7 +188,7 @@ class Datasource extends EventEmitter2 {
           value = await this.getSectorProperty(x, y, z, parts[3])
         } catch (err) {
           // If it doesn't come in, try again
-          console.log(err)
+          console.log('Error getting ' + keypath, err)
           value = await this.resolveImmediately(keypath)
         }
       } else {
@@ -207,7 +207,7 @@ class Datasource extends EventEmitter2 {
               value = await this.getStarProperty(x, y, z, star, property)
             } catch (err) {
               // If it doesn't come in, try again
-              console.log('Could not get ' + property, err)
+              console.log('Error getting ' + keypath, err)
               throw err
               //value = await this.resolveImmediately(keypath)
             }
@@ -227,8 +227,9 @@ class Datasource extends EventEmitter2 {
                   value = await this.getPlanetProperty(x, y, z, star, planet, property)
                 } catch (err) {
                   // If it doesn't come in, try again
-                  console.log(err)
-                  value = await this.resolveImmediately(keypath)
+                  console.log('Error getting ' + keypath, err)
+                  throw err
+                  //value = await this.resolveImmediately(keypath)
                 }
               } else {
                 // Otherwise, if it's a number, it's a moon number
@@ -462,7 +463,200 @@ class Datasource extends EventEmitter2 {
   // Save it and any properties retrieved at the same time in the cache.
   // Returns a promise for its value.
   // '' keypath = whole planet
+  // Planet properties include seed, planetClass, planetMass, orbit (which has a bunch of its own properties),
+  // periapsisIrradiance, apoapsisIrradiance, and moon stuff.
+  // Orbit properties are: periapsis, apoapsis, clearance, lan, inclination, aop, meanAnomalyAtEpoch, semimajor, semiminor, period,
+  // realPeriapsis, realApoapsis, realClearance, realLan, realInclination, realAop, realMeanAnomalyAtEpoch
   async getPlanetProperty(x, y, z, starNumber, planetNumber, keypath) {
+    // Lots of planet properties depend on other ones
+    let starKey = x + '.' + y + '.' + z + '.' + starNumber
+    let planetKey = starKey + '.' + planetNumber
+
+    // Use this to save a property of the planet
+    let save = async (prop, value) => {
+      await this.savePlanetProperty(x, y, z, starNumber, planetNumber, prop, value)
+    }
+
+    // And this to get one
+    let get = async (prop) => {
+      return await this.resolveImmediately(planetKey + '.' + prop)
+    }
+
+    // And this to get star properties
+    let getStar = async (prop) => {
+      return await this.resolveImmediately(starKey + '.' + prop)
+    }
+
+    switch(keypath) {
+    case '':
+      {
+        let value = {}
+        for (let key of ['seed', 'planetClass', 'planetMass', 'orbit', 'periapsisIrradiance', 'apoapsisIrradiance']) {
+          // Go get and fill in all the properties
+          value[key] = await get(key)
+        }
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'seed':
+      {
+        let starSeed = await getStar('seed')
+        let value = await this.sys.getPlanetSeed.call(starSeed, planetNumber)
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'planetClass':
+      {
+        let seed = await get('seed')
+        let totalPlanets = await getStar('planetCount')
+        let value = (await this.sys.getPlanetClass.call(seed, planetNumber, totalPlanets)).toNumber()
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'realPlanetMass':
+    case 'planetMass':
+      {
+        let seed = await get('seed')
+        let planetClass = await get('planetClass')
+        let realPlanetMass = await this.sys.getPlanetMass.call(seed, planetClass)
+        let planetMass = mv.fromReal(realPlanetMass)
+        await save('realPlanetMass', realPlanetMass)
+        await save('planetMass', planetMass)
+        return {realPlanetMass, planetMass}[keypath]
+      }
+      break
+    case 'orbit':
+      {
+        let value = {}
+        for (let key of ['periapsis', 'apoapsis', 'clearance', 'lan', 'inclination', 'aop', 'meanAnomalyAtEpoch',
+          'semimajor', 'semiminor', 'period', 'realPeriapsis', 'realApoapsis', 'realClearance', 'realLan',
+          'realInclination', 'realAop', 'realMeanAnomalyAtEpoch']) {
+          // Go get and fill in all the properties
+          value[key] = await get('orbit.' + key)
+        }
+        await save(keypath, value)
+        return value
+      }
+    case 'orbit.realPeriapsis':
+    case 'orbit.periapsis':
+    case 'orbit.realApoapsis':
+    case 'orbit.apoapsis':
+    case 'orbit.realClearance':
+    case 'orbit.clearance':
+      {
+        let seed = await get('seed')
+        let planetClass = await get('planetClass')
+        // We need the clearance of the pervious planet, if there was one, or 0 otherwise
+        let prevClearance = planetNumber == 0 ? 0 : await this.resolveImmediately(starKey + '.' + (planetNumber - 1) + '.orbit.realClearance')
+        // And the habitable zone of the star
+        let habStart = await getStar('habitableZone.realStart')
+        let habEnd = await getStar('habitableZone.realEnd')
+        let parts = await this.sys.getPlanetOrbitDimensions.call(habStart, habEnd, seed, planetClass, prevClearance)
+        let partialOrbit = {'realPeriapsis': parts[0], 'realApoapsis': parts[1], 'realClearance': parts[2],
+          'periapsis': mv.fromReal(parts[0]), 'apoapsis': mv.fromReal(parts[1]), 'clearance': mv.fromReal(parts[2])}
+        for (let prop in partialOrbit) {
+            await save('orbit.' + prop,  partialOrbit[prop])
+        }
+        return partialOrbit[lastComponent(keypath)]
+      }
+      break
+    case 'orbit.realLan':
+    case 'orbit.lan':
+      {
+        let seed = await get('seed')
+        let realLan = await this.sys.getPlanetLan.call(seed)
+        let lan = mv.fromReal(realLan)
+        await save('orbit.realLan', realLan)
+        await save('orbit.lan', lan)
+        return {realLan, lan}[lastComponent(keypath)]
+      }
+      break
+    case 'orbit.realInclination':
+    case 'orbit.inclination':
+      {
+        let seed = await get('seed')
+        let planetClass = await get('planetClass')
+        let realInclination = await this.sys.getPlanetInclination.call(seed, planetClass)
+        let inclination = mv.fromReal(realInclination)
+        await save('orbit.realInclination', realInclination)
+        await save('orbit.inclination', inclination)
+        return {realInclination, inclination}[lastComponent(keypath)]
+      }
+      break
+    case 'orbit.realAop':
+    case 'orbit.aop':
+      {
+        let seed = await get('seed')
+        let realAop = await this.sys.getPlanetAop.call(seed)
+        let aop = mv.fromReal(realAop)
+        await save('orbit.realAop', realAop)
+        await save('orbit.aop', aop)
+        return {realAop, aop}[lastComponent(keypath)]
+      }
+      break
+    case 'orbit.realMeanAnomalyAtEpoch':
+    case 'orbit.meanAnomalyAtEpoch':
+      {
+        let seed = await get('seed')
+        let realMeanAnomalyAtEpoch = await this.sys.getPlanetMeanAnomalyAtEpoch.call(seed)
+        let meanAnomalyAtEpoch = mv.fromReal(realMeanAnomalyAtEpoch)
+        await save('orbit.realMeanAnomalyAtEpoch', realMeanAnomalyAtEpoch)
+        await save('orbit.meanAnomalyAtEpoch', meanAnomalyAtEpoch)
+        return {realMeanAnomalyAtEpoch, meanAnomalyAtEpoch}[lastComponent(keypath)]
+      }
+      break
+    // Now some convenience floats we can ask for but which aren't essential
+    case 'orbit.semimajor':
+      {
+        let apoapsis = await get('orbit.apoapsis')
+        let periapsis = await get('orbit.periapsis')
+        let value = (apoapsis + periapsis) / 2
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'orbit.semiminor':
+      {
+        let apoapsis = await get('orbit.apoapsis')
+        let periapsis = await get('orbit.periapsis')
+        let value = Math.sqrt(apoapsis * periapsis)
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'orbit.period':
+      {
+        let semimajor = await get('orbit.semimajor')
+        let objMass = await getStar('objMass')
+        let value = 2 * Math.PI * Math.sqrt(Math.pow(semimajor, 3) / (mv.G_PER_SOL * objMass))
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'periapsisIrradiance':
+      {
+        let periapsis = await get('orbit.periapsis')
+        let luminosity = await getStar('luminosity')
+        let value = luminosity * mv.SOLAR_LUMINOSITY / (4 * Math.PI * Math.pow(periapsis, 2))
+        await save(keypath, value)
+        return value
+      }
+      break
+    case 'apoapsisIrradiance':
+      {
+        let apoapsis = await get('orbit.apoapsis')
+        let luminosity = await getStar('luminosity')
+        let value = luminosity * mv.SOLAR_LUMINOSITY / (4 * Math.PI * Math.pow(apoapsis, 2))
+        await save(keypath, value)
+        return value
+      }
+      break
+    default:
+      throw new Error('Unknown property: ' + keypath);
+    }
   }
 
   // Save and dispatch events for the given property of the given planet.

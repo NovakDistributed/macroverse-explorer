@@ -77,7 +77,7 @@ async function showSystem(ctx, keypath) {
   planetPromises = []
   for (let j = 0; j < planetCount; j++) {
     // Go get every planet
-    planetPromises.push(ctx.planets.getPlanet(star, j))
+    planetPromises.push(ctx.ds.request(keypath + '.' + j))
   }
 
   let planets = await Promise.all(planetPromises)
@@ -317,7 +317,8 @@ async function main() {
     //console.log('Event ' + event_name + ' with arg ' + event_arg)
   })
 
-  ctx.ds.request('0.0.0.5.realLuminosity')
+  //ctx.ds.request('0.0.0.5.realLuminosity')
+  //ctx.ds.request('0.0.0.20.6.orbit.period')
   //ds.request('0.0.0.objectCount')
   //ds.request('0.0.0.5.hasPlanets')
 
