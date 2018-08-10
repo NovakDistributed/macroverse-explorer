@@ -163,11 +163,6 @@ class Infobox {
 
   /// Show the infobox for the given planet, orbiting the given star.
   async showPlanet(keypath) {
-
-    // TODO: we still use the old whole-object system
-    let star = await this.ctx.ds.request(parentOf(keypath))
-    let planet = await this.ctx.planets.getPlanet(star, lastComponent(keypath))
-
     this.infobox.classList.remove('infobox-star')
     this.infobox.classList.remove('infobox-sector')
     this.infobox.classList.add('infobox-planet')
@@ -175,41 +170,41 @@ class Infobox {
       <div class="infobox-header">
         <button class="infobox-back" id="infobox-back">&lt;</button>
         <span class="infobox-title">
-          Planet ${star.sectorX},${star.sectorY},${star.sectorZ}/${star.number}/${planet.number}
+          Planet ${keypath}
         </span>
       </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
             <td>Planet Class</td>
-            <td colspan="2">${planetClasses[planet.planetClass]}</td>
+            <td colspan="2">${this.when(keypath + '.planetClass', (x) => planetClasses[x])}</td>
           </tr>
           <tr>
             <td>Mass</td>
-            <td colspan="2">${planet.planetMass.toFixed(2)} M<sub>⊕</sub></td>
+            <td colspan="2">${this.when(keypath + '.planetMass', (x) => x.toFixed(2))} M<sub>⊕</sub></td>
           </tr>
           <tr>
             <td rowspan="4">Orbit</td>
             <td>Minimum</td>
-            <td>${(planet.orbit.periapsis / mv.AU).toFixed(2)} AU</td>
+            <td>${this.when(keypath + '.orbit.periapsis', (x) => (x / mv.AU).toFixed(2))} AU</td>
           </tr>
           <tr>
             <td>Maximum</td>
-            <td>${(planet.orbit.apoapsis / mv.AU).toFixed(2)} AU</td>
+            <td>${this.when(keypath + '.orbit.apoapsis', (x) => (x / mv.AU).toFixed(2))} AU</td>
           </tr>
           <tr>
             <td>Period</td>
-            <td>${(planet.orbit.period / mv.SIDERIAL_YEAR).toFixed(2)} Y<sub>s</sub></td>
+            <td>${this.when(keypath + '.orbit.period', (x) => (x / mv.SIDERIAL_YEAR).toFixed(2))} Y<sub>s</sub></td>
           </tr>
           <tr>
             <td>Inclination</td>
-            <td>${mv.degrees(planet.orbit.inclination).toFixed(2)}&deg;</td>
+            <td>${this.when(keypath + '.orbit.inclination', (x) => mv.degrees(x).toFixed(2))}&deg;</td>
           </tr>
           <tr>
             <td>Climate</td>
             <td>Normal Irradiance</td>
             <!-- Earth is like 1.3-1.5k or something -->
-            <td>${planet.apoapsisIrradiance.toFixed(2)} - ${planet.periapsisIrradiance.toFixed(2)} W/m<sup>2</sup></td>
+            <td>${this.when(keypath + '.apoapsisIrradiance', (x) => x.toFixed(2))} - ${this.when(keypath + '.periapsisIrradiance', (x) => x.toFixed(2))} W/m<sup>2</sup></td>
           </tr>
         </table>
       </div>

@@ -128,6 +128,8 @@ class Datasource extends EventEmitter2 {
       return
     }
 
+    console.log('Stack of ' + this.stack.length + ' things')
+
     // What should we go get?
     let keypath = this.stack.pop()
 
@@ -163,7 +165,8 @@ class Datasource extends EventEmitter2 {
         found = JSON.parse(window.localStorage.getItem(keypath))
     }
 
-    if (found === undefined || found === null) {
+    if (found === undefined || found === null || (typeof found == 'object' && found.constructor.name != 'BigNumber')) {
+      // It's not found or it is an object (and we don't know that we have all the sub-keypaths).
       // We have to go get it
 
       // Parse out the parts
@@ -540,6 +543,7 @@ class Datasource extends EventEmitter2 {
         await save(keypath, value)
         return value
       }
+      break
     case 'orbit.realPeriapsis':
     case 'orbit.periapsis':
     case 'orbit.realApoapsis':

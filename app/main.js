@@ -71,7 +71,7 @@ async function showSystem(ctx, keypath) {
   let star = await ctx.ds.request(keypath)
   
   // Go get the system data
-  let planetCount = await ctx.planets.getObjectPlanetCount(star)
+  let planetCount = star.planetCount
   console.log('Star ' + star.seed + ' has ' + planetCount + ' planets.')
 
   planetPromises = []
@@ -314,6 +314,7 @@ async function main() {
   let infobox = new Infobox(infoboxElement, ctx)
 
   ctx.ds.onAny((event_name, event_arg) => {
+    console.log('Published ' + event_name)
     //console.log('Event ' + event_name + ' with arg ' + event_arg)
   })
 
