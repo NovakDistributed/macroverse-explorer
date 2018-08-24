@@ -218,6 +218,11 @@ function makeStarSprite(ctx, keypath, positionSelf) {
     return ctx.ds.request(keypath + '.' + prop)
   }
 
+  // Define an easy way to know how long it will take to get a property (is it cached?)
+  let have = (prop) => {
+    return ctx.ds.isCachedInMemory(keypath + '.' + prop)
+  }
+
   sprite.addEventListener('loaded', () => {
     // We can't actually use any of the A-Frame overrides for element setup until A-Frame calls us back
 
@@ -226,60 +231,31 @@ function makeStarSprite(ctx, keypath, positionSelf) {
     // tags, and geometry/material instead of the shorthand color and so on
     // on the primitives.
 
-    // It is a sphere
+    // It is a sphere of a random size initially, in low resolution
     sprite.setAttribute('geometry', {
-      primitive: 'sphere'
+      primitive: 'sphere',
+      segmentsWidth: 8,
+      segmentsHeight: 8,
+      radius: Math.random()
     })
 
-    // Until we have real values for everything, or the sprite is removed,
-    // we periodically randomize the sprite to illustrate uncertainty
-    var randomizeSize = true
-    var randomizePosition = positionSelf
-    var randomizeColor = true
-
-    let randomize = () => {
-      if (!document.body.contains(sprite)) {
-        // The node has been removed, so stop
-        return
-      }
-
-      // Give it a default appearance
-      if (randomizeSize) {
-        sprite.setAttribute('geometry', {
-          radius: Math.random()
-        })
-      }
-
-      if (randomizePosition) {
-         // Start out with a default (random) position
-         let newPos = {x: Math.random() * 25 - 12.5, y: Math.random() * 25 - 12.5, z: Math.random() * 25 - 12.5}
-         sprite.setAttribute('position', newPos)
-      }
-
-      if (randomizeColor) {
-        sprite.setAttribute('material', {
-          color: arrayToColor(typeToColor[mv.spectralTypes[Math.floor(Math.random() * mv.spectralTypes.length)]])
-        })
-      }
-
-      if (!randomizeSize && !randomizePosition && !randomizeColor) {
-        // Nothing left to do!
-        return
-      }
-
-      // If we are still going, randomize again soon
-      window.setTimeout(randomize, 10000)
-    }
+    // It will initially be a green wireframe to signify loading
+    sprite.setAttribute('material', {
+      color: 'green',
+      wireframe: true,
+      wireframeLinewidth: 1
+    })
 
     // Go get the actual things we need to know about it
     
     get('objType').then((objType) => {
       let starColor = arrayToColor(typeToColor[mv.spectralTypes[objType]])
       
-      // Make it the right color
-      sprite.setAttribute('material', {color: starColor})
-
-      randomizeColor = false
+      // Make it the right color, and solid
+      sprite.setAttribute('material', {
+        color: starColor,
+        wireframe: false
+      })
     })
 
     get('objMass').then((objMass) => {
@@ -288,10 +264,10 @@ function makeStarSprite(ctx, keypath, positionSelf) {
 
       // Make the star the right size
       sprite.setAttribute('geometry', {
+        segmentsWidth: 18,
+        segmentsHeight: 36,
         radius: size
       })
-
-      randomizeSize = false
     })
 
     // TODO: A particle glow that doesn't look completely different across platforms
@@ -299,15 +275,46 @@ function makeStarSprite(ctx, keypath, positionSelf) {
     if (positionSelf) {
       // When it loads, move it to the right spot in the sector.
       // Make sure to center the 25 LY sector on the A-Frame origin
+      
+      // Will we animate the position when we get the real one?
+      var placeholderPos = null
+      if (!have('x') || !have('y') || !have('z')) {
+        // Position not already known
+
+        // Initially put it at a random position
+        placeholderPos = {x: Math.random() * 25 - 12.5, y: Math.random() * 25 - 12.5, z: Math.random() * 25 - 12.5}
+        sprite.setAttribute('position', placeholderPos)
+      }
+
+      
 
       Promise.all([get('x'), get('y'), get('z')]).then(([x, y, z]) => {
-        sprite.setAttribute('position', {x: x - 12.5, y: y - 12.5, z: z - 12.5})
-        randomizePosition = false
+        // Now we know the real position
+        let realPos = {x: x - 12.5, y: y - 12.5, z: z - 12.5}
+
+        if (placeholderPos) {
+          // We were initially in a placeholder position. We should animate to where we want to go.
+          let distance = Math.sqrt(Math.pow(realPos.x - placeholderPos.x, 2) +
+                                   Math.pow(realPos.y - placeholderPos.y, 2) +
+                                   Math.pow(realPos.z - placeholderPos.z, 2))
+
+          // Animate between them
+          sprite.setAttribute('animation', {
+            property: 'position',
+            from: placeholderPos,
+            to: realPos,
+            dur: distance/25 * 200
+          })
+        } else {
+          // Just go there
+          sprite.setAttribute('position', realPos)
+        }
       })
+      
+      
+    
     }
     
-    // Randomize anything we haven't gotten yet, until we go away or know everything
-    randomize()
 
   })
 
