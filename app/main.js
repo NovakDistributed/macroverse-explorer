@@ -214,9 +214,16 @@ async function showSector(ctx, x, y, z) {
 
   // Go get the sector object count via the new Datasource interface
   let sectorPath = x + '.' + y + '.' + z
+
+
   var starCount = ctx.ds.waitFor(sectorPath + '.objectCount')
   ctx.ds.request(sectorPath + '.objectCount')
   starCount = await starCount
+
+  if (ourNonce != sectorNonce) {
+    // Don't queue stars up on top of sector data requests for later sectors.
+    return
+  }
 
   // We fill this with promises for making all the stars, which are running in parallel.
   let starPromises = []
@@ -324,13 +331,7 @@ async function main() {
 
   ctx.ds.onAny((event_name, event_arg) => {
     //console.log('Published ' + event_name)
-    //console.log('Event ' + event_name + ' with arg ' + event_arg)
   })
-
-  //ctx.ds.request('0.0.0.5.realLuminosity')
-  //ctx.ds.request('0.0.0.20.6.orbit.period')
-  //ds.request('0.0.0.objectCount')
-  //ds.request('0.0.0.5.hasPlanets')
 
   // Hook up an event listener to show things in the 3d view
   ctx.on('show', (keypath) => {

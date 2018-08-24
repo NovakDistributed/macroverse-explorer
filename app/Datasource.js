@@ -80,6 +80,7 @@ class Datasource extends EventEmitter2 {
   // If you want the return value of request(), you want this instead.
   // We do it this way so that the first time something comes in you get it,
   // whether you were the one who asked for it that time or not.
+  // Does not actually fire a request.
   waitFor(keypath) {
     // Set up a promise for when the result comes in
     return new Promise((resolve, reject) => {
@@ -89,6 +90,7 @@ class Datasource extends EventEmitter2 {
     })
   }
 
+  // Main public entry point.
   // Put in a request for a keypath.
   // Valid keypath formats include
   //
@@ -104,12 +106,14 @@ class Datasource extends EventEmitter2 {
   // <x>.<y>.<z>.<objectNumber>.<palnetNumber>.<moonNumber>.<propertyName>
   // Moon properties are the same as planet properties
   //
-  // Returns nothing.
+  // Returns a promise for the value of the keypath.
   //
   // The request will be retried until it succeeds, so don't go asking for things that don't exist.
   //
   request(keypath) {
     
+    let promise = this.waitFor(keypath)
+
     if (this.isCachedInMemory(keypath)) {
       // We have it in memory so skip the stack and publish the value
       this.resolveImmediately(keypath)
@@ -131,6 +135,8 @@ class Datasource extends EventEmitter2 {
         this.processStack()
       })
     }
+
+    return promise
   }
 
   // Worker function which processes the top thing on the stack each call through.
@@ -142,6 +148,8 @@ class Datasource extends EventEmitter2 {
 
     // What should we go get?
     let keypath = this.stack.pop()
+
+    console.log('Handle ' + keypath + ' from stack')
 
     // Do the top thing on the stack, and wait for it to finish
     await this.resolveImmediately(keypath)
