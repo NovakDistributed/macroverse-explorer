@@ -146,13 +146,17 @@ class Datasource extends EventEmitter2 {
       return
     }
 
-    // What should we go get?
-    let keypath = this.stack.pop()
+    while (this.stack.length > 0 && this.isCachedInMemory(this.stack[this.stack.length - 1])) {
+      // While things on the stack are cached, resolve them.
+      // This returns a promise but will finish immediately.
+      this.resolveImmediately(this.stack.pop())
+    }
 
-    console.log('Handle ' + keypath + ' from stack')
-
-    // Do the top thing on the stack, and wait for it to finish
-    await this.resolveImmediately(keypath)
+    if (this.stack.length > 0) {
+      // For the next thing we hit that isn't cached, resolve it.
+      // This will take a while so we await.
+      await this.resolveImmediately(this.stack.pop())
+    }
 
     // Check again for things on the stack
     timers.setImmediate(() => {

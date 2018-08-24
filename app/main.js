@@ -96,7 +96,7 @@ async function showSystem(ctx, keypath) {
   let SUN_LINE_HEIGHT = 3
 
   // Make a sun sprite, elevated above the center so as not to eat the planets
-  let sun = sprites.starToSprite(star, false)
+  let sun = sprites.makeStarSprite(ctx, keypath, false)
   root.appendChild(sun);
   sun.addEventListener('loaded', () => {
     sun.setAttribute('position', {x: 0, y: SUN_LINE_HEIGHT, z: 0})
@@ -230,38 +230,32 @@ async function showSector(ctx, x, y, z) {
 
   for (let i = 0; i < starCount; i++) {
     // For each star in the origin sector
-    let starPromise = desynchronize(() => {
-      // Kick off loading all the stars asynchronously, so we don't try and make too many sprites in one tick.
-      return ctx.ds.waitFor(sectorPath + '.' + i).then((star) => {
 
-        // For each star object, when we get it
+    let starPromise = new Promise((resolve, reject) => {
 
-        if (ourNonce != sectorNonce) {
-          // We are stale!
-          return
-        }
+      // Make a sprite that positions itself
+      let sprite = sprites.makeStarSprite(ctx, sectorPath + '.' + i, true)
 
-        // Make a sprite that positions itself
-        let sprite = sprites.starToSprite(star, true)
-
-        sprite.addEventListener('click', async () => {
-          // When the user clicks it, show that system.
-          console.log('User clicked on star ' + i + ' with seed ' + star.seed)
-          // Display the star's system
-          ctx.emit('show', sectorPath + '.' + i)
-        })
-
-        if (ourNonce == sectorNonce) {
-          // We are still the sector being drawn.
-          // Display the sprite.
-          sector.appendChild(sprite)
-        }
+      sprite.addEventListener('loaded', () => {
+        // When the star sprite is out, say it is ready.
+        // The sprite may still update with more info later
+        resolve()
       })
+
+      sprite.addEventListener('click', async () => {
+        // When the user clicks it, show that system.
+        console.log('User clicked on star ' + i)
+        // Display the star's system
+        ctx.emit('show', sectorPath + '.' + i)
+      })
+
+      if (ourNonce == sectorNonce) {
+        // We are still the sector being drawn.
+        // Display the sprite.
+        sector.appendChild(sprite)
+      }
     })
 
-    ctx.ds.request(sectorPath + '.' + i)
-
-    // Now we have a promise for this star's completion, so stick it in the array
     starPromises.push(starPromise)
 
   }

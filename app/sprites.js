@@ -206,12 +206,17 @@ function getRenderTime() {
   return macroverseTime * 60 * 60 * 24
 }
 
-// Given a star object from the cache, return a DOM node for a sprite to represent the star.
+// Given the context and a star keypath, return a DOM node for a sprite to represent the star.
 // If positionSelf is true, star sprite will position itself based on the star's position
 // in the sector, centering the sector on 0. Otherwise, the star will appear at 0.
-function starToSprite(star, positionSelf) {
+function makeStarSprite(ctx, keypath, positionSelf) {
   // Make it a sprite
   let sprite = document.createElement('a-entity')
+
+  // Define an easy function to get a promise for a property of the star
+  let get = (prop) => {
+    return ctx.ds.request(keypath + '.' + prop)
+  }
 
   sprite.addEventListener('loaded', () => {
     // We can't actually use any of the A-Frame overrides for element setup until A-Frame calls us back
@@ -220,19 +225,73 @@ function starToSprite(star, positionSelf) {
     // HTML, a-entity for everything instead of the convenient primitive
     // tags, and geometry/material instead of the shorthand color and so on
     // on the primitives.
-    
-    let starColor = arrayToColor(typeToColor[mv.spectralTypes[star.objType]])
-      
-    // And make it the right color
-    sprite.setAttribute('material', {color: starColor})
 
-    // Work out the size for it
-    let size = Math.max(Math.log10(star.objMass) + 3, 1) / 5
-
-    // Make the star sphere
+    // It is a sphere
     sprite.setAttribute('geometry', {
-      primitive: 'sphere',
-      radius: size
+      primitive: 'sphere'
+    })
+
+    // Until we have real values for everything, or the sprite is removed,
+    // we periodically randomize the sprite to illustrate uncertainty
+    var randomizeSize = true
+    var randomizePosition = positionSelf
+    var randomizeColor = true
+
+    let randomize = () => {
+      if (!document.body.contains(sprite)) {
+        // The node has been removed, so stop
+        return
+      }
+
+      // Give it a default appearance
+      if (randomizeSize) {
+        sprite.setAttribute('geometry', {
+          radius: Math.random()
+        })
+      }
+
+      if (randomizePosition) {
+         // Start out with a default (random) position
+         let newPos = {x: Math.random() * 25 - 12.5, y: Math.random() * 25 - 12.5, z: Math.random() * 25 - 12.5}
+         sprite.setAttribute('position', newPos)
+      }
+
+      if (randomizeColor) {
+        sprite.setAttribute('material', {
+          color: arrayToColor(typeToColor[mv.spectralTypes[Math.floor(Math.random() * mv.spectralTypes.length)]])
+        })
+      }
+
+      if (!randomizeSize && !randomizePosition && !randomizeColor) {
+        // Nothing left to do!
+        return
+      }
+
+      // If we are still going, randomize again soon
+      window.setTimeout(randomize, 10000)
+    }
+
+    // Go get the actual things we need to know about it
+    
+    get('objType').then((objType) => {
+      let starColor = arrayToColor(typeToColor[mv.spectralTypes[objType]])
+      
+      // Make it the right color
+      sprite.setAttribute('material', {color: starColor})
+
+      randomizeColor = false
+    })
+
+    get('objMass').then((objMass) => {
+      // Work out the size for it
+      let size = Math.max(Math.log10(objMass) + 3, 1) / 5
+
+      // Make the star the right size
+      sprite.setAttribute('geometry', {
+        radius: size
+      })
+
+      randomizeSize = false
     })
 
     // TODO: A particle glow that doesn't look completely different across platforms
@@ -240,12 +299,19 @@ function starToSprite(star, positionSelf) {
     if (positionSelf) {
       // When it loads, move it to the right spot in the sector.
       // Make sure to center the 25 LY sector on the A-Frame origin
-      sprite.setAttribute('position', {x: star.x - 12.5, y: star.y - 12.5, z: star.z - 12.5})
-    } 
+
+      Promise.all([get('x'), get('y'), get('z')]).then(([x, y, z]) => {
+        sprite.setAttribute('position', {x: x - 12.5, y: y - 12.5, z: z - 12.5})
+        randomizePosition = false
+      })
+    }
+    
+    // Randomize anything we haven't gotten yet, until we go away or know everything
+    randomize()
 
   })
 
   return sprite
 }
 
-module.exports = {starToSprite, planetToSprite, orbitToSprite}
+module.exports = {makeStarSprite, planetToSprite, orbitToSprite}
