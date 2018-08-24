@@ -27,6 +27,9 @@ class Datasource extends EventEmitter2 {
   constructor(basePath) {
     super()
 
+    // EventEmitter has Strong Opinions on how many clients we ought to have
+    this.setMaxListeners(100000)
+
     // Save the base path
     this.basePath = basePath
 
