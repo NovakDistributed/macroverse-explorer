@@ -12,9 +12,34 @@ function lastComponent(keypath) {
 
 // We define a tiny keypath get/set library
 
+// Return true if the given object has the given keypath set, and false otherwise
+function hasKeypath(obj, keypath) {
+  if (obj === undefined) {
+    // Base case: hit a dead end
+    return false
+  }
+  
+  if (keypath == '') {
+    // Base case: we just want this real object
+    return true
+  }
+
+  var dot = keypath.indexOf('.')
+  if (dot == -1) {
+    // Base case: we want an immediate child
+    return obj.hasOwnProperty(keypath)
+  }
+
+  let first = keypath.substr(0, dot)
+  let rest = keypath.substr(dot + 1, (keypath.length - dot - 1))
+
+  // Look up one step of the keypath and recurse for the rest
+  return hasKeypath(obj[first], rest)
+}
+
 // Return the value of the given keypath, or undefined if it or any parent is not present
 function getKeypath(obj, keypath) {
-  if (obj == undefined) {
+  if (obj === undefined) {
     // Base case: hit a dead end
     return undefined
   }
@@ -40,7 +65,7 @@ function getKeypath(obj, keypath) {
 
 // Set the value in the given object of the given keypath to the given value. Creates any missing intermediate objects.
 function setKeypath(obj, keypath, value) {
-  if (obj == undefined) {
+  if (obj === undefined) {
     // Error! Can't set in nothing!
     throw new Error("Can't set keypath '" + keypath + "' = '" + value + "' in undefined!")
   }

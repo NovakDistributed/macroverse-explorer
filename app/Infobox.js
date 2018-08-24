@@ -1,6 +1,8 @@
 // Infobox.js: Defines an Infobox class which can be told to display
 // information on a star, planet, etc. in an element.
 
+const timers = require('timers')
+
 const {parentOf, lastComponent} = require('./keypath.js')
 
 const mv = require('macroverse')
@@ -99,7 +101,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Children</td>
-            <td>${this.when(keypath + '.objectCount', x => this.makeChildPicker(keypath, x))}</td>
+            <td>${this.when(keypath + '.objectCount', (x) => this.makeChildPicker(keypath, x))}</td>
           </td>
         </table>
       </div>
@@ -148,7 +150,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Children</td>
-            <td>${this.when(keypath + '.planetCount', x => this.makeChildPicker(keypath, x))}</td>
+            <td>${this.when(keypath + '.planetCount', (x) => this.makeChildPicker(keypath, x))}</td>
           </td>
         </table>
 
@@ -254,9 +256,12 @@ class Infobox {
         }
       }
     })
-    // Ask for the thing to actually be sent to us
-    this.ctx.ds.request(keypath)
-
+    timers.setImmediate(() => {
+      // Ask for the thing to actually be sent to us.
+      // But not until the caller has a chance to put the element in the page.
+      this.ctx.ds.request(keypath)
+    })
+    
     // TODO: We assume the throbber makes it on to the actual page before the event handler can possibly run
     return throbber
   }

@@ -47,9 +47,11 @@ function moveCameraFocus(position) {
 
 }
 
+
 /// Show the planetary system of the star with the given keypath, using the given Macroverse context.
 async function showSystem(ctx, keypath) {
   // Figure out our place so we don't clobber later requests that finish earlier
+  
   systemNonce++
   let ourNonce = systemNonce
   
@@ -68,7 +70,9 @@ async function showSystem(ctx, keypath) {
   moveCameraFocus(system.getAttribute('position'))
 
   // Get the actual star object
-  let star = await ctx.ds.request(keypath)
+  var star = ctx.ds.waitFor(keypath)
+  ctx.ds.request(keypath)
+  star = await star
   
   // Go get the system data
   let planetCount = star.planetCount
@@ -77,7 +81,8 @@ async function showSystem(ctx, keypath) {
   planetPromises = []
   for (let j = 0; j < planetCount; j++) {
     // Go get every planet
-    planetPromises.push(ctx.ds.request(keypath + '.' + j))
+    planetPromises.push(ctx.ds.waitFor(keypath + '.' + j))
+    ctx.ds.request(keypath + '.' + j)
   }
 
   let planets = await Promise.all(planetPromises)
@@ -209,7 +214,9 @@ async function showSector(ctx, x, y, z) {
 
   // Go get the sector object count via the new Datasource interface
   let sectorPath = x + '.' + y + '.' + z
-  let starCount = await ctx.ds.request(sectorPath + '.objectCount')
+  var starCount = ctx.ds.waitFor(sectorPath + '.objectCount')
+  ctx.ds.request(sectorPath + '.objectCount')
+  starCount = await starCount
 
   // We fill this with promises for making all the stars, which are running in parallel.
   let starPromises = []
@@ -217,8 +224,8 @@ async function showSector(ctx, x, y, z) {
   for (let i = 0; i < starCount; i++) {
     // For each star in the origin sector
     let starPromise = desynchronize(() => {
-      // Kick off loading all the stars asynchronously, so we don;t try and make too many sprites in one tick.
-      return ctx.ds.request(sectorPath + '.' + i).then((star) => {
+      // Kick off loading all the stars asynchronously, so we don't try and make too many sprites in one tick.
+      return ctx.ds.waitFor(sectorPath + '.' + i).then((star) => {
 
         // For each star object, when we get it
 
@@ -244,6 +251,8 @@ async function showSector(ctx, x, y, z) {
         }
       })
     })
+
+    ctx.ds.request(sectorPath + '.' + i)
 
     // Now we have a promise for this star's completion, so stick it in the array
     starPromises.push(starPromise)
@@ -314,7 +323,7 @@ async function main() {
   let infobox = new Infobox(infoboxElement, ctx)
 
   ctx.ds.onAny((event_name, event_arg) => {
-    console.log('Published ' + event_name)
+    //console.log('Published ' + event_name)
     //console.log('Event ' + event_name + ' with arg ' + event_arg)
   })
 
