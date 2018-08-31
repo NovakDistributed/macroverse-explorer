@@ -3,7 +3,7 @@
 
 const timers = require('timers')
 
-const {parentOf, lastComponent} = require('./keypath.js')
+const { parentOf, lastComponent } = require('./keypath.js')
 
 const mv = require('macroverse')
 

@@ -69,23 +69,8 @@ async function showSystem(ctx, keypath) {
   // Focus the system view
   moveCameraFocus(system.getAttribute('position'))
 
-  // Get the actual star object
-  var star = ctx.ds.waitFor(keypath)
-  ctx.ds.request(keypath)
-  star = await star
-  
-  // Go get the system data
-  let planetCount = star.planetCount
-  console.log('Star ' + star.seed + ' has ' + planetCount + ' planets.')
-
-  planetPromises = []
-  for (let j = 0; j < planetCount; j++) {
-    // Go get every planet
-    planetPromises.push(ctx.ds.waitFor(keypath + '.' + j))
-    ctx.ds.request(keypath + '.' + j)
-  }
-
-  let planets = await Promise.all(planetPromises)
+  // Make a ScaleManager to let the planets tell each other how big the view scale should be
+  let scaleManager = new sprites.ScaleManager()
 
   // Generate a system view
 
@@ -128,61 +113,45 @@ async function showSystem(ctx, keypath) {
     ctx.emit('show', keypath)
   })
 
-  // TODO: desynchronize() all this system construction to not be slow.
 
-  // Compute the system's scale factor, so we can fit it in a reasonable space
-  let scale = 1.0
-  if (planets.length > 0) {
-    // We have planets and may need to adjust the scale
-    let minAU = planets[0].orbit.periapsis / mv.AU
-    let maxAU = planets[planets.length-1].orbit.apoapsis / mv.AU
-    
-    // We would prefer to scale up the innermost orbit to 10 units
-    let minAUWantsScale = 10 / minAU
-
-    // We would prefer to scale down the outermost orbit to 30 units
-    let maxAUWantsScale = 30 / maxAU
-
-    console.log('Want to scale up by ' + minAUWantsScale + ' and down by ' + maxAUWantsScale)
-
-    if (maxAUWantsScale < 1) {
-      // Scale down
-      scale = maxAUWantsScale
-    } else if (minAUWantsScale > 1) {
-      // Scale up
-      scale = Math.min(minAUWantsScale, maxAUWantsScale)
+  ctx.ds.request(keypath + '.planetCount').then((planetCount) => {
+    // Once the planet count comes in we can do the planets
+    if (ourNonce != systemNonce) {
+      console.log('Display expired')
+      return
     }
 
-    // Otherwise leave scale alone
-
-  }
-
-  for (let i = 0; i < planets.length; i++) {
-    // Make a planet sprite that moves with the orbit
-    let planetSprite = sprites.planetToSprite(planets[i], star, scale)
-    // Make an orbit line sprite
-    let orbitSprite = sprites.orbitToSprite(planets[i].orbit, scale)
+    console.log('Queue up ' + planetCount + ' planets')
     
-    root.appendChild(planetSprite)
-    root.appendChild(orbitSprite)
+    for (let i = planetCount - 1; i >= 0; i--) {
+      // Queue planets in reverse because later queries get answered frist
 
-    let clickHandler = () => {
-      // When clicked, show planet 
-      ctx.emit('show', keypath + '.' + i)
+      // Make a planet sprite that moves with the orbit
+      let planetSprite = sprites.makePlanetSprite(ctx, keypath + '.' + i, scaleManager)
+      // Make an orbit line sprite
+      let orbitSprite = sprites.makeOrbitSprite(ctx, keypath + '.' + i, scaleManager)
+      
+      root.appendChild(planetSprite)
+      root.appendChild(orbitSprite)
+
+      let clickHandler = () => {
+        // When clicked, show planet 
+        ctx.emit('show', keypath + '.' + i)
+      }
+
+      planetSprite.addEventListener('click', clickHandler)
+      orbitSprite.addEventListener('click', clickHandler)
     }
 
-    planetSprite.addEventListener('click', clickHandler)
-    orbitSprite.addEventListener('click', clickHandler)
-  }
+    console.log('Made ' + planetCount + ' planets')
 
-  if (ourNonce == systemNonce) {
-    // We won the race so display.
-    // Put in our child we made.
-    system.appendChild(root)
-    // Loading is done
+    // Hide the loader because we have initial sprites out
     loader.setAttribute('visible', false)
-  }
 
+  })
+  
+  // Put in our child we made.
+  system.appendChild(root)
 }
 
 // Nonce for remembering which sector was most recently requested
@@ -263,7 +232,7 @@ async function showSector(ctx, x, y, z) {
   // Now starPromises is populated, so we can wait on all of them
   await Promise.all(starPromises)
   if (ourNonce == sectorNonce) {
-    console.log('All stars loaded for sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
+    console.log('All stars loading for sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
     // Hide the loader
     loader.setAttribute('visible', false)
   } else {

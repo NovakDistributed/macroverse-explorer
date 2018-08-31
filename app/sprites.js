@@ -3,11 +3,16 @@
 // We want macroverse itself
 const mv = require('macroverse')
 
+const { parentOf, lastComponent } = require('./keypath.js')
+
 // We want someone else's implementation of orbital mechanics
 const orb = require('orbjs')
 
+// Our ScaleManager can emit events
+const { EventEmitter2 } = require('eventemitter2')
+
 // See http://www.isthe.com/chongo/tech/astro/HR-temp-mass-table-byhrclass.html for a nice table, also accounting for object class (IV/III/etc.) and 0-9 subtype.
-let typeToColor = {
+const typeToColor = {
   'TypeO': [144, 166, 255],
   'TypeB': [156, 179, 255],
   'TypeA': [179, 197, 255],
@@ -16,6 +21,14 @@ let typeToColor = {
   'TypeK': [255, 225, 189],
   'TypeM': [255, 213, 160],
   'NotApplicable': [128, 128, 128]
+}
+
+const planetColors = {
+  'Lunar': 'white',
+  'Terrestrial': 'blue',
+  'Uranian': 'purple',
+  'Jovian': 'orange',
+  'AsteroidBelt': 'gray'
 }
 
 // Convert an array of 0-255 values into a hex color code.
@@ -37,47 +50,171 @@ function arrayToColor(arr) {
   return hex
 }
 
+// A set of planet sprites in a star system use one instance of this to decide on the overall scale of the system.
+// It can scale down or up as planets materialize.
+// TODO: Make it keep temporary orbits in view until overridden.
+// TODO: This is kind of wanting to be really reactive.
+class ScaleManager extends EventEmitter2 {
+  constructor() {
+    super()
+    this.setMaxListeners(1000)
+    this.scale = 1.0
+    this.minAU = null
+    this.maxAU = null
+    this.totalReports = 0
+    this.expectedReports = 0
+  }
+
+  // Get the scale factor to draw the star system with, in 3D units per AU
+  get() {
+    return this.scale
+  }
+
+  // Report the periapsis or apoapsis of a planet in AU, and potentially adjust the scale
+  report(au) {
+    let rescaled = false
+    if (!this.minAU || au < this.minAU) {
+      this.minAU = au
+      rescaled = true
+    }
+    if (!this.maxAU || au > this.maxAU) {
+      this.maxAU = au
+      rescaled = true
+    }
+    if (rescaled) {
+      this.rescale()
+    }
+  }
+
+  rescale() {
+    // We would prefer to scale up the innermost orbit to 10 units
+    let minAUWantsScale = 10 / this.minAU
+
+    // We would prefer to scale down the outermost orbit to 30 units
+    let maxAUWantsScale = 30 / this.maxAU
+
+    let newScale = this.scale
+    if (maxAUWantsScale < 1) {
+      // Scale down
+      newScale = maxAUWantsScale
+    } else if (minAUWantsScale > 1) {
+      // Scale up
+      newScale = Math.min(minAUWantsScale, maxAUWantsScale)
+    }
+
+    if (newScale != this.scale) {
+      let oldScale = this.scale
+      this.scale = newScale
+      this.emit('rescale', this.scale, oldScale)
+    }
+
+  }
+}
+
 // Given a planet object from the cache, return a DOM node for a sprite to represent the planet
 // The planet will automatically orbit on the orbit it carries, if the star is passed.
-// Scales the system by the given scale factor from a default 1 unit per AU
-function planetToSprite(planet, star, scale) {
-  // Make it a sprite
+function makePlanetSprite(ctx, keypath, scaleManager) {
+
+  // Define an easy function to get a promise for a property of the star
+  let get = (prop) => {
+    return ctx.ds.request(keypath + '.' + prop)
+  }
+
+  // And for the parent star
+  let getStar = (prop) => {
+    return ctx.ds.request(parentOf(keypath) + '.' + prop)
+  }
+
+  // Work out what planet this is
+  let planetNumber = parseInt(lastComponent(keypath))
+
+  // We will set up a default orbit based on the planet number
+  let orbit = {
+    periapsis: planetNumber * mv.AU,
+    apoapsis: planetNumber * mv.AU,
+    lan: 0,
+    inclination: 0,
+    aop: 0,
+    meanAnomalyAtEpoch: 0
+  }
+
+  // And similarly for the star, which we assume has a mass of 1 sol until proven otherwise
+  let star = {
+    objMass: 1
+  }
+
+  // Make sure to report orbit to the scale manager when it comes in
+  // TODO: This will make extra requests
+  get('orbit.periapsis').then((periapsis) => {
+    scaleManager.report(pariapsis / mv.AU)
+  })
+  get('orbit.apoapsis').then((apoapsis) => {
+    scaleManager.report(apoapsis / mv.AU)
+  })
+
+  for(let key in orbit) {
+    // Kick off requests to update the orbit in place with all the real data when available
+    get('orbit.' + key).then((val) => {
+      orbit[key] = val
+    })
+  }
+
+  for(let key in star) {
+    // Similarly for any star properties used in the orbit
+    getStar(key).then((val) => {
+      star[key] = val
+    })
+  }
+
+  // Make a sprite
   let sprite = document.createElement('a-entity')
 
   sprite.addEventListener('loaded', () => {
-    let planetColors = {
-      'Lunar': 'white',
-      'Terrestrial': 'blue',
-      'Uranian': 'purple',
-      'Jovian': 'orange',
-      'AsteroidBelt': 'gray'
-    }
-    let planetColor = planetColors[mv.planetClasses[planet.planetClass]]
+    // Give it a default appearance
 
-    // And make it the right color
-    sprite.setAttribute('material', {color: planetColor})
-
-    // Work out the size for it
-    let size = Math.max(Math.log10(planet.planetMass) + 3, 1) / 10
-
-    // Make the planet sphere
+    // It is a sphere of a random size initially, in low resolution
     sprite.setAttribute('geometry', {
       primitive: 'sphere',
-      radius: size
+      segmentsWidth: 8,
+      segmentsHeight: 8,
+      radius: Math.random()
     })
-  })
 
-  if (star) {
-    // We can be in orbit
+    // It will initially be a green wireframe to signify loading
+    sprite.setAttribute('material', {
+      color: 'green',
+      wireframe: true,
+      wireframeLinewidth: 1
+    })
 
-    // Compute orbit facts
-    let periapsis = planet.orbit.periapsis / mv.AU
-    let apoapsis = planet.orbit.apoapsis / mv.AU
+    get('planetClass').then((planetClass) => {
+      // Make it the right color for the class that it is
+      let planetColor = planetColors[mv.planetClasses[planetClass]]
+      sprite.setAttribute('material', {
+        color: planetColor,
+        wireframe: false
+      })
+    })
     
+    get('planetMass').then((planetMass) => {
+      // Work out the size for it
+      let size = Math.max(Math.log10(planetMass) + 3, 1) / 10
+
+      // Make the planet sphere
+      sprite.setAttribute('geometry', {
+        primitive: 'sphere',
+        segmentsWidth: 18,
+        segmentsHeight: 36,
+        radius: size
+      })
+    })
+
+    // Define an update function for the planet's position in the orbit
     let update = () => {
       // Work out where the planet belongs at this time
-      let planetPos = computeOrbitPositionInAU(planet.orbit, star.objMass, getRenderTime())
+      let planetPos = computeOrbitPositionInAU(orbit, star.objMass, getRenderTime())
       // Convert to 3d system units
+      let scale = scaleManager.get()
       planetPos.x *= scale
       planetPos.y *= scale
       planetPos.z *= scale
@@ -85,87 +222,161 @@ function planetToSprite(planet, star, scale) {
       sprite.setAttribute('position', planetPos)
     }
 
-    sprite.addEventListener('loaded', () => {
-      update()
-      let interval = setInterval(() => {
-        if (sprite.parentNode != null) {
-          // We are still visible
-          update()
-        } else {
-          // Stop updating
-          clearInterval(interval)
-        }
-      }, 20)
-    })
-  }
+    // Update the planet position now and later (when more values come in) according to the orbit
+    update()
+    let interval = setInterval(() => {
+      if (sprite.parentNode != null) {
+        // We are still visible
+        update()
+      } else {
+        // Stop updating
+        clearInterval(interval)
+      }
+    }, 20)
+
+  })
 
   return sprite
 }
 
-// Mount the given node on a parent, translated by the given translation, and then rotate the parent by the given rotation.
+// Mount the given node on a parent, translated by nothing, and then rotated by nothing
 // Returns the parent. Rotations are in degrees, to match A-Frame.
 // Order of rotations is undefined if multiple axes are used at once.
-function mountTranslateRotate(childNode, xTrans, yTrans, zTrans, xRot, yRot, zRot) {
-  childNode.addEventListener('loaded', () => {
-    // Position the child
-    childNode.setAttribute('position', {x: xTrans, y: yTrans, z: zTrans})
-  })
-
+function mount(childNode) {
+  
   // Make the parent
   let parentNode = document.createElement('a-entity')
-  parentNode.addEventListener('loaded', () => {
-    // And rotate it
-    parentNode.setAttribute('rotation', {x: xRot, y: yRot, z: zRot})
-  })
-
   parentNode.appendChild(childNode)
+  parentNode.mountedChild = childNode
 
   return parentNode
 
 }
 
-// Given an orbit Javascript object, turn it into a sprite (probably a wireframe).
-// Scales by the given factor from a default 1 unit per AU
-function orbitToSprite(orbit, scale) {
+// Shorthand to apply a translation and a rotation to a mounting from mount().
+// Applies the translation and then the rotation to the child node that was mounted.
+// Operates on the returned, mounting node.
+function applyTranslateRotate(mounted, xTrans, yTrans, zTrans, xRot, yRot, zRot) {
+  let childNode = mounted.mountedChild
+  childNode.setAttribute('position', {x: xTrans, y: yTrans, z: zTrans})
+  mounted.setAttribute('rotation', {x: xRot, y: yRot, z: zRot})
+}
 
-  // Compute sizes in A-Frame units (AU for system display)
-  let apoapsis = orbit.apoapsis / mv.AU
-  let semimajor = orbit.semimajor / mv.AU
-  let semiminor = orbit.semiminor / mv.AU
+// Return a function that can be called, and, once the given A-Frame node is loaded, calls the given update function.
+// Also calls the updater function once when the scene node is loaded.
+// Also works on mounted nodes from mount() where we have to wait for two things to load.
+function makeUpdater(node, updateAssumingLoaded) {
+  let loaded = false
+  node.addEventListener('loaded', () => {
+    loaded = true
+    updateAssumingLoaded()
+  })
+
+  // TODO: We assume the child loaded if the parent did
+
+  return () => {
+    if (loaded) {
+      updateAssumingLoaded()
+    }
+  }
+}
+
+// Make a sprite to represent an orbit.
+// Scales with the given ScaleManager.
+function makeOrbitSprite(ctx, keypath, scaleManager) {
+
+  // Define an easy function to get a promise for a property of the star
+  let get = (prop) => {
+    return ctx.ds.request(keypath + '.' + prop)
+  }
+
+  // And for the parent star
+  let getStar = (prop) => {
+    return ctx.ds.request(parentOf(keypath) + '.' + prop)
+  }
+
+  // Work out what planet this is
+  let planetNumber = parseInt(lastComponent(keypath))
+
+  // We use the same default-and-refine half-reactive system that the planets use
+  let orbit = {
+    periapsis: planetNumber * mv.AU,
+    apoapsis: planetNumber * mv.AU,
+    semimajor: planetNumber * mv.AU,
+    semiminor: planetNumber * mv.AU,
+    lan: 0,
+    inclination: 0,
+    aop: 0,
+    meanAnomalyAtEpoch: 0
+  }
+
+  // Prepare the scene nodes
 
   // Make an elipse of the right shape radius in the XZ plane
   let circleNode = document.createElement('a-entity')
+
   circleNode.addEventListener('loaded', () => {
-    // Make it a circle (actually a ring, since "circles" have center vertices.)
-    circleNode.setAttribute('geometry', {
-      primitive: 'ring',
-      radiusInner: semiminor * scale,
-      radiusOuter: semiminor * scale - 0.001
-    })
     // Give it a color and stuff
     circleNode.setAttribute('material', {color: 'white', wireframe: true, wireframeLinewidth: 1})
-
-    // Stretch it out in X to be the semimajor radius
-    circleNode.setAttribute('scale', {x: semimajor/semiminor, y: 1, z: 1})
 
     // Then rotate it from the XY plane to the XZ plane
     circleNode.setAttribute('rotation', {x: -90, y: 0, z: 0})
   })
 
-  // Work out how far we have to budge from the center of the elipse to the apoapsis/periapsis junction (focus)
-  // This is the amount of distance the apoapsis steals over what it would have if it were the semimajor axis
-  let budge = (apoapsis - semimajor) * scale
+  // Make an updater for it that we can call again when the orbit changes
+  let updateCircle = makeUpdater(circleNode, () => {
+    // Give it its basic shape
+    circleNode.setAttribute('geometry', {
+      primitive: 'ring',
+      radiusInner: orbit.semiminor / mv.AU * scaleManager.get(),
+      radiusOuter: orbit.semiminor / mv.AU * scaleManager.get() - 0.001
+    })
+
+    // Stretch it out in X to be the semimajor radius
+    circleNode.setAttribute('scale', {x: orbit.semimajor / orbit.semiminor, y: 1, z: 1})
+  })
 
   // Mount the elipse on another scene node so the little lobe (periapsis) is +X
   // (toward the right) from the origin (where the parent body goes) and rotate
   // that around Y by the AoP. We have to move towards -X.
-  let mounted1 = mountTranslateRotate(circleNode, -budge, 0, 0, 0, mv.degrees(orbit.aop), 0) 
+  let mounted1 = mount(circleNode)
+  let updateMount1 = makeUpdater(mounted1, () => {
+    let budge = (orbit.apoapsis - orbit.semimajor) / mv.AU * scaleManager.get()
+    applyTranslateRotate(mounted1, -budge, 0, 0, 0, mv.degrees(orbit.aop), 0)
+  })
 
   // Then mount that and rotate it in X by the inclination
-  let mounted2 = mountTranslateRotate(mounted1, 0, 0, 0, mv.degrees(orbit.inclination), 0, 0)
+  let mounted2 = mount(mounted1)
+  let updateMount2 = makeUpdater(mounted2, () => {
+    applyTranslateRotate(mounted2, 0, 0, 0, mv.degrees(orbit.inclination), 0, 0)
+  })
 
   // Then mount that and rotate it in Y by the LAN
-  let mounted3 = mountTranslateRotate(mounted2, 0, 0, 0, 0, mv.degrees(orbit.lan))
+  let mounted3 = mount(mounted2)
+  let updateMount3 = makeUpdater(mounted2, () => {
+    applyTranslateRotate(mounted3, 0, 0, 0, 0, mv.degrees(orbit.lan))
+  })
+
+  // When we change the orbit, update the sprite
+  for(let key in orbit) {
+    // Kick off requests to update the orbit in place with all the real data when available
+    get('orbit.' + key).then((val) => {
+      orbit[key] = val
+
+      updateCircle()
+      updateMount1()
+      updateMount2()
+      updateMount3()
+    })
+  }
+
+  // When the scale changes, also update the sprite
+  scaleManager.on('rescale', () => {
+    updateCircle()
+    updateMount1()
+    updateMount2()
+    updateMount3()
+  })
 
   return mounted3
 }
@@ -321,4 +532,4 @@ function makeStarSprite(ctx, keypath, positionSelf) {
   return sprite
 }
 
-module.exports = {makeStarSprite, planetToSprite, orbitToSprite}
+module.exports = {makeStarSprite, makePlanetSprite, makeOrbitSprite, ScaleManager}
