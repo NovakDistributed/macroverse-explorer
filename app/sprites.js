@@ -200,6 +200,9 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
   // Make a sprite
   let sprite = document.createElement('a-entity')
 
+  // Give it the ID of the keypath, so we can find it
+  sprite.id = keypath
+
   sprite.addEventListener('loaded', () => {
     // Give it a default appearance
 

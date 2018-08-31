@@ -31,22 +31,64 @@ function sleep(time) {
 // Nonce for remembering which system was most recenty requested
 let systemNonce = 0
 
-/// Animate the camera's focus to the given position
+// HTML element to make the camera follow, for tracking orbiting planets
+let followElement = null
+let followInterval = null
+
+/// Animate the camera's focus to the given position or HTML element
 function moveCameraFocus(position) {
   let dolly = document.getElementById('dolly')
 
-  let oldPos = dolly.getAttribute('position');
+  if (position instanceof HTMLElement) {
+    followElement = position
 
-  dolly.setAttribute('animation', {
-    property: 'position',
-    // We need to break up the position vectors since passing a real Vector3 to the animation component crashes it...
-    from: {x: oldPos.x, y: oldPos.y, z: oldPos.z},
-    to: {x: position.x, y: position.y, x: position.z},
-    dur: 500
-  })
+    // Work out the world position of the object
+    // THREE is magically in scope because we have A-Frame.
+    let worldPos = new THREE.Vector3()
+    worldPos.setFromMatrixPosition(followElement.object3D.matrixWorld)
+    dolly.setAttribute('position', worldPos) 
+
+    dolly.removeAttribute('animation')
+    
+    if (followInterval == null) {
+      // Add code to follow the element
+      // TODO: This should really be a component with a tick() handler
+      followInterval = setInterval(() => {
+        // Re-use an existing vector to keep tracking the object
+        worldPos.setFromMatrixPosition(followElement.object3D.matrixWorld)
+        dolly.setAttribute('position', worldPos) 
+      }, 10)
+    }
+  } else {
+    followElement = null
+    if (followInterval !== null) {
+      clearInterval(followInterval)
+    }
+    followInterval = null
+
+    let oldPos = dolly.getAttribute('position')
+
+    dolly.setAttribute('animation', {
+      property: 'position',
+      // We need to break up the position vectors since passing a real Vector3 to the animation component crashes it...
+      from: {x: oldPos.x, y: oldPos.y, z: oldPos.z},
+      to: {x: position.x, y: position.y, x: position.z},
+      dur: 500
+    })
+  }
 
 }
 
+/// Show the given planet, using the given macroverse context
+async function showPlanet(ctx, keypath) {
+
+  // Show the system
+  await showSystem(ctx, parentOf(keypath))
+
+  // Chase the planet with the camera
+  moveCameraFocus(document.getElementById(keypath))
+
+}
 
 /// Show the planetary system of the star with the given keypath, using the given Macroverse context.
 async function showSystem(ctx, keypath) {
@@ -114,7 +156,7 @@ async function showSystem(ctx, keypath) {
   })
 
 
-  ctx.ds.request(keypath + '.planetCount').then((planetCount) => {
+  let planetsPromise = ctx.ds.request(keypath + '.planetCount').then((planetCount) => {
     // Once the planet count comes in we can do the planets
     if (ourNonce != systemNonce) {
       console.log('Display expired')
@@ -155,6 +197,9 @@ async function showSystem(ctx, keypath) {
   
   // Put in our child we made.
   system.appendChild(root)
+
+  // Don't resolve until the sprites are out.
+  await planetsPromise
 }
 
 // Nonce for remembering which sector was most recently requested
@@ -310,8 +355,10 @@ async function main() {
     } else if (parts.length == 4) {
       // This is a star
       showSystem(ctx, keypath) 
+    } else if (parts.length == 5) {
+      // It must be a planet
+      showPlanet(ctx, keypath)
     }
-    // Otherwise it's a planet and we don't move.
   })
 
 
