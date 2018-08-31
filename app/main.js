@@ -123,6 +123,9 @@ async function showSystem(ctx, keypath) {
 
     console.log('Queue up ' + planetCount + ' planets')
     
+    // Each planet should report a min and max orbit param. Until then scale so we can see the temp orbits.
+    scaleManager.expect(planetCount * 2, 1, planetCount)
+
     for (let i = planetCount - 1; i >= 0; i--) {
       // Queue planets in reverse because later queries get answered frist
 

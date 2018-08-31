@@ -58,10 +58,22 @@ class ScaleManager extends EventEmitter2 {
   constructor() {
     super()
     this.setMaxListeners(1000)
+
+    // What scale are we at
     this.scale = 1.0
+
+    // What are the min and max observed orbit scales?
     this.minAU = null
     this.maxAU = null
+
+    // What temporary orbit scales (in AU) should we use until all planets have reported in?
+    this.tempMin = 1
+    this.tempMax = 1
+
+    // How many total orbit parameter reports do we have?
     this.totalReports = 0
+
+    // How many reports do we expect? This should be 2 * number of planets
     this.expectedReports = 0
   }
 
@@ -69,9 +81,18 @@ class ScaleManager extends EventEmitter2 {
   get() {
     return this.scale
   }
+  
+  // Until the given number of total reports are received, use the given temporary min and max values in scaling
+  expect(total, tempMin, tempMax) {
+    this.expectedReports = total
+    this.tempMin = tempMin
+    this.tempMax = tempMax
+  }
 
   // Report the periapsis or apoapsis of a planet in AU, and potentially adjust the scale
   report(au) {
+    this.totalReports++
+
     let rescaled = false
     if (!this.minAU || au < this.minAU) {
       this.minAU = au
@@ -86,7 +107,17 @@ class ScaleManager extends EventEmitter2 {
     }
   }
 
+  // Actually compute a new scale, and issue an event if it has changed.
   rescale() {
+    
+    let minAU = this.minAU
+    let maxAU = this.maxAU
+    if (this.expectedReports > this.totalReports) {
+      // Mix in the temp bounds
+      minAU = Math.min(minAU, this.tempMin)
+      maxAU = Math.max(maxAU, this.tempMax)
+    }
+
     // We would prefer to scale up the innermost orbit to 10 units
     let minAUWantsScale = 10 / this.minAU
 
