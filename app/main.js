@@ -39,16 +39,17 @@ let followInterval = null
 function moveCameraFocus(position) {
   let dolly = document.getElementById('dolly')
 
+  let oldPos = dolly.getAttribute('position')
+
   if (position instanceof HTMLElement) {
     followElement = position
 
     // Work out the world position of the object
     // THREE is magically in scope because we have A-Frame.
     let worldPos = new THREE.Vector3()
-    worldPos.setFromMatrixPosition(followElement.object3D.matrixWorld)
-    dolly.setAttribute('position', worldPos) 
-
-    dolly.removeAttribute('animation')
+    
+    // I tried animating right to there, but it would jump to some other place because the position wouldn't be ready or something.
+    // So just rely on the update timer.
     
     if (followInterval == null) {
       // Add code to follow the element
@@ -56,8 +57,18 @@ function moveCameraFocus(position) {
       followInterval = setInterval(() => {
         // Re-use an existing vector to keep tracking the object
         worldPos.setFromMatrixPosition(followElement.object3D.matrixWorld)
-        dolly.setAttribute('position', worldPos) 
-      }, 10)
+
+        let lastPos = dolly.getAttribute('position')
+
+        // Animate to there
+        dolly.setAttribute('animation', {
+          property: 'position',
+          from: {x: lastPos.x, y: lastPos.y, z: lastPos.z},
+          to: {x: worldPos.x, y: worldPos.y, z: worldPos.z},
+          dur: 60,
+          easing: 'linear'
+        })
+      }, 50)
     }
   } else {
     followElement = null
@@ -66,13 +77,11 @@ function moveCameraFocus(position) {
     }
     followInterval = null
 
-    let oldPos = dolly.getAttribute('position')
-
     dolly.setAttribute('animation', {
       property: 'position',
       // We need to break up the position vectors since passing a real Vector3 to the animation component crashes it...
       from: {x: oldPos.x, y: oldPos.y, z: oldPos.z},
-      to: {x: position.x, y: position.y, x: position.z},
+      to: {x: position.x, y: position.y, z: position.z},
       dur: 500
     })
   }
@@ -214,6 +223,14 @@ async function showSector(ctx, x, y, z) {
 
   console.log('Show sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
 
+  // Clear the system
+  systemNonce++
+  let system = document.getElementById('system')
+  while (system.firstChild) {
+    // Clear out its existing children
+    system.removeChild(system.firstChild)
+  }
+
   // Find where we want to put things
   let sector = document.getElementById('sector')
 
@@ -347,7 +364,21 @@ async function main() {
   // Hook up an event listener to show things in the 3d view
   ctx.on('show', (keypath) => {
     console.log('Event to move to ' + keypath)
+
+    document.title = 'Macroverse Explorer: ' + keypath
+
+    // Register this as a navigation if we moved
+    console.log(keypath + ' vs ' + location.hash.substr(1))
+    if (keypath != location.hash.substr(1)) {
+      window.history.pushState(null, document.title, location.pathname + '#' + keypath)
+    }
+
     let parts = keypath.split('.')
+
+    // Make sure panning happens from here
+    curX = parseInt(parts[0])
+    curY = parseInt(parts[1])
+    curZ = parseInt(parts[2])
 
     if (parts.length == 3) {
       // We want a sector. Pass along the context.
@@ -370,9 +401,17 @@ async function main() {
   document.getElementById('z-plus').addEventListener('click', make_pan_handler(ctx, 0, 0, 1))
   document.getElementById('z-minus').addEventListener('click', make_pan_handler(ctx, 0, 0, -1))
 
-  // Show the initial sector
-  ctx.emit('show', curX + '.' + curY + '.' + curZ)
-  
+  if (location.hash) {
+    // On load we asked for a thing
+    ctx.emit('show', location.hash.substr(1))
+  } else {
+    ctx.emit('show', curX + '.' + curY + '.' + curZ)
+  }
+
+  // When the user edits the URL, respond
+  window.onhashchange = () => {
+    ctx.emit('show', location.hash.substr(1))
+  }
 }
 
 // Actually run the entry point
