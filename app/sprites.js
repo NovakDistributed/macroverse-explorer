@@ -118,8 +118,8 @@ class ScaleManager extends EventEmitter2 {
       maxAU = Math.max(maxAU, this.tempMax)
     }
 
-    // We would prefer to scale up the innermost orbit to 10 units
-    let minAUWantsScale = 10 / this.minAU
+    // We would prefer to scale up the innermost orbit to 1 units
+    let minAUWantsScale = 1 / this.minAU
 
     // We would prefer to scale down the outermost orbit to 100 units
     let maxAUWantsScale = 100 / this.maxAU
@@ -464,7 +464,9 @@ function makeHabitableZoneSprite(ctx, keypath, scaleManager) {
   // Define an object we will fill in witht the real habitable zone values
   let habitableZone = {
     start: mv.AU,
-    end: 2 * mv.AU
+    end: 2 * mv.AU,
+    // We have a special done flag so we know to turn not-wireframe
+    done: false
   }
 
   // Prepare the scene nodes
@@ -489,19 +491,26 @@ function makeHabitableZoneSprite(ctx, keypath, scaleManager) {
       radiusInner: habitableZone.start / mv.AU * scaleManager.get(),
       radiusOuter: habitableZone.end / mv.AU * scaleManager.get()
     })
+
+    if (habitableZone.done) {
+      // Make it not wireframe
+      regionNode.setAttribute('material', {color: 'green', wireframe: false, side: 'double', opacity: 0.5})
+    }
   })
 
-  // When we change the zone, update the sprite
-  for(let key in habitableZone) {
-    // Kick off requests to update the zone in place with all the real data when available
-    get('habitableZone.' + key).then((val) => {
-      habitableZone[key] = val
-      // Report both bounds to the scale manager, so we can scale to see them.
-      scaleManager.report(val / mv.AU)
-      updateRegion()
-    })
-  }
-
+  // The habitable zone is generated together, so go get it all at once.
+  Promise.all([get('habitableZone.start'), get('habitableZone.end')]).then(([start, end]) => {
+    // Now we know the habitable zone, so go be in it
+    habitableZone.start = start
+    habitableZone.end = end
+    // mark it done so it can be solid
+    habitableZone.done = true
+    // Report both bounds to the scale manager, so we can scale to see them.
+    scaleManager.report(start / mv.AU)
+    scaleManager.report(end / mv.AU)
+    updateRegion()
+  })
+  
   // When the scale changes, also update the sprite
   scaleManager.on('rescale', () => {
     updateRegion()
