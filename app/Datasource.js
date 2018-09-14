@@ -6,10 +6,6 @@
 // Load up the facade over web3 and truffle-contract
 const eth = require('./eth.js')
 
-// And the cache implementations
-const StarCache = require('./StarCache.js')
-const PlanetCache = require('./PlanetCache.js')
-
 // And the keypath manipulatioin code
 const {getKeypath, setKeypath, lastComponent} = require('./keypath.js')
 
@@ -27,7 +23,9 @@ class Datasource extends EventEmitter2 {
   constructor(basePath) {
     super()
 
-    // EventEmitter has Strong Opinions on how many clients we ought to have
+    // EventEmitter has Strong Opinions on how many clients we ought to have.
+    // Override them.
+    // TODO: Are we actually leaking memory/listeners?
     this.setMaxListeners(100000)
 
     // Save the base path

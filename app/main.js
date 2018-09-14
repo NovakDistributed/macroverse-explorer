@@ -164,6 +164,9 @@ async function showSystem(ctx, keypath) {
     ctx.emit('show', keypath)
   })
 
+  // We shall show the habitable zone around the star
+  let habZone = sprites.makeHabitableZoneSprite(ctx, keypath, scaleManager)
+  root.appendChild(habZone)
 
   let planetsPromise = ctx.ds.request(keypath + '.planetCount').then((planetCount) => {
     // Once the planet count comes in we can do the planets

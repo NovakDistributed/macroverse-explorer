@@ -319,7 +319,7 @@ function makeUpdater(node, updateAssumingLoaded) {
 // Scales with the given ScaleManager.
 function makeOrbitSprite(ctx, keypath, scaleManager) {
 
-  // Define an easy function to get a promise for a property of the star
+  // Define an easy function to get a promise for a property of the planet
   let get = (prop) => {
     return ctx.ds.request(keypath + '.' + prop)
   }
@@ -451,6 +451,63 @@ function getRenderTime() {
   return macroverseTime * 60 * 60 * 24
 }
 
+// Make a sprite to represent the habitable zone around a star.
+// Takes the root keypath of the star.
+// Scales with the given ScaleManager.
+function makeHabitableZoneSprite(ctx, keypath, scaleManager) {
+
+  // Define an easy function to get a promise for a property of the star
+  let get = (prop) => {
+    return ctx.ds.request(keypath + '.' + prop)
+  }
+
+  // Define an object we will fill in witht the real habitable zone values
+  let habitableZone = {
+    start: mv.AU,
+    end: 2 * mv.AU
+  }
+
+  // Prepare the scene nodes
+
+  // Make a flat torus in the XZ plane, so we can depict an inner and outer radius
+  let regionNode = document.createElement('a-entity')
+
+  regionNode.addEventListener('loaded', () => {
+    // Give it a color and stuff
+    // TODO: Green wireframe = not ready for other things.
+    regionNode.setAttribute('material', {color: 'green', wireframe: true, wireframeLinewidth: 1})
+
+    // Then rotate it from the XY plane to the XZ plane
+    regionNode.setAttribute('rotation', {x: -90, y: 0, z: 0})
+  })
+
+  // Make an updater for it that we can call again when the orbit changes
+  let updateRegion = makeUpdater(regionNode, () => {
+    // Give it its shape
+    regionNode.setAttribute('geometry', {
+      primitive: 'ring',
+      radiusInner: habitableZone.start / mv.AU * scaleManager.get(),
+      radiusOuter: habitableZone.end / mv.AU * scaleManager.get()
+    })
+  })
+
+  // When we change the zone, update the sprite
+  for(let key in habitableZone) {
+    // Kick off requests to update the zone in place with all the real data when available
+    get('habitableZone.' + key).then((val) => {
+      habitableZone[key] = val
+      updateRegion()
+    })
+  }
+
+  // When the scale changes, also update the sprite
+  scaleManager.on('rescale', () => {
+    updateRegion()
+  })
+
+  return regionNode
+}
+
 // Given the context and a star keypath, return a DOM node for a sprite to represent the star.
 // If positionSelf is true, star sprite will position itself based on the star's position
 // in the sector, centering the sector on 0. Otherwise, the star will appear at 0.
@@ -566,4 +623,4 @@ function makeStarSprite(ctx, keypath, positionSelf) {
   return sprite
 }
 
-module.exports = {makeStarSprite, makePlanetSprite, makeOrbitSprite, ScaleManager}
+module.exports = {makeStarSprite, makePlanetSprite, makeOrbitSprite, makeHabitableZoneSprite, ScaleManager}
