@@ -9,10 +9,6 @@ const eth = require('./eth.js')
 // And the event emitter which we use to be a bus for global navigation events
 const { EventEmitter2 } = require('eventemitter2')
 
-// And the cache implementations
-const StarCache = require('./StarCache.js')
-const PlanetCache = require('./PlanetCache.js')
-
 // And the datasource we are replacing them with
 const Datasource = require('./Datasource.js')
 
@@ -51,10 +47,6 @@ class Context extends EventEmitter2 {
         // And the generator for planets (which fills in some more star properties relevant for planets)
         let MacroverseSystemGenerator = await eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))
         
-        // Use them to back the caches
-        this.stars = new StarCache(MacroverseStarGenerator, MacroverseSystemGenerator)
-        this.planets = new PlanetCache(MacroverseSystemGenerator)
-
         // Make a Datasource
         this.ds = await Datasource(this.basePath)
 

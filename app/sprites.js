@@ -89,7 +89,7 @@ class ScaleManager extends EventEmitter2 {
     this.tempMax = tempMax
   }
 
-  // Report the periapsis or apoapsis of a planet in AU, and potentially adjust the scale
+  // Report the periapsis or apoapsis of a planet, or a habitable zone boundary, in AU, and potentially adjust the scale
   report(au) {
     this.totalReports++
 
@@ -121,8 +121,8 @@ class ScaleManager extends EventEmitter2 {
     // We would prefer to scale up the innermost orbit to 10 units
     let minAUWantsScale = 10 / this.minAU
 
-    // We would prefer to scale down the outermost orbit to 30 units
-    let maxAUWantsScale = 30 / this.maxAU
+    // We would prefer to scale down the outermost orbit to 100 units
+    let maxAUWantsScale = 100 / this.maxAU
 
     let newScale = this.scale
     if (maxAUWantsScale < 1) {
@@ -496,6 +496,8 @@ function makeHabitableZoneSprite(ctx, keypath, scaleManager) {
     // Kick off requests to update the zone in place with all the real data when available
     get('habitableZone.' + key).then((val) => {
       habitableZone[key] = val
+      // Report both bounds to the scale manager, so we can scale to see them.
+      scaleManager.report(val / mv.AU)
       updateRegion()
     })
   }

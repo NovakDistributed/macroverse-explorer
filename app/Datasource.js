@@ -60,11 +60,9 @@ class Datasource extends EventEmitter2 {
       this.initPromise = (async () => {
         // Do the actual init work here.
 
-        // Find the MacroverseStarGenerator instance
-        this.star = await eth.get_instance(this.getContractPath('MacroverseStarGenerator'))
-
-        // And the generator for planets (which fills in some more star properties relevant for planets)
-        this.sys = await eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))
+        // Find the MacroverseStarGenerator and MacroverseSystemGenerator instances
+        [this.star, this.sys] = await Promise.all([eth.get_instance(this.getContractPath('MacroverseStarGenerator')),
+          eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))])
       })()
     }
     return this.initPromise

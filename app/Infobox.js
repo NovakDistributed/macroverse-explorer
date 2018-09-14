@@ -10,6 +10,17 @@ const mv = require('macroverse')
 // TODO: Move this stuff to the macroverse module
 let planetClasses = ['Lunar', 'Terrestrial', 'Uranian', 'Jovian', 'AsteroidBelt']
 
+// Make a number fixed precision, with commas
+function format(number) {
+  if (number > 0.01) {
+    // It is big enough to do 2 digits.
+    return parseFloat(number.toFixed(2)).toLocaleString()
+  } else {
+    // Go out to 4 digits, for some really dim luminosities
+    return number.toFixed(4)
+  }
+}
+
 class Infobox {
   
   /// Construct an infobox rooted at the given HTML element, getting data to display from the given Datasource
@@ -133,16 +144,16 @@ class Infobox {
           </tr>
           <tr>
             <td>Mass</td>
-            <td>${this.when(keypath + '.objMass', (x) => x.toFixed(2))} M<sub>☉</sub></td>
+            <td>${this.when(keypath + '.objMass', (x) => format(x))} M<sub>☉</sub></td>
           </tr>
           <tr>
             <td>Luminosity</td>
-            <td>${this.when(keypath + '.luminosity', (x) => x.toFixed(2))} L<sub>☉</sub></td>
+            <td>${this.when(keypath + '.luminosity', (x) => format(x))} L<sub>☉</sub></td>
           </tr>
           <tr>
             <td>Habitable Zone</td>
-            <td>${this.when(keypath + '.habitableZone.start', (x) => (x / mv.AU).toFixed(2))} - 
-            ${this.when(keypath + '.habitableZone.end', (x) => (x / mv.AU).toFixed(2))} AU</td>
+            <td>${this.when(keypath + '.habitableZone.start', (x) => format(x / mv.AU))} - 
+            ${this.when(keypath + '.habitableZone.end', (x) => format(x / mv.AU))} AU</td>
           </tr>
           <tr>
             <td>Planets</td>
@@ -183,30 +194,31 @@ class Infobox {
           </tr>
           <tr>
             <td>Mass</td>
-            <td colspan="2">${this.when(keypath + '.planetMass', (x) => x.toFixed(2))} M<sub>⊕</sub></td>
+            <td colspan="2">${this.when(keypath + '.planetMass', (x) => format(x))} M<sub>⊕</sub></td>
           </tr>
           <tr>
             <td rowspan="4">Orbit</td>
             <td>Minimum</td>
-            <td>${this.when(keypath + '.orbit.periapsis', (x) => (x / mv.AU).toFixed(2))} AU</td>
+            <td>${this.when(keypath + '.orbit.periapsis', (x) => format(x / mv.AU))} AU</td>
           </tr>
           <tr>
             <td>Maximum</td>
-            <td>${this.when(keypath + '.orbit.apoapsis', (x) => (x / mv.AU).toFixed(2))} AU</td>
+            <td>${this.when(keypath + '.orbit.apoapsis', (x) => format(x / mv.AU))} AU</td>
           </tr>
           <tr>
             <td>Period</td>
-            <td>${this.when(keypath + '.orbit.period', (x) => (x / mv.SIDERIAL_YEAR).toFixed(2))} Y<sub>s</sub></td>
+            <td>${this.when(keypath + '.orbit.period', (x) => format(x / mv.SIDERIAL_YEAR))} Y<sub>s</sub></td>
           </tr>
           <tr>
             <td>Inclination</td>
-            <td>${this.when(keypath + '.orbit.inclination', (x) => mv.degrees(x).toFixed(2))}&deg;</td>
+            <td>${this.when(keypath + '.orbit.inclination', (x) => format(mv.degrees(x)))}&deg;</td>
           </tr>
           <tr>
             <td>Climate</td>
             <td>Normal Irradiance</td>
             <!-- Earth is like 1.3-1.5k or something -->
-            <td>${this.when(keypath + '.apoapsisIrradiance', (x) => x.toFixed(2))} - ${this.when(keypath + '.periapsisIrradiance', (x) => x.toFixed(2))} W/m<sup>2</sup></td>
+            <td>${this.when(keypath + '.apoapsisIrradiance', (x) => format(x))} -
+            ${this.when(keypath + '.periapsisIrradiance', (x) => format(x))} W/m<sup>2</sup></td>
           </tr>
         </table>
       </div>

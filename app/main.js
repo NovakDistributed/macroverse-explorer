@@ -120,9 +120,6 @@ async function showSystem(ctx, keypath) {
   // Focus the system view
   moveCameraFocus(system.getAttribute('position'))
 
-  // Make a ScaleManager to let the planets tell each other how big the view scale should be
-  let scaleManager = new sprites.ScaleManager()
-
   // Generate a system view
 
   // Make a root node
@@ -164,10 +161,6 @@ async function showSystem(ctx, keypath) {
     ctx.emit('show', keypath)
   })
 
-  // We shall show the habitable zone around the star
-  let habZone = sprites.makeHabitableZoneSprite(ctx, keypath, scaleManager)
-  root.appendChild(habZone)
-
   let planetsPromise = ctx.ds.request(keypath + '.planetCount').then((planetCount) => {
     // Once the planet count comes in we can do the planets
     if (ourNonce != systemNonce) {
@@ -176,9 +169,14 @@ async function showSystem(ctx, keypath) {
     }
 
     console.log('Queue up ' + planetCount + ' planets')
+
+    // Make a ScaleManager to let the planets tell each other how big the view scale should be
+    let scaleManager = new sprites.ScaleManager()
     
-    // Each planet should report a min and max orbit param. Until then scale so we can see the temp orbits.
-    scaleManager.expect(planetCount * 2, 1, planetCount)
+    // Each planet should report a min and max orbit param, on top of the habitable zone.
+    // Until then scale so we can see the temp orbits.
+    // We won't do the habitable zone if there are no planets, so don't wait for it
+    scaleManager.expect(planetCount * 2 + (planetCount > 0 ? 2 : 0), 1, planetCount + 1)
 
     for (let i = planetCount - 1; i >= 0; i--) {
       // Queue planets in reverse because later queries get answered frist
@@ -198,6 +196,12 @@ async function showSystem(ctx, keypath) {
 
       planetSprite.addEventListener('click', clickHandler)
       orbitSprite.addEventListener('click', clickHandler)
+    }
+
+    if (planetCount > 0) {
+      // Also show the habitable zone.
+      let habZone = sprites.makeHabitableZoneSprite(ctx, keypath, scaleManager)
+      root.appendChild(habZone)
     }
 
     console.log('Made ' + planetCount + ' planets')
@@ -353,7 +357,10 @@ async function main() {
   console.log('Using account ' + eth.get_account())
 
   // Get ahold of a global Macroverse context.
-  let ctx = await Context('contracts/')
+  let ctx = await Context('contracts')
+
+  console.log("Using star generator: " + ctx.ds.star.address)
+  console.log("Using system generator: " + ctx.ds.sys.address)
 
   // Make an infobox object with access to the data source
   // It will look up values for whatever we tell it to display
@@ -388,9 +395,12 @@ async function main() {
       showSector(ctx, parts[0], parts[1], parts[2])
     } else if (parts.length == 4) {
       // This is a star
+      // But first we need the sector
+      showSector(ctx, parts[0], parts[1], parts[2])
       showSystem(ctx, keypath) 
     } else if (parts.length == 5) {
       // It must be a planet
+      showSector(ctx, parts[0], parts[1], parts[2])
       showPlanet(ctx, keypath)
     }
   })
@@ -415,6 +425,9 @@ async function main() {
   window.onhashchange = () => {
     ctx.emit('show', location.hash.substr(1))
   }
+  
+  // Expose context for debugging
+  window.ctx = ctx
 }
 
 // Actually run the entry point
