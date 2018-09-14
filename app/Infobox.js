@@ -55,7 +55,8 @@ class Infobox {
 
   // Everything that needs a child picker can use this one
   // Turns a keypath and a number of children into a dropdown that shows the child selected
-  makeChildPicker(keypath, count) {
+  // If callback is specified, puts the HTML returned by callback in the option, after the number.
+  makeChildPicker(keypath, count, callback) {
     if (count == 0) {
       return 'None'
     }
@@ -82,7 +83,13 @@ class Infobox {
       // Make a button for each star
       let option = document.createElement('option')
       option.classList.add('infobox-child')
-      option.innerText = i
+      if (callback) {
+        // Option text should be the number and the callback result
+        option.innerHTML = i + ' - ' + callback(i)
+      } else {
+        // Option text is just the number
+        option.innerText = i
+      }
       root.appendChild(option)
     }
 
@@ -96,6 +103,13 @@ class Infobox {
     this.infobox.classList.remove('infobox-star')
     this.infobox.classList.remove('infobox-planet')
     this.infobox.classList.add('infobox-sector')
+
+    // Define a function to make short star summaries for the child picker
+    let starDescriptionCallback = (i) => {
+      // The description will have the class and type in it
+      return this.when(keypath + '.' + i + '.objClass', (x) =>  mv.objectClasses[x]) + ' ' +
+        this.when(keypath + '.' + i + '.objType', (x) => mv.spectralTypes[x])
+    }
 
     // Set up the main template
     this.infobox.innerHTML = `
@@ -112,7 +126,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Children</td>
-            <td>${this.when(keypath + '.objectCount', (x) => this.makeChildPicker(keypath, x))}</td>
+            <td>${this.when(keypath + '.objectCount', (x) => this.makeChildPicker(keypath, x, starDescriptionCallback))}</td>
           </td>
         </table>
       </div>
