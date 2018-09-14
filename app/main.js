@@ -395,7 +395,7 @@ async function main() {
       showSector(ctx, parts[0], parts[1], parts[2])
     } else if (parts.length == 4) {
       // This is a star
-      // But first we need the sector
+      // But first we need to ask for the sector, so that after the star loads the sector loads.
       showSector(ctx, parts[0], parts[1], parts[2])
       showSystem(ctx, keypath) 
     } else if (parts.length == 5) {
