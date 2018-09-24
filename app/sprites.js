@@ -25,10 +25,13 @@ const typeToColor = {
 
 const planetColors = {
   'Lunar': 'white',
-  'Terrestrial': 'blue',
-  'Uranian': 'purple',
+  'Europan': 'brown',
+  'Terrestrial': 'green',
+  'Panthalassic': 'blue',
+  'Neptunian': 'purple',
   'Jovian': 'orange',
-  'AsteroidBelt': 'gray'
+  'AsteroidBelt': 'gray',
+  'Ring': 'yellow'
 }
 
 // Convert an array of 0-255 values into a hex color code.
@@ -425,8 +428,7 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
   // Macroverse uses G=132712875029098577920 m^3 s^-2 sols^-1
   // orbjs uses orb.constants.common.G = 6.67384e-11 m^3 kg^-1 s^-2
   // For these two numbers to be equal, how big is a solar mass in kg?
-  // TODO: Move the Macroverse G constant into the Macroverse module!
-  let sol = 132712875029098577920 / orb.constants.common.G
+  let sol = mv.G_PER_SOL / orb.constants.common.G
 
   // Compute semimajor axis (still in meters)
   let semimajor = (orbit.apoapsis + orbit.periapsis) / 2

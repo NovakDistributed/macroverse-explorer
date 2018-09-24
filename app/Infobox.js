@@ -7,9 +7,6 @@ const { parentOf, lastComponent } = require('./keypath.js')
 
 const mv = require('macroverse')
 
-// TODO: Move this stuff to the macroverse module
-let planetClasses = ['Lunar', 'Terrestrial', 'Uranian', 'Jovian', 'AsteroidBelt']
-
 // Make a number fixed precision, with commas
 function format(number) {
   if (number > 0.01) {
@@ -204,7 +201,7 @@ class Infobox {
         <table class="infobox-table">
           <tr>
             <td>Planet Class</td>
-            <td colspan="2">${this.when(keypath + '.planetClass', (x) => planetClasses[x])}</td>
+            <td colspan="2">${this.when(keypath + '.planetClass', (x) => mv.planetClasses[x])}</td>
           </tr>
           <tr>
             <td>Mass</td>
