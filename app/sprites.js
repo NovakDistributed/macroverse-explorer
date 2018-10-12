@@ -26,8 +26,8 @@ const typeToColor = {
 const planetColors = {
   'Lunar': 'white',
   'Europan': 'brown',
-  'Terrestrial': 'green',
-  'Panthalassic': 'blue',
+  'Terrestrial': 'blue',
+  'Panthalassic': 'aqua',
   'Neptunian': 'purple',
   'Jovian': 'orange',
   'AsteroidBelt': 'gray',

@@ -34,6 +34,7 @@ class Datasource extends EventEmitter2 {
     // Set up some fields for the generators 
     this.star = undefined
     this.sys = undefined
+    this.moon = undefined
 
     // Set up the stack of keypaths we are going to request.
     // It is OK if things go on the stack multiple times because we will just see later that we got them earlier.
@@ -61,8 +62,11 @@ class Datasource extends EventEmitter2 {
         // Do the actual init work here.
 
         // Find the MacroverseStarGenerator and MacroverseSystemGenerator instances
-        [this.star, this.sys] = await Promise.all([eth.get_instance(this.getContractPath('MacroverseStarGenerator')),
-          eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))])
+        [this.star, this.sys, this.moon] = await Promise.all([
+          eth.get_instance(this.getContractPath('MacroverseStarGenerator')),
+          eth.get_instance(this.getContractPath('MacroverseSystemGenerator')),
+          eth.get_instance(this.getContractPath('MacroverseMoonGenerator'))
+        ])
       })()
     }
     return this.initPromise
@@ -100,7 +104,7 @@ class Datasource extends EventEmitter2 {
   // seed, x, y, z, objClass, objType, objMass, luminosity, hasPlanets, planetCount, habitableZone (which has start, end, realStart, realEnd)
   // <x>.<y>.<z>.<objectNumber>.<planetNumber> to get a whole planet record (without moons)
   // <x>.<y>.<z>.<objectNumber>.<planetNumber>.<propertyName>
-  // Planet properties include seed, planetClass, planetMass, orbit (which has a bunch of its own properties), and moon stuff  
+  // Planet properties include seed, planetClass, planetMass, orbit (which has a bunch of its own properties), moonCount, moonScale 
   // <x>.<y>.<z>.<objectNumber>.<planetNumber>.<moonNumber> to get a whole moon record
   // <x>.<y>.<z>.<objectNumber>.<palnetNumber>.<moonNumber>.<propertyName>
   // Moon properties are the same as planet properties
@@ -263,9 +267,28 @@ class Datasource extends EventEmitter2 {
                 }
               } else {
                 // Otherwise, if it's a number, it's a moon number
+                let moon = parts[5]
 
-                // TODO: moons
-                throw new Error("Moons not supported")
+                if (parts.length < 6) {
+                  // If that's it, get the whole moon
+                  await this.resolveMoonProperty(x, y, z, star, planet, moon, '')
+                } else {
+                  if (isNaN(parts[6])) {
+                    // Otherwise, if it's a property, get it
+                    let property = parts.slice(6).join('.')
+                    try {
+                      // If the next part is a property, go get it
+                      await this.resolveMoonProperty(x, y, z, star, planet, moon, property)
+                    } catch (err) {
+                      // If it doesn't come in, try again
+                      console.log('Error getting ' + keypath, err)
+                      throw err
+                      //await this.resolveImmediately(keypath)
+                    }
+                  } else {
+                    throw new Error("Moons have no children")
+                  }
+                }
               }
             }
           }
@@ -482,7 +505,7 @@ class Datasource extends EventEmitter2 {
   // Return a promise that resolves with nothing after publication.
   // '' keypath = whole planet
   // Planet properties include seed, planetClass, planetMass, orbit (which has a bunch of its own properties),
-  // periapsisIrradiance, apoapsisIrradiance, and moon stuff.
+  // periapsisIrradiance, apoapsisIrradiance, moonCount, moonScale
   // Orbit properties are: periapsis, apoapsis, clearance, lan, inclination, aop, meanAnomalyAtEpoch, semimajor, semiminor, period,
   // realPeriapsis, realApoapsis, realClearance, realLan, realInclination, realAop, realMeanAnomalyAtEpoch
   async resolvePlanetProperty(x, y, z, starNumber, planetNumber, keypath) {
@@ -520,7 +543,7 @@ class Datasource extends EventEmitter2 {
     case '':
       {
         let value = {}
-        for (let key of ['seed', 'planetClass', 'planetMass', 'orbit', 'periapsisIrradiance', 'apoapsisIrradiance']) {
+        for (let key of ['seed', 'planetClass', 'planetMass', 'orbit', 'periapsisIrradiance', 'apoapsisIrradiance', 'moonCount', 'moonScale']) {
           // Go get and fill in all the properties
           value[key] = await get(key)
         }
@@ -669,6 +692,25 @@ class Datasource extends EventEmitter2 {
         await save(keypath, value)
       }
       break
+    case 'moonCount':
+      {
+        let seed = await get('seed')
+        let planetClass = await get('planetClass')
+        let value = (await this.moon.getPlanetMoonCount.call(seed, planetClass)).toNumber()
+        await save(keypath, value)
+      }
+      break
+    case 'realMoonScale':
+    case 'moonScale':
+      {
+        let seed = await get('seed')
+        let realPlanetMass = await get('realPlanetMass')
+        let realMoonScale = await this.moon.getPlanetMoonScale.call(seed, realPlanetMass)
+        let moonScale = mv.fromReal(realMoonScale)
+        await save('realMoonScale', realMoonScale)
+        await save('moonScale', moonScale)
+      }
+      break
     default:
       throw new Error('Unknown property: ' + keypath);
     }
@@ -681,6 +723,228 @@ class Datasource extends EventEmitter2 {
       await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + planetNumber, value)
     } else {
       await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + planetNumber + '.' + keypath, value)
+    }
+  }
+
+  // Load the given property of the moon from the blockchain.
+  // Save it and any properties retrieved at the same time in the cache.
+  // Publish the property.
+  // Return a promise that resolves with nothing after publication.
+  // '' keypath = whole moon
+  // Moon properties include seed, planetClass, planetMass, orbit (which has a bunch of its own properties),
+  // periapsisIrradiance, apoapsisIrradiance (which are computed based on moon min and max sun distance)
+  // Orbit properties are: periapsis, apoapsis, clearance, lan, inclination, aop, meanAnomalyAtEpoch, semimajor, semiminor, period,
+  // realPeriapsis, realApoapsis, realClearance, realLan, realInclination, realAop, realMeanAnomalyAtEpoch
+  // Orbit is around the parent planet.
+  async resolveMoonProperty(x, y, z, starNumber, planetNumber, moonNumber, keypath) {
+    // Lots of planet properties depend on other ones
+    let starKey = x + '.' + y + '.' + z + '.' + starNumber
+    let planetKey = starKey + '.' + planetNumber
+    let moonKey = planetKey + '.' + moonNumber
+
+    // Use this to save a property of the moon
+    let save = async (prop, value) => {
+      await this.saveMoonProperty(x, y, z, starNumber, planetNumber, moonNumber, prop, value)
+    }
+
+    // And this to get one
+    let get = async (prop) => {
+      let promise = this.waitFor(moonKey + '.' + prop)
+      await this.resolveImmediately(moonKey + '.' + prop)
+      return promise
+    }
+
+    // And this to get star properties
+    let getStar = async (prop) => {
+      let promise = this.waitFor(starKey + '.' + prop)
+      await this.resolveImmediately(starKey + '.' + prop)
+      return promise
+    }
+
+    // And this to get parent planet properties
+    let getPlanet = async (prop) => {
+      let promise = this.waitFor(planetKey + '.' + prop)
+      await this.resolveImmediately(planetKey + '.' + prop)
+      return promise
+    }
+
+    // And this for properties of the previous planet
+    let getPrevMoon = async (prop) => {
+      let prevKeypath = planetKey + '.' + (moonNumber - 1) + '.' + prop
+      let promise = this.waitFor(prevKeypath)
+      await this.resolveImmediately(prevKeypath)
+      return promise
+    }
+
+    // TODO: We end up replicating a bunch of the switch logic from planets. Is there a way to unify it?
+    switch(keypath) {
+    case '':
+      {
+        let value = {}
+        for (let key of ['seed', 'planetClass', 'planetMass', 'orbit', 'periapsisIrradiance', 'apoapsisIrradiance']) {
+          // Go get and fill in all the properties
+          value[key] = await get(key)
+        }
+        await save(keypath, value)
+      }
+      break
+    case 'seed':
+      {
+        let planetSeed = await getPlanet('seed')
+        let value = await this.moon.getMoonSeed.call(planetSeed, moonNumber)
+        await save(keypath, value)
+      }
+      break
+    case 'planetClass':
+      {
+        let parentClass = await getPlanet('planetClass')
+        let seed = await get('seed')
+        let value = (await this.moon.getMoonClass.call(parentClass, seed, moonNumber)).toNumber()
+        await save(keypath, value)
+      }
+      break
+    case 'realPlanetMass':
+    case 'planetMass':
+      {
+        let seed = await get('seed')
+        let planetClass = await get('planetClass')
+        let realPlanetMass = await this.sys.getPlanetMass.call(seed, planetClass)
+        let planetMass = mv.fromReal(realPlanetMass)
+        await save('realPlanetMass', realPlanetMass)
+        await save('planetMass', planetMass)
+      }
+      break
+    case 'orbit':
+      {
+        let value = {}
+        for (let key of ['periapsis', 'apoapsis', 'clearance', 'lan', 'inclination', 'aop', 'meanAnomalyAtEpoch',
+          'semimajor', 'semiminor', 'period', 'realPeriapsis', 'realApoapsis', 'realClearance', 'realLan',
+          'realInclination', 'realAop', 'realMeanAnomalyAtEpoch']) {
+          // Go get and fill in all the properties
+          value[key] = await get('orbit.' + key)
+        }
+        await save(keypath, value)
+      }
+      break
+    case 'orbit.realPeriapsis':
+    case 'orbit.periapsis':
+    case 'orbit.realApoapsis':
+    case 'orbit.apoapsis':
+    case 'orbit.realClearance':
+    case 'orbit.clearance':
+      {
+        let seed = await get('seed')
+        let planetClass = await get('planetClass')
+        // We need the clearance of the pervious moon, if there was one, or 0 otherwise
+        let prevClearance = moonNumber == 0 ? 0 : await getPrevMoon('orbit.realClearance')
+        // We need the moon scale for the paret planet
+        let realMoonScale = await getPlanet('realMoonScale')
+        
+        let parts = await this.moon.getMoonOrbitDimensions.call(realMoonScale, seed, planetClass, prevClearance)
+        let partialOrbit = {'realPeriapsis': parts[0], 'realApoapsis': parts[1], 'realClearance': parts[2],
+          'periapsis': mv.fromReal(parts[0]), 'apoapsis': mv.fromReal(parts[1]), 'clearance': mv.fromReal(parts[2])}
+        for (let prop in partialOrbit) {
+            await save('orbit.' + prop,  partialOrbit[prop])
+        }
+      }
+      break
+    case 'orbit.realLan':
+    case 'orbit.lan':
+      {
+        let seed = await get('seed')
+        let realLan = await this.sys.getPlanetLan.call(seed)
+        let lan = mv.fromReal(realLan)
+        await save('orbit.realLan', realLan)
+        await save('orbit.lan', lan)
+      }
+      break
+    case 'orbit.realInclination':
+    case 'orbit.inclination':
+      {
+        let seed = await get('seed')
+        let planetClass = await get('planetClass')
+        let realInclination = await this.moon.getMoonInclination.call(seed, planetClass)
+        let inclination = mv.fromReal(realInclination)
+        await save('orbit.realInclination', realInclination)
+        await save('orbit.inclination', inclination)
+      }
+      break
+    case 'orbit.realAop':
+    case 'orbit.aop':
+      {
+        let seed = await get('seed')
+        let realAop = await this.sys.getPlanetAop.call(seed)
+        let aop = mv.fromReal(realAop)
+        await save('orbit.realAop', realAop)
+        await save('orbit.aop', aop)
+      }
+      break
+    case 'orbit.realMeanAnomalyAtEpoch':
+    case 'orbit.meanAnomalyAtEpoch':
+      {
+        let seed = await get('seed')
+        let realMeanAnomalyAtEpoch = await this.sys.getPlanetMeanAnomalyAtEpoch.call(seed)
+        let meanAnomalyAtEpoch = mv.fromReal(realMeanAnomalyAtEpoch)
+        await save('orbit.realMeanAnomalyAtEpoch', realMeanAnomalyAtEpoch)
+        await save('orbit.meanAnomalyAtEpoch', meanAnomalyAtEpoch)
+      }
+      break
+    // Now some convenience floats we can ask for but which aren't essential
+    case 'orbit.semimajor':
+      {
+        let apoapsis = await get('orbit.apoapsis')
+        let periapsis = await get('orbit.periapsis')
+        let value = (apoapsis + periapsis) / 2
+        await save(keypath, value)
+      }
+      break
+    case 'orbit.semiminor':
+      {
+        let apoapsis = await get('orbit.apoapsis')
+        let periapsis = await get('orbit.periapsis')
+        let value = Math.sqrt(apoapsis * periapsis)
+        await save(keypath, value)
+      }
+      break
+    case 'orbit.period':
+      {
+        let semimajor = await get('orbit.semimajor')
+        let planetMass = await getPlanet('planetMass')
+        // Make sure we convert to solar masses for the orbit math because that's what G is in
+        let value = 2 * Math.PI * Math.sqrt(Math.pow(semimajor, 3) / (mv.G_PER_SOL * planetMass / mv.EARTH_MASSES_PER_SOLAR_MASS))
+        await save(keypath, value)
+      }
+      break
+    case 'periapsisIrradiance':
+      {
+        let apoapsis = await get('orbit.apoapsis')
+        let parentPeriapsis = await getPlanet('orbit.periapsis')
+        let luminosity = await getStar('luminosity')
+        let value = luminosity * mv.SOLAR_LUMINOSITY / (4 * Math.PI * Math.pow(parentPeriapsis - apoapsis, 2))
+        await save(keypath, value)
+      }
+      break
+    case 'apoapsisIrradiance':
+      {
+        let apoapsis = await get('orbit.apoapsis')
+        let parentApoapsis = await getPlanet('orbit.apoapsis')
+        let luminosity = await getStar('luminosity')
+        let value = luminosity * mv.SOLAR_LUMINOSITY / (4 * Math.PI * Math.pow(parentApoapsis + apoapsis, 2))
+        await save(keypath, value)
+      }
+      break
+    default:
+      throw new Error('Unknown property: ' + keypath);
+    }
+  }
+
+  // Save and dispatch events for the given property of the given moon.
+  // Using a keypath of '' indicates the whole moon.
+  async saveMoonProperty(x, y, z, starNumber, planetNumber, moonNumber, keypath, value) {
+    if (keypath == '') {
+      await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + planetNumber + '.' + moonNumber, value)
+    } else {
+      await this.publishKeypath(x + '.' + y + '.' + z + '.' + starNumber + '.' + planetNumber + '.' + moonNumber + '.' + keypath, value)
     }
   }
 

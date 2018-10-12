@@ -313,18 +313,15 @@ async function showSector(ctx, x, y, z) {
 }
 
 // Track the 3d cursor for the sector we are supposed to display, for panning
-let curX = 0
-let curY = 0
-let curZ = 0
+let curX = null
+let curY = null
+let curZ = null
 
 /// Return a function that will pan the currenc cursor by the specified amount and kick of the display of the new sector.
 /// Basically an event handler factory.
 function make_pan_handler(ctx, deltaX, deltaY, deltaZ) {
   return function() {
-    curX += deltaX
-    curY += deltaY
-    curZ += deltaZ
-    ctx.emit('show', curX + '.' + curY + '.' + curZ)
+    ctx.emit('show', (curX + deltaX) + '.' + (curY + deltaY) + '.' + (curZ + deltaZ))
   }
 }
 
@@ -385,23 +382,31 @@ async function main() {
 
     let parts = keypath.split('.')
 
+    // Save the old sector
+    let oldX = curX
+    let oldY = curY
+    let oldZ = curZ
+
     // Make sure panning happens from here
     curX = parseInt(parts[0])
     curY = parseInt(parts[1])
     curZ = parseInt(parts[2])
 
-    if (parts.length == 3) {
-      // We want a sector. Pass along the context.
+    if (oldX != curX || oldY != curY || oldZ != curZ || parts.length == 3) {
+      // We changed sectors, or backed up to the sector view, so show the sector first
       showSector(ctx, parts[0], parts[1], parts[2])
-    } else if (parts.length == 4) {
-      // This is a star
-      // But first we need to ask for the sector, so that after the star loads the sector loads.
-      showSector(ctx, parts[0], parts[1], parts[2])
+    }
+
+    if (parts.length == 4) {
+      // This is a star. Show it.
       showSystem(ctx, keypath) 
     } else if (parts.length == 5) {
       // It must be a planet
-      showSector(ctx, parts[0], parts[1], parts[2])
       showPlanet(ctx, keypath)
+    } else if (parts.length == 6) {
+      // It must be a moon
+      // TODO: Implement moon display
+      showPlanet(ctx, parentOf(keypath))
     }
   })
 
@@ -418,7 +423,7 @@ async function main() {
     // On load we asked for a thing
     ctx.emit('show', location.hash.substr(1))
   } else {
-    ctx.emit('show', curX + '.' + curY + '.' + curZ)
+    ctx.emit('show', 0 + '.' + 0 + '.' + 0)
   }
 
   // When the user edits the URL, respond

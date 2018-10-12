@@ -18,6 +18,64 @@ function format(number) {
   }
 }
 
+// Given a number and two corresponding lists of units, find the best unit and display the value
+function formatWithUnits(number, unitNames, unitValues) {
+  let bestIndex = 0
+  let bestBadness = 99999
+
+  if (number != 0) {
+    // If 0, just use that first unit
+    for (let index = 0; index < unitValues.length; index++) {
+      // We just use exhaustive search
+      let inUnit = number / unitValues[index]
+      // The larger the absolute value of the logarithm, the less 1-y the number is
+      let badness = Math.abs(Math.log(inUnit))
+      console.log(number + ' badness in ' + unitNames[index] + ' = ' + badness)
+      if (badness < bestBadness) {
+        // New winner!
+        bestIndex = index
+        bestBadness = badness
+      }
+    }
+  }
+  console.log('Winner for ' + number + ' is ' +  unitNames[bestIndex] + ' with badness ' + bestBadness)
+
+  // Format in the given unit
+  return format(number / unitValues[bestIndex]) + ' ' + unitNames[bestIndex]
+  
+}
+
+// Define some units
+
+// For mass all the unit values need to be in Earth masses
+// We only use these for planets and moons, not stars
+// We use nano-Earths as a convenient measure for asteroid-like things.
+const MASS_UNIT_NAMES = ['M<sub>⊕</sub>', 'M<sub>L</sub>', 'nM<sub>⊕</sub>', 'kg']
+const MASS_UNIT_VALUES = [1, 1/mv.LUNAR_MASSES_PER_EARTH_MASS, 1E-9, 1/mv.EARTH_MASS]
+
+// For distance everything is in meters
+const DISTANCE_UNIT_NAMES = ['AU', 'Δ<sub>⊕L</sub>', 'km']
+const DISTANCE_UNIT_VALUES = [mv.AU, mv.LD, 1000]
+
+// For time everything is in seconds
+const TIME_UNIT_NAMES = ['Y<sub>s</sub>', 'D', 'H', 'M', 'S']
+const TIME_UNIT_VALUES = [mv.SIDERIAL_YEAR, mv.DAY, 60 * 60, 60]
+
+// Define a dedicated callback for formatting masses with units
+function formatMass(number) {
+  return formatWithUnits(number, MASS_UNIT_NAMES, MASS_UNIT_VALUES)
+}
+
+// And a dedicated callback for formatting distances with units
+function formatDistance(number) {
+  return formatWithUnits(number, DISTANCE_UNIT_NAMES, DISTANCE_UNIT_VALUES)
+}
+
+// And a dedicated callback for formatting times with units
+function formatTime(number) {
+  return formatWithUnits(number, TIME_UNIT_NAMES, TIME_UNIT_VALUES)
+}
+
 class Infobox {
   
   /// Construct an infobox rooted at the given HTML element, getting data to display from the given Datasource
@@ -46,6 +104,9 @@ class Infobox {
       } else if (parts.length == 5) {
         // This is a planet
         this.showPlanet(keypath)
+      } else if (parts.length == 6) {
+        // This is a moon
+        this.showMoon(keypath)
       }
     })
   }
@@ -93,12 +154,18 @@ class Infobox {
     return root
   }
 
+  /// Clear off all the classes specific to infoboxes for particular kinds of thing
+  clearClasses() {
+    let classes = ['infobox-sector', 'infobox-star', 'infobox-planet', 'infobox-moon']
+    for (let className of classes) {
+      this.infobox.classList.remove(className)
+    }
+  }
 
   /// Show the infobox for a sector
   showSector(keypath) {
     // Prep the infobox
-    this.infobox.classList.remove('infobox-star')
-    this.infobox.classList.remove('infobox-planet')
+    this.clearClasses()
     this.infobox.classList.add('infobox-sector')
 
     // Define a function to make short star summaries for the child picker
@@ -132,9 +199,14 @@ class Infobox {
 
   /// Show the infobox for the given star.
   showStar(keypath) {
-    this.infobox.classList.remove('infobox-planet')
-    this.infobox.classList.remove('infobox-sector')
+    this.clearClasses()
     this.infobox.classList.add('infobox-star')
+
+    // Define a function to make short planet summaries for the child picker
+    let planetDescriptionCallback = (i) => {
+      // The description will have the class in it
+      return this.when(keypath + '.' + i + '.planetClass', (x) =>  mv.planetClasses[x])
+    }
 
     this.infobox.innerHTML = `
       <div class="infobox-header">
@@ -172,7 +244,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Children</td>
-            <td>${this.when(keypath + '.planetCount', (x) => this.makeChildPicker(keypath, x))}</td>
+            <td>${this.when(keypath + '.planetCount', (x) => this.makeChildPicker(keypath, x, planetDescriptionCallback))}</td>
           </td>
         </table>
 
@@ -185,11 +257,17 @@ class Infobox {
     })
   }
 
-  /// Show the infobox for the given planet, orbiting the given star.
+  /// Show the infobox for the given planet.
   async showPlanet(keypath) {
-    this.infobox.classList.remove('infobox-star')
-    this.infobox.classList.remove('infobox-sector')
+    this.clearClasses()
     this.infobox.classList.add('infobox-planet')
+
+    // Define a function to make short moon summaries for the child picker
+    let moonDescriptionCallback = (i) => {
+      // The description will have the class in it
+      return this.when(keypath + '.' + i + '.planetClass', (x) =>  mv.planetClasses[x])
+    }
+
     this.infobox.innerHTML = `
       <div class="infobox-header">
         <button class="infobox-back" id="infobox-back">&lt;</button>
@@ -205,20 +283,79 @@ class Infobox {
           </tr>
           <tr>
             <td>Mass</td>
-            <td colspan="2">${this.when(keypath + '.planetMass', (x) => format(x))} M<sub>⊕</sub></td>
+            <td colspan="2">${this.when(keypath + '.planetMass', (x) => formatMass(x), '???? M<sub>⊕</sub>')}</td>
           </tr>
           <tr>
             <td rowspan="4">Orbit</td>
             <td>Minimum</td>
-            <td>${this.when(keypath + '.orbit.periapsis', (x) => format(x / mv.AU))} AU</td>
+            <td>${this.when(keypath + '.orbit.periapsis', (x) => formatDistance(x), '???? AU')}</td>
           </tr>
           <tr>
             <td>Maximum</td>
-            <td>${this.when(keypath + '.orbit.apoapsis', (x) => format(x / mv.AU))} AU</td>
+            <td>${this.when(keypath + '.orbit.apoapsis', (x) => formatDistance(x), '???? AU')}</td>
           </tr>
           <tr>
             <td>Period</td>
-            <td>${this.when(keypath + '.orbit.period', (x) => format(x / mv.SIDERIAL_YEAR))} Y<sub>s</sub></td>
+            <td>${this.when(keypath + '.orbit.period', (x) => formatTime(x), '???? Y<sub>s</sub>')}</td>
+          </tr>
+          <tr>
+            <td>Inclination</td>
+            <td>${this.when(keypath + '.orbit.inclination', (x) => format(mv.degrees(x)))}&deg;</td>
+          </tr>
+          <tr>
+            <td>Climate</td>
+            <td>Normal Irradiance</td>
+            <!-- Earth is like 1.3-1.5k or something -->
+            <td>${this.when(keypath + '.apoapsisIrradiance', (x) => format(x))} -
+            ${this.when(keypath + '.periapsisIrradiance', (x) => format(x))} W/m<sup>2</sup></td>
+          </tr>
+          <tr>
+            <td>Children</td>
+            <td colspan="2">${this.when(keypath + '.moonCount', (x) => this.makeChildPicker(keypath, x, moonDescriptionCallback))}</td>
+          </td>
+        </table>
+      </div>
+    `
+
+    // Listen for back clicks
+    this.infobox.querySelector('#infobox-back').addEventListener('click', () => {
+      this.ctx.emit('show', parentOf(keypath))
+    })
+  }
+
+  /// Show the infobox for the given moon.
+  async showMoon(keypath) {
+    this.clearClasses()
+    this.infobox.classList.add('infobox-moon')
+    this.infobox.innerHTML = `
+      <div class="infobox-header">
+        <button class="infobox-back" id="infobox-back">&lt;</button>
+        <span class="infobox-title">
+          Moon ${keypath}
+        </span>
+      </div>
+      <div class="infobox-body">
+        <table class="infobox-table">
+          <tr>
+            <td>Planet Class</td>
+            <td colspan="2">${this.when(keypath + '.planetClass', (x) => mv.planetClasses[x])}</td>
+          </tr>
+          <tr>
+            <td>Mass</td>
+            <td colspan="2">${this.when(keypath + '.planetMass',  (x) => formatMass(x), '???? M<sub>L</sub>')}</td>
+          </tr>
+          <tr>
+            <td rowspan="4">Orbit</td>
+            <td>Minimum</td>
+            <td>${this.when(keypath + '.orbit.periapsis', (x) => formatDistance(x), '???? Δ<sub>⊕L</sub>')}</td>
+          </tr>
+          <tr>
+            <td>Maximum</td>
+            <td>${this.when(keypath + '.orbit.apoapsis', (x) => formatDistance(x), '???? Δ<sub>⊕L</sub>')}</td>
+          </tr>
+          <tr>
+            <td>Period</td>
+            <td>${this.when(keypath + '.orbit.period', (x) => formatTime(x), '???? D')}</td>
           </tr>
           <tr>
             <td>Inclination</td>
@@ -242,17 +379,22 @@ class Infobox {
   }
 
   /// Internal function to lazy-load and format data from the Datasource.
-  /// Takes a string keypath and an optional callback.
+  /// Takes a string keypath, an optional callback, and an optional custopm placeholder.
   /// Returns the text for an HTML element that looks like a throbber, and
   /// later replaces itself with the text or DOM node returned from the callback called with
   /// the keypath's value, or the text value if there is no callback, when it arrives.
-  when(keypath, callback) {
+  when(keypath, callback, placeholder) {
     // Come up with a unique HTML ID for the element we will return.
     let id = 'infobox-when-' + this.nextId
     this.nextId++
+    
+    if (placeholder === undefined) {
+      // Provide a placeholder
+      placeholder = '????'
+    }
 
     // Define the throbber HTML
-    let throbber = `<span id="${id}" class="infobox-throbber">???</span>`
+    let throbber = `<span id="${id}" class="infobox-throbber">${placeholder}</span>`
 
     // Set up the event handler
     this.ctx.ds.once(keypath, (value) => {
