@@ -23,7 +23,7 @@ const typeToColor = {
   'NotApplicable': [128, 128, 128]
 }
 
-const planetColors = {
+const worldColors = {
   'Lunar': 'white',
   'Europan': 'brown',
   'Terrestrial': 'blue',
@@ -226,7 +226,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
     get('planetClass').then((planetClass) => {
       // Make it the right color for the class that it is
-      let planetColor = planetColors[mv.planetClasses[planetClass]]
+      let planetColor = worldColors[mv.worldClasses[planetClass]]
       sprite.setAttribute('material', {
         color: planetColor,
         wireframe: false

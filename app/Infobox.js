@@ -205,7 +205,7 @@ class Infobox {
     // Define a function to make short planet summaries for the child picker
     let planetDescriptionCallback = (i) => {
       // The description will have the class in it
-      return this.when(keypath + '.' + i + '.planetClass', (x) =>  mv.planetClasses[x])
+      return this.when(keypath + '.' + i + '.planetClass', (x) =>  mv.worldClasses[x])
     }
 
     this.infobox.innerHTML = `
@@ -265,7 +265,7 @@ class Infobox {
     // Define a function to make short moon summaries for the child picker
     let moonDescriptionCallback = (i) => {
       // The description will have the class in it
-      return this.when(keypath + '.' + i + '.planetClass', (x) =>  mv.planetClasses[x])
+      return this.when(keypath + '.' + i + '.planetClass', (x) =>  mv.worldClasses[x])
     }
 
     this.infobox.innerHTML = `
@@ -279,7 +279,7 @@ class Infobox {
         <table class="infobox-table">
           <tr>
             <td>Planet Class</td>
-            <td colspan="2">${this.when(keypath + '.planetClass', (x) => mv.planetClasses[x])}</td>
+            <td colspan="2">${this.when(keypath + '.planetClass', (x) => mv.worldClasses[x])}</td>
           </tr>
           <tr>
             <td>Mass</td>
@@ -338,7 +338,7 @@ class Infobox {
         <table class="infobox-table">
           <tr>
             <td>Planet Class</td>
-            <td colspan="2">${this.when(keypath + '.planetClass', (x) => mv.planetClasses[x])}</td>
+            <td colspan="2">${this.when(keypath + '.planetClass', (x) => mv.worldClasses[x])}</td>
           </tr>
           <tr>
             <td>Mass</td>

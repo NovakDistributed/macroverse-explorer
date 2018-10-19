@@ -553,7 +553,7 @@ class Datasource extends EventEmitter2 {
     case 'seed':
       {
         let starSeed = await getStar('seed')
-        let value = await this.sys.getPlanetSeed.call(starSeed, planetNumber)
+        let value = await this.sys.getWorldSeed.call(starSeed, planetNumber)
         await save(keypath, value)
       }
       break
@@ -570,7 +570,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let planetClass = await get('planetClass')
-        let realPlanetMass = await this.sys.getPlanetMass.call(seed, planetClass)
+        let realPlanetMass = await this.sys.getWorldMass.call(seed, planetClass)
         let planetMass = mv.fromReal(realPlanetMass)
         await save('realPlanetMass', realPlanetMass)
         await save('planetMass', planetMass)
@@ -614,7 +614,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.lan':
       {
         let seed = await get('seed')
-        let realLan = await this.sys.getPlanetLan.call(seed)
+        let realLan = await this.sys.getWorldLan.call(seed)
         let lan = mv.fromReal(realLan)
         await save('orbit.realLan', realLan)
         await save('orbit.lan', lan)
@@ -635,7 +635,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.aop':
       {
         let seed = await get('seed')
-        let realAop = await this.sys.getPlanetAop.call(seed)
+        let realAop = await this.sys.getWorldAop.call(seed)
         let aop = mv.fromReal(realAop)
         await save('orbit.realAop', realAop)
         await save('orbit.aop', aop)
@@ -645,7 +645,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.meanAnomalyAtEpoch':
       {
         let seed = await get('seed')
-        let realMeanAnomalyAtEpoch = await this.sys.getPlanetMeanAnomalyAtEpoch.call(seed)
+        let realMeanAnomalyAtEpoch = await this.sys.getWorldMeanAnomalyAtEpoch.call(seed)
         let meanAnomalyAtEpoch = mv.fromReal(realMeanAnomalyAtEpoch)
         await save('orbit.realMeanAnomalyAtEpoch', realMeanAnomalyAtEpoch)
         await save('orbit.meanAnomalyAtEpoch', meanAnomalyAtEpoch)
@@ -791,7 +791,7 @@ class Datasource extends EventEmitter2 {
     case 'seed':
       {
         let planetSeed = await getPlanet('seed')
-        let value = await this.moon.getMoonSeed.call(planetSeed, moonNumber)
+        let value = await this.sys.getWorldSeed.call(planetSeed, moonNumber)
         await save(keypath, value)
       }
       break
@@ -808,7 +808,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let planetClass = await get('planetClass')
-        let realPlanetMass = await this.sys.getPlanetMass.call(seed, planetClass)
+        let realPlanetMass = await this.sys.getWorldMass.call(seed, planetClass)
         let planetMass = mv.fromReal(realPlanetMass)
         await save('realPlanetMass', realPlanetMass)
         await save('planetMass', planetMass)
@@ -852,7 +852,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.lan':
       {
         let seed = await get('seed')
-        let realLan = await this.sys.getPlanetLan.call(seed)
+        let realLan = await this.sys.getWorldLan.call(seed)
         let lan = mv.fromReal(realLan)
         await save('orbit.realLan', realLan)
         await save('orbit.lan', lan)
@@ -873,7 +873,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.aop':
       {
         let seed = await get('seed')
-        let realAop = await this.sys.getPlanetAop.call(seed)
+        let realAop = await this.sys.getWorldAop.call(seed)
         let aop = mv.fromReal(realAop)
         await save('orbit.realAop', realAop)
         await save('orbit.aop', aop)
@@ -883,7 +883,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.meanAnomalyAtEpoch':
       {
         let seed = await get('seed')
-        let realMeanAnomalyAtEpoch = await this.sys.getPlanetMeanAnomalyAtEpoch.call(seed)
+        let realMeanAnomalyAtEpoch = await this.sys.getWorldMeanAnomalyAtEpoch.call(seed)
         let meanAnomalyAtEpoch = mv.fromReal(realMeanAnomalyAtEpoch)
         await save('orbit.realMeanAnomalyAtEpoch', realMeanAnomalyAtEpoch)
         await save('orbit.meanAnomalyAtEpoch', meanAnomalyAtEpoch)
