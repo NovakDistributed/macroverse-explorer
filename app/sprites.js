@@ -11,6 +11,10 @@ const orb = require('orbjs')
 // Our ScaleManager can emit events
 const { EventEmitter2 } = require('eventemitter2')
 
+// Load a real quaternion library since I can't seem to make threejs do Euler right
+const Quaternion = require('quaternion')
+const quaternionToEuler = require('quaternion-to-euler')
+
 // See http://www.isthe.com/chongo/tech/astro/HR-temp-mass-table-byhrclass.html for a nice table, also accounting for object class (IV/III/etc.) and 0-9 subtype.
 const typeToColor = {
   'TypeO': [144, 166, 255],
@@ -172,6 +176,13 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     meanAnomalyAtEpoch: 0
   }
 
+  // And the rotation info, in radians
+  let spin = {
+    axisAngleZ: 0.5,
+    axisAngleX: 0.1,
+    spinRate: 0.00007272205,
+  }
+
   // And similarly for the star, which we assume has a mass of 1 sol until proven otherwise
   let star = {
     objMass: 1
@@ -202,9 +213,15 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
   // Make a sprite
   let sprite = document.createElement('a-entity')
+  // It will have a hat on the north pole to show rotation
+  let hat = document.createElement('a-entity')
+  sprite.appendChild(hat)
 
   // Give it the ID of the keypath, so we can find it
   sprite.id = keypath
+
+  // We initially use a random radius
+  let initialRadius = Math.random()
 
   sprite.addEventListener('loaded', () => {
     // Give it a default appearance
@@ -214,7 +231,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       primitive: 'sphere',
       segmentsWidth: 8,
       segmentsHeight: 8,
-      radius: Math.random()
+      radius: initialRadius
     })
 
     // It will initially be a green wireframe to signify loading
@@ -224,17 +241,8 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       wireframeLinewidth: 1
     })
 
-    get('planetClass').then((planetClass) => {
-      // Make it the right color for the class that it is
-      let planetColor = worldColors[mv.worldClasses[planetClass]]
-      sprite.setAttribute('material', {
-        color: planetColor,
-        wireframe: false
-      })
-    })
-    
     get('planetMass').then((planetMass) => {
-      // Work out the size for it
+      // Work out the actual size for it
       let size = Math.max(Math.log10(planetMass) + 3, 1) / 10
 
       // Make the planet sphere
@@ -246,6 +254,15 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       })
     })
 
+    get('planetClass').then((planetClass) => {
+      // Make it the right color for the class that it is
+      let planetColor = worldColors[mv.worldClasses[planetClass]]
+      sprite.setAttribute('material', {
+        color: planetColor,
+        wireframe: false
+      })
+    })
+    
     // Define an update function for the planet's position in the orbit
     let update = () => {
       // Work out where the planet belongs at this time
@@ -257,6 +274,10 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       planetPos.z *= scale
       // Put it there
       sprite.setAttribute('position', planetPos)
+
+      // Compute rotation based on spin rate, time, and planet angles
+      let planetRot = computeWorldRotation(spin, getRenderTime());
+      sprite.setAttribute('rotation', planetRot)
     }
 
     // Update the planet position now and later (when more values come in) according to the orbit
@@ -271,6 +292,51 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       }
     }, 20)
 
+  })
+
+  hat.addEventListener('loaded', () => {
+    // The hat will be a cone
+    hat.setAttribute('geometry', {
+      primitive: 'cone',
+      // Make it a half cone so we can see it spin
+      thetaStart: 180,
+      thetaLength: 180,
+      radiusTop: 0,
+      segmentsHeight: 3,
+      segmentsRadial: 8,
+      radiusBottom: initialRadius / 3,
+      height: initialRadius / 3
+    })
+
+    hat.setAttribute('position', {
+      x: 0,
+      y: initialRadius + (initialRadius / 6),
+      z: 0
+    })
+
+    hat.setAttribute('material', {
+      color: 'green',
+      wireframe: true,
+      wireframeLineWidth: 1
+    })
+
+    get('planetMass').then((planetMass) => {
+      // Work out the actual size for it
+      // TODO: Duplicative with above
+      let size = Math.max(Math.log10(planetMass) + 3, 1) / 10
+
+      // Move the hat
+      hat.setAttribute('position', {
+        x: 0,
+        y: size + (size / 6),
+        z: 0
+      })
+
+      hat.setAttribute('geometry', {
+        radiusBottom: size / 3,
+        height: size / 3
+      })
+    })
   })
 
   return sprite
@@ -442,6 +508,25 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
   // Swap axes around to Minecraft-style Y-up (swap Y and Z, and negate Z)
   // Also convert from meters to AU
   return {x: pos[0] / mv.AU, y: pos[2] / mv.AU, z: -pos[1] / mv.AU}
+
+}
+
+// Compute the current orientation (A-frame XYZ Euler angles in degrees) of a planet.
+// Takes a spin object with axisAngleZ, axisAngleX, in radians (rotate on Z first, then X, then spin, all intrinsic), and also spinRate in radians.
+// Takes care of computing the final rotation.
+function computeWorldRotation(spin, secondsSinceEpoch) {
+
+  // Precompute the spin
+  let currentSpinAngle = (secondsSinceEpoch * spin.spinRate) % (2 * Math.PI)
+  
+  // Euler angles are interpreted *and* applied in the order you specify
+  let quat = Quaternion.fromEuler(spin.axisAngleZ, spin.axisAngleX, currentSpinAngle, 'ZXY')
+
+  // Convert back to normal Euler angles
+  let euler = quaternionToEuler(quat.toVector())
+
+  // TODO: Why do these have to be in a different order? Are our quaternions misparsed?
+  return {x: mv.degrees(euler[0]), y: mv.degrees(euler[1]) * 0, z: mv.degrees(euler[2])}
 
 }
 

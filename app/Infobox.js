@@ -30,7 +30,6 @@ function formatWithUnits(number, unitNames, unitValues) {
       let inUnit = number / unitValues[index]
       // The larger the absolute value of the logarithm, the less 1-y the number is
       let badness = Math.abs(Math.log(inUnit))
-      console.log(number + ' badness in ' + unitNames[index] + ' = ' + badness)
       if (badness < bestBadness) {
         // New winner!
         bestIndex = index
@@ -38,8 +37,6 @@ function formatWithUnits(number, unitNames, unitValues) {
       }
     }
   }
-  console.log('Winner for ' + number + ' is ' +  unitNames[bestIndex] + ' with badness ' + bestBadness)
-
   // Format in the given unit
   return format(number / unitValues[bestIndex]) + ' ' + unitNames[bestIndex]
   
