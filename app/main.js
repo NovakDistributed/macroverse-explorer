@@ -148,6 +148,7 @@ async function showSystem(ctx, keypath) {
     // And a white line
     stick.setAttribute('material', {
       color: 'white',
+      shader: 'flat',
       wireframe: true,
       wireframeLinewidth: 1
     })

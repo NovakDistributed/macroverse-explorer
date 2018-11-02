@@ -240,6 +240,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     // It will initially be a green wireframe to signify loading
     sprite.setAttribute('material', {
       color: 'green',
+      shader: 'flat',
       wireframe: true,
       wireframeLinewidth: 1
     })
@@ -262,7 +263,11 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       let planetColor = worldColors[mv.worldClasses[planetClass]]
       sprite.setAttribute('material', {
         color: planetColor,
-        wireframe: false
+        shader: 'standard',
+        wireframe: false,
+        // Give it some reasonable physics-based rendering stats
+        metalness: 0.1,
+        roughness: 0.8
       })
     })
     
@@ -325,6 +330,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
     spin_shower.setAttribute('material', {
       color: 'green',
+      shader: 'flat',
       wireframe: true,
       wireframeLineWidth: 1
     })
@@ -428,7 +434,7 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
 
   circleNode.addEventListener('loaded', () => {
     // Give it a color and stuff
-    circleNode.setAttribute('material', {color: 'white', wireframe: true, wireframeLinewidth: 1})
+    circleNode.setAttribute('material', {color: 'white', shader: 'flat', wireframe: true, wireframeLinewidth: 1})
 
     // Then rotate it from the XY plane to the XZ plane
     circleNode.setAttribute('rotation', {x: -90, y: 0, z: 0})
@@ -586,7 +592,7 @@ function makeHabitableZoneSprite(ctx, keypath, scaleManager) {
   regionNode.addEventListener('loaded', () => {
     // Give it a color and stuff
     // TODO: Green wireframe = not ready for other things.
-    regionNode.setAttribute('material', {color: 'green', wireframe: true, wireframeLinewidth: 1})
+    regionNode.setAttribute('material', {color: 'green', shader: 'flat', wireframe: true, wireframeLinewidth: 1})
 
     // Then rotate it from the XY plane to the XZ plane
     regionNode.setAttribute('rotation', {x: -90, y: 0, z: 0})
@@ -603,7 +609,8 @@ function makeHabitableZoneSprite(ctx, keypath, scaleManager) {
 
     if (habitableZone.done) {
       // Make it not wireframe
-      regionNode.setAttribute('material', {color: 'green', wireframe: false, side: 'double', opacity: 0.5})
+      // But keep it shader=flat to not be lit
+      regionNode.setAttribute('material', {color: 'green', shader: 'flat', wireframe: false, side: 'double', opacity: 0.5})
     }
   })
 
@@ -664,6 +671,7 @@ function makeStarSprite(ctx, keypath, positionSelf) {
     // It will initially be a green wireframe to signify loading
     sprite.setAttribute('material', {
       color: 'green',
+      shader: 'flat',
       wireframe: true,
       wireframeLinewidth: 1
     })
@@ -674,8 +682,11 @@ function makeStarSprite(ctx, keypath, positionSelf) {
       let starColor = arrayToColor(typeToColor[mv.spectralTypes[objType]])
       
       // Make it the right color, and solid
+      // Use the normal shader, but give it some emissive so it looks glowy
       sprite.setAttribute('material', {
         color: starColor,
+        shader: 'standard',
+        emissive: starColor,
         wireframe: false
       })
     })

@@ -17,18 +17,18 @@
         <a-entity id="focusCenter" position="0 0 0"></a-entity>
       </a-entity>
       <!-- Outline the sector -->
-      <a-box id="sector" position="0 0 0" width="25" depth="25" height="25" color="#00FF00" wireframe="true" wireframe-linewidth="1" class="cursor-ignore"></a-box>
+      <a-box id="sector" position="0 0 0" width="25" depth="25" height="25" color="#00FF00" shader="flat" wireframe="true" wireframe-linewidth="1" class="cursor-ignore"></a-box>
       <!-- Add sector pan controls -->
-      <a-cone id="x-plus" color="red" position="20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 -90"></a-cone>
-      <a-cone id="x-minus" color="red" position="-20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 90"></a-cone>
-      <a-cone id="y-plus" color="green" position="0 20 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 0"></a-cone>
-      <a-cone id="y-minus" color="green" position="0 -20 0" radius-bottom="2" radius-top="0" height="4" rotation="180 0 0"></a-cone>
-      <a-cone id="z-plus" color="blue" position="0 0 20" radius-bottom="2" radius-top="0" height="4" rotation="90 0 0"></a-cone>
-      <a-cone id="z-minus" color="blue" position="0 0 -20" radius-bottom="2" radius-top="0" height="4" rotation="-90 0 0"></a-cone>
+      <a-cone id="x-plus" color="red" shader="flat" position="20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 -90"></a-cone>
+      <a-cone id="x-minus" color="red" shader="flat" position="-20 0 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 90"></a-cone>
+      <a-cone id="y-plus" color="green" shader="flat" position="0 20 0" radius-bottom="2" radius-top="0" height="4" rotation="0 0 0"></a-cone>
+      <a-cone id="y-minus" color="green" shader="flat" position="0 -20 0" radius-bottom="2" radius-top="0" height="4" rotation="180 0 0"></a-cone>
+      <a-cone id="z-plus" color="blue" shader="flat" position="0 0 20" radius-bottom="2" radius-top="0" height="4" rotation="90 0 0"></a-cone>
+      <a-cone id="z-minus" color="blue" shader="flat" position="0 0 -20" radius-bottom="2" radius-top="0" height="4" rotation="-90 0 0"></a-cone>
       <!-- Add a loading throbber for the sector view -->
       <a-entity id="sector-loading">
-        <a-cylinder color="green" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
-        <a-sphere color="green" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
+        <a-cylinder color="green" shader="flat" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
+        <a-sphere color="green" shader="flat" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
         <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>
       </a-entity>
 
@@ -36,10 +36,16 @@
       <a-entity id="system" position="0 30 0"></a-entity>
       <!-- And a loading throbber for it too -->
       <a-entity id="system-loading" position="0 30 0" visible="false">
-        <a-cylinder color="green" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
-        <a-sphere color="green" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
+        <a-cylinder color="green" shader="flat" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
+        <a-sphere color="green" shader="flat" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
         <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>
       </a-entity>
+      <!-- Put a light at the origin of the system view to light the planets appropriately.
+           It's close enough to above to work on the stars too.
+           TODO: Match the star color! -->
+      <a-entity light="type: point; intensity: 0.75; distance: 1000; decay: 0" position="0 30 0"></a-entity>
+      <!-- Also configure ambient lighting so we can see -->
+      <a-entity light="type: ambient; color: #333"></a-entity>
     </a-scene>
     <div id="infobox"></div>
   </body>
