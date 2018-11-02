@@ -213,9 +213,9 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
   // Make a sprite
   let sprite = document.createElement('a-entity')
-  // It will have a hat on the north pole to show rotation
-  let hat = document.createElement('a-entity')
-  sprite.appendChild(hat)
+  // It will have a box around it show rotation
+  let bbox = document.createElement('a-entity')
+  sprite.appendChild(bbox)
 
   // Give it the ID of the keypath, so we can find it
   sprite.id = keypath
@@ -294,27 +294,29 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
   })
 
-  hat.addEventListener('loaded', () => {
-    // The hat will be a cone
-    hat.setAttribute('geometry', {
-      primitive: 'cone',
-      // Make it a half cone so we can see it spin
-      thetaStart: 180,
-      thetaLength: 180,
-      radiusTop: 0,
-      segmentsHeight: 3,
-      segmentsRadial: 8,
-      radiusBottom: initialRadius / 3,
-      height: initialRadius / 3
+  bbox.addEventListener('loaded', () => {
+    // The box will be a box
+    // Put it around the sphere with a bit of room for sphere points 
+    bbox.setAttribute('geometry', {
+      primitive: 'box',
+      width: initialRadius * 2.1,
+      depth: initialRadius * 2.1,
+      height: initialRadius * 2.1
     })
 
-    hat.setAttribute('position', {
+    bbox.setAttribute('position', {
       x: 0,
-      y: initialRadius + (initialRadius / 6),
+      y: 0,
       z: 0
     })
 
-    hat.setAttribute('material', {
+    bbox.setAttribute('rotation', {
+      x: 0,
+      y: 0,
+      z: 0
+    })
+
+    bbox.setAttribute('material', {
       color: 'green',
       wireframe: true,
       wireframeLineWidth: 1
@@ -325,16 +327,10 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       // TODO: Duplicative with above
       let size = Math.max(Math.log10(planetMass) + 3, 1) / 10
 
-      // Move the hat
-      hat.setAttribute('position', {
-        x: 0,
-        y: size + (size / 6),
-        z: 0
-      })
-
-      hat.setAttribute('geometry', {
-        radiusBottom: size / 3,
-        height: size / 3
+      bbox.setAttribute('geometry', {
+        width: size * 2.1,
+        depth: size * 2.1,
+        height: size * 2.1
       })
     })
   })
@@ -517,16 +513,17 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
 function computeWorldRotation(spin, secondsSinceEpoch) {
 
   // Precompute the spin
-  let currentSpinAngle = (secondsSinceEpoch * spin.spinRate) % (2 * Math.PI)
+  let currentSpinAngle = (secondsSinceEpoch * spin.spinRate * 1/5) % (2 * Math.PI)
   
   // Euler angles are interpreted *and* applied in the order you specify
-  let quat = Quaternion.fromEuler(spin.axisAngleZ, spin.axisAngleX, currentSpinAngle, 'ZXY')
+  let quat = Quaternion.fromEuler(0, 0, currentSpinAngle, 'XYZ')
+  // I couldn't get this working with a single set of angles so I compose multiple rotations
 
   // Convert back to normal Euler angles
   let euler = quaternionToEuler(quat.toVector())
 
   // TODO: Why do these have to be in a different order? Are our quaternions misparsed?
-  return {x: mv.degrees(euler[0]), y: mv.degrees(euler[1]) * 0, z: mv.degrees(euler[2])}
+  return {x: 0, y: secondsSinceEpoch / ( 60 * 60 * 24) * 10, z: 0}
 
 }
 
