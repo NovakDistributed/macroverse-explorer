@@ -216,9 +216,9 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
   // Make a sprite
   let sprite = document.createElement('a-entity')
-  // It will have a box around it show rotation.
-  let bbox = document.createElement('a-entity')
-  sprite.appendChild(bbox)
+  // It will have an additional thing to show the axis orientation and rotation
+  let spin_shower = document.createElement('a-entity')
+  sprite.appendChild(spin_shower)
 
   // Give it the ID of the keypath, so we can find it
   sprite.id = keypath
@@ -297,43 +297,52 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
   })
 
-  bbox.addEventListener('loaded', () => {
-    // The box will be a box
-    // Put it around the sphere with a bit of room for sphere points 
-    bbox.setAttribute('geometry', {
-      primitive: 'box',
-      width: initialRadius * 2.1,
-      depth: initialRadius * 2.1,
-      height: initialRadius * 2.1
+  spin_shower.addEventListener('loaded', () => {
+    // The spin shower will be a half-cone
+    spin_shower.setAttribute('geometry', {
+      primitive: 'cone',
+      // Make it a half cone so we can see it spin
+      thetaStart: 180,
+      thetaLength: 180,
+      radiusTop: 0,
+      segmentsHeight: 3,
+      segmentsRadial: 8,
+      radiusBottom: initialRadius / 3,
+      height: initialRadius / 3
     })
 
-    bbox.setAttribute('position', {
+    spin_shower.setAttribute('position', {
+      x: 0,
+      y: initialRadius + (initialRadius / 6),
+      z: 0
+    })
+
+    spin_shower.setAttribute('rotation', {
       x: 0,
       y: 0,
       z: 0
     })
 
-    bbox.setAttribute('rotation', {
-      x: 0,
-      y: 0,
-      z: 0
-    })
-
-    bbox.setAttribute('material', {
+    spin_shower.setAttribute('material', {
       color: 'green',
       wireframe: true,
       wireframeLineWidth: 1
     })
 
     get('planetMass').then((planetMass) => {
-      // Work out the actual size for it
-      // TODO: Duplicative with above
+      // Work out the actual size and position for it
+      // TODO: Duplicative with the same code for the planet node
       let size = Math.max(Math.log10(planetMass) + 3, 1) / 10
 
-      bbox.setAttribute('geometry', {
-        width: size * 2.1,
-        depth: size * 2.1,
-        height: size * 2.1
+      spin_shower.setAttribute('position', {
+        x: 0,
+        y: size + (size / 6),
+        z: 0
+      })
+
+      spin_shower.setAttribute('geometry', {
+        radiusBottom: size / 3,
+        height: size / 3
       })
     })
   })
