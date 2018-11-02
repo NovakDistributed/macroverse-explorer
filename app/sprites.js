@@ -178,8 +178,11 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
   // And the rotation info, in radians
   let spin = {
+    // Applied first; angle towards sun from vertical when at +X axis
     axisAngleZ: 0.5,
+    // Applied second; angle forward around Z-rotation-transformed planet +X
     axisAngleX: 0.1,
+    // Rate of spin around planet's transformed +Y axis, applied last
     spinRate: 0.00007272205,
   }
 
@@ -213,7 +216,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
   // Make a sprite
   let sprite = document.createElement('a-entity')
-  // It will have a box around it show rotation
+  // It will have a box around it show rotation.
   let bbox = document.createElement('a-entity')
   sprite.appendChild(bbox)
 
@@ -513,18 +516,31 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
 function computeWorldRotation(spin, secondsSinceEpoch) {
 
   // Precompute the spin
-  let currentSpinAngle = (secondsSinceEpoch * spin.spinRate * 1/5) % (2 * Math.PI)
+  let currentSpinAngle = (secondsSinceEpoch * spin.spinRate) % (2 * Math.PI)
+
+  let constrainToDegrees = function(rads) {
+    // Convert radians from -PI to PI to degrees from 0 to 360
+
+    let degrees = mv.degrees(rads)
+
+    if (degrees < 0) {
+      degrees += 360
+    }
+    return degrees
+  }
+
+  // Compose a rotation first by the Z axis angle (in when aligned  with the +X
+  // axis to the viewer's right), then X axis angle (forward towards viewer),
+  // then Y (around spin axis).  Angles always go in XYZ no matter the order we
+  // apply them.
+  let euler = new THREE.Euler(spin.axisAngleX, currentSpinAngle, spin.axisAngleZ, 'ZXY')
+  // A-Frame uses a YXZ rotation order, not that it documents it. So convert
+  // our angles to be applied in that order.
+  euler.reorder('YXZ')
+
+  let rot = {x: constrainToDegrees(euler.x), y: constrainToDegrees(euler.y), z: constrainToDegrees(euler.z)}
   
-  // Euler angles are interpreted *and* applied in the order you specify
-  let quat = Quaternion.fromEuler(0, 0, currentSpinAngle, 'XYZ')
-  // I couldn't get this working with a single set of angles so I compose multiple rotations
-
-  // Convert back to normal Euler angles
-  let euler = quaternionToEuler(quat.toVector())
-
-  // TODO: Why do these have to be in a different order? Are our quaternions misparsed?
-  return {x: 0, y: secondsSinceEpoch / ( 60 * 60 * 24) * 10, z: 0}
-
+  return rot
 }
 
 // Return the time to draw right now, in seconds since epoch
