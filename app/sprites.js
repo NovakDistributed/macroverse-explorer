@@ -183,7 +183,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     // Applied second; angle forward around Z-rotation-transformed planet +X
     axisAngleX: 0.1,
     // Rate of spin around planet's transformed +Y axis, applied last
-    spinRate: 0.00007272205,
+    rate: 0.00007272205,
   }
 
   // And similarly for the star, which we assume has a mass of 1 sol until proven otherwise
@@ -204,6 +204,13 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     // Kick off requests to update the orbit in place with all the real data when available
     get('orbit.' + key).then((val) => {
       orbit[key] = val
+    })
+  }
+
+  for(let key in spin) {
+    // Kick off requests to update the spin in place with all the real data when available
+    get('spin.' + key).then((val) => {
+      spin[key] = val
     })
   }
 
@@ -526,12 +533,12 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
 }
 
 // Compute the current orientation (A-frame XYZ Euler angles in degrees) of a planet.
-// Takes a spin object with axisAngleZ, axisAngleX, in radians (rotate on Z first, then X, then spin, all intrinsic), and also spinRate in radians.
+// Takes a spin object with axisAngleZ, axisAngleX, in radians (rotate on Z first, then X, then spin, all intrinsic), and also rate in radians per second.
 // Takes care of computing the final rotation.
 function computeWorldRotation(spin, secondsSinceEpoch) {
 
   // Precompute the spin
-  let currentSpinAngle = (secondsSinceEpoch * spin.spinRate) % (2 * Math.PI)
+  let currentSpinAngle = (secondsSinceEpoch * spin.rate) % (2 * Math.PI)
 
   let constrainToDegrees = function(rads) {
     // Convert radians from -PI to PI to degrees from 0 to 360
@@ -562,8 +569,8 @@ function computeWorldRotation(spin, secondsSinceEpoch) {
 function getRenderTime() {
   let unixTime = (new Date()).getTime() / 1000
   let macroverseTime = unixTime - mv.EPOCH
-  // Show at 1 day per second speed, about
-  return macroverseTime * 60 * 60 * 24
+  // Show at 1000x speed
+  return macroverseTime * 1000
 }
 
 // Make a sprite to represent the habitable zone around a star.

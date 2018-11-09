@@ -300,11 +300,24 @@ class Infobox {
             <td>${this.when(keypath + '.orbit.inclination', (x) => format(mv.degrees(x)))}&deg;</td>
           </tr>
           <tr>
-            <td>Climate</td>
+            <td rowspan="4">Climate</td>
             <td>Normal Irradiance</td>
             <!-- Earth is like 1.3-1.5k or something -->
             <td>${this.when(keypath + '.apoapsisIrradiance', (x) => format(x))} -
             ${this.when(keypath + '.periapsisIrradiance', (x) => format(x))} W/m<sup>2</sup></td>
+          </tr>
+          <tr>
+            <td>Tidally Locked?</td>
+            <td>${this.when(keypath + '.spin.isTidallyLocked', (x) => (x ? 'Yes' : 'No'), '?')}</td>
+          </tr>
+          <tr>
+            <td>Axis Angles</td>
+            <td>${this.when(keypath + '.spin.axisAngleZ', (x) => format(mv.degrees(x)))}&deg;Z
+                ${this.when(keypath + '.spin.axisAngleX', (x) => format(mv.degrees(x)))}&deg;X</td>
+          </tr>
+          <tr>
+            <td>Rotational Period</td>
+            <td>${this.when(keypath + '.spin.period', (x) => formatTime(x), '???? D')}</td>
           </tr>
           <tr>
             <td>Children</td>
