@@ -33,6 +33,7 @@ class Datasource extends EventEmitter2 {
 
     // Set up some fields for the generators 
     this.star = undefined
+    this.star_patch = undefined
     this.sys = undefined
     this.moon = undefined
 
@@ -61,9 +62,10 @@ class Datasource extends EventEmitter2 {
       this.initPromise = (async () => {
         // Do the actual init work here.
 
-        // Find the MacroverseStarGenerator and MacroverseSystemGenerator instances
-        [this.star, this.sys, this.moon] = await Promise.all([
+        // Find the generator instances
+        [this.star, this.star_patch, this.sys, this.moon] = await Promise.all([
           eth.get_instance(this.getContractPath('MacroverseStarGenerator')),
+          eth.get_instance(this.getContractPath('MacroverseStarGeneratorPatch1')),
           eth.get_instance(this.getContractPath('MacroverseSystemGenerator')),
           eth.get_instance(this.getContractPath('MacroverseMoonGenerator'))
         ])
@@ -426,7 +428,7 @@ class Datasource extends EventEmitter2 {
           let seed = await get('seed')
           let objClass = await get('objClass')
           let objType = await get('objType')
-          value = (await this.sys.getObjectPlanetCount.call(seed, objClass, objType)).toNumber()
+          value = (await this.star_patch.getObjectPlanetCount.call(seed, objClass, objType)).toNumber()
         } else {
           value = 0
         }
@@ -451,7 +453,7 @@ class Datasource extends EventEmitter2 {
         let seed = await get('seed')
         let objClass = await get('objClass')
         let realMass = await get('realMass')
-        let realLuminosity = await this.sys.getObjectLuminosity.call(seed, objClass, realMass)
+        let realLuminosity = await this.star_patch.getObjectLuminosity.call(seed, objClass, realMass)
         let luminosity = mv.fromReal(realLuminosity)
         await save('realLuminosity', realLuminosity)
         await save('luminosity', luminosity)
@@ -463,7 +465,7 @@ class Datasource extends EventEmitter2 {
     case 'habitableZone.end':
       {
         let realLuminosity = await get('realLuminosity')
-        let [realHabStart, realHabEnd] = await this.sys.getObjectHabitableZone.call(realLuminosity)
+        let [realHabStart, realHabEnd] = await this.star_patch.getObjectHabitableZone.call(realLuminosity)
         let start = mv.fromReal(realHabStart)
         let end = mv.fromReal(realHabEnd)
         await save('habitableZone.realStart', realHabStart)

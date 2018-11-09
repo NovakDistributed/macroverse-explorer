@@ -3,6 +3,7 @@
 var RealMath = artifacts.require("RealMath")
 var RNG = artifacts.require("RNG")
 var MacroverseStarGenerator = artifacts.require("MacroverseStarGenerator")
+var MacroverseStarGeneratorPatch1 = artifacts.require("MacroverseStarGeneratorPatch1")
 var MacroverseStarRegistry = artifacts.require("MacroverseStarRegistry")
 var MacroverseSystemGenerator = artifacts.require("MacroverseSystemGenerator")
 var MacroverseMoonGenerator = artifacts.require("MacroverseMoonGenerator")
@@ -21,6 +22,8 @@ module.exports = function(deployer, network, accounts) {
     deployer.deploy(RNG)
     deployer.link(RNG, MacroverseStarGenerator)
     deployer.link(RealMath, MacroverseStarGenerator)
+    deployer.link(RNG, MacroverseStarGeneratorPatch1)
+    deployer.link(RealMath, MacroverseStarGeneratorPatch1)
     deployer.link(RNG, MacroverseSystemGenerator)
     deployer.link(RealMath, MacroverseSystemGenerator)
     deployer.link(RNG, MacroverseMoonGenerator)
@@ -33,6 +36,8 @@ module.exports = function(deployer, network, accounts) {
     }).then(function() {
       return deployer.deploy(MacroverseStarGenerator, "FiatBlocks", MinimumBalanceAccessControl.address)
     }).then(function() {
+      return deployer.deploy(MacroverseStarGeneratorPatch1, MinimumBalanceAccessControl.address)
+    }).then(function() {
       return deployer.deploy(MacroverseStarRegistry, MRVToken.address, web3.toWei(1000, "ether"))
     }).then(function() {
       return deployer.deploy(MacroverseSystemGenerator, MinimumBalanceAccessControl.address)
@@ -40,7 +45,6 @@ module.exports = function(deployer, network, accounts) {
       return deployer.deploy(MacroverseMoonGenerator, MinimumBalanceAccessControl.address)
     }).then(function() {
       console.log("Macroverse deployed!")
-      console.log("MacroverseStarGenerator is at " + MacroverseStarGenerator.address)
     })
   } else {
     console.log("On main network; using real Macroverse")    

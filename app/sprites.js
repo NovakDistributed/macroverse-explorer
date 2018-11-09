@@ -332,7 +332,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       color: 'green',
       shader: 'flat',
       wireframe: true,
-      wireframeLineWidth: 1
+      wireframeLinewidth: 1
     })
 
     get('planetMass').then((planetMass) => {
