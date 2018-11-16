@@ -178,9 +178,9 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
   // And the rotation info, in radians
   let spin = {
-    // Applied first; angle towards sun from vertical when at +X axis
-    axisAngleZ: 0.5,
-    // Applied second; angle forward around Z-rotation-transformed planet +X
+    // Applied first; angle around the +Y axis to spin before tilting
+    axisAngleY: 0,
+    // Applied second; angle forward around Y-rotation-transformed planet +X
     axisAngleX: 0.1,
     // Rate of spin around planet's transformed +Y axis, applied last
     rate: 0.00007272205,
@@ -535,7 +535,7 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
 // Compute the current orientation (A-frame XYZ Euler angles in degrees) of a planet, relative to its parent's non-spinning frame.
 // Accounts for the orbit LAN and inclination, and the spin axis angles on top of that
 // Takes the orbit object with 'lan' and 'inclination' in radians.
-// Takes a spin object with axisAngleZ, axisAngleX, in radians (rotate on Z first, then X, then spin, all intrinsic), and also rate in radians per second.
+// Takes a spin object with axisAngleY, axisAngleX, in radians (rotate on Z first, then X, then spin, all intrinsic), and also rate in radians per second.
 // Takes the seconds since Macroverse epoch
 function computeWorldRotation(orbit, spin, secondsSinceEpoch) {
 
@@ -562,11 +562,10 @@ function computeWorldRotation(orbit, spin, secondsSinceEpoch) {
     return degrees
   }
 
-  // Compose a rotation for the planet first by the Z axis angle (in when
-  // aligned  with the +X axis to the viewer's right), then X axis angle
-  // (forward towards viewer), then Y (around spin axis).  Angles always go in
+  // Rotate the planet according to its pre-spin axis angles
+  // First in Y, then in transformed X. Angles always go in
   // in XYZ no matter the order we apply them.
-  let planetEuler = new THREE.Euler(spin.axisAngleX, currentSpinAngle, spin.axisAngleZ, 'ZXY')
+  let planetEuler = new THREE.Euler(spin.axisAngleX, spin.axisAngleY, 0, 'YXZ')
   
   // Convert to quaternion
   let planetQuat = new THREE.Quaternion()
@@ -575,6 +574,12 @@ function computeWorldRotation(orbit, spin, secondsSinceEpoch) {
   // Multiply in the orbit quaternion as a prior rotation
   // We want parent rotation * child rotation = orbit rotation * planet rotation
   planetQuat.premultiply(orbitQuat)
+
+  // Add in the actual spin angle
+  let spinEuler = new THREE.Euler(0, currentSpinAngle, 0, 'XYZ')
+  let spinQuat = new THREE.Quaternion()
+  spinQuat.setFromEuler(spinEuler)
+  planetQuat.multiply(spinQuat)
 
   // Convert back to Euler angles.
   // A-Frame uses a YXZ rotation order, not that it documents it. So convert

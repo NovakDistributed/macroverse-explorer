@@ -510,7 +510,7 @@ class Datasource extends EventEmitter2 {
   // periapsisIrradiance, apoapsisIrradiance, moonCount, moonScale, spin (which has its own properties)
   // Orbit properties are: periapsis, apoapsis, clearance, lan, inclination, aop, meanAnomalyAtEpoch, semimajor, semiminor, period,
   // realPeriapsis, realApoapsis, realClearance, realLan, realInclination, realAop, realMeanAnomalyAtEpoch
-  // Spion properties are: isTidallyLocked, axisAngleZ, axisAngleX, rate (which we convert to rad/sec), period (in seconds)
+  // Spion properties are: isTidallyLocked, axisAngleY, axisAngleX, rate (which we convert to rad/sec), period (in seconds)
   async resolvePlanetProperty(x, y, z, starNumber, planetNumber, keypath) {
     // Lots of planet properties depend on other ones
     let starKey = x + '.' + y + '.' + z + '.' + starNumber
@@ -717,7 +717,7 @@ class Datasource extends EventEmitter2 {
     case 'spin':
       {
         let value = {}
-        for (let key of ['isTidallyLocked', 'axisAngleX', 'axisAngleZ', 'rate', 'period']) {
+        for (let key of ['isTidallyLocked', 'axisAngleX', 'axisAngleY', 'rate', 'period']) {
           // Go get and fill in all the properties
           value[key] = await get('spin.' + key)
         }
@@ -731,23 +731,23 @@ class Datasource extends EventEmitter2 {
         await save(keypath, value)
       }
       break
-    case 'spin.axisAngleZ':
+    case 'spin.axisAngleY':
     case 'spin.axisAngleX':
       {
         let seed = await get('seed')
         let tidal_lock = await get('spin.isTidallyLocked')
-        let axisAngleZ
+        let axisAngleY
         let axisAngleX
         if (tidal_lock) {
           // Rotation axis is normal to orbital plane
-          axisAngleZ = 0
+          axisAngleY = 0
           axisAngleX = 0
         } else {
-          let [realAxisAngleZ, realAxisAngleX] = await this.sys.getWorldZXAxisAngles(seed)
-          axisAngleZ = mv.fromReal(realAxisAngleZ)
+          let [realAxisAngleY, realAxisAngleX] = await this.sys.getWorldYXAxisAngles(seed)
+          axisAngleY = mv.fromReal(realAxisAngleY)
           axisAngleX = mv.fromReal(realAxisAngleX)
         }
-        await save('spin.axisAngleZ', axisAngleZ)
+        await save('spin.axisAngleY', axisAngleY)
         await save('spin.axisAngleX', axisAngleX)
       }
       break
