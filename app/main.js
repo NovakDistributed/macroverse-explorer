@@ -88,15 +88,91 @@ function moveCameraFocus(position) {
 
 }
 
-/// Show the given planet, using the given macroverse context
-async function showPlanet(ctx, keypath) {
+/// Show the given moon, using the given Macroverse context
+/// Assumes the planet has been shown already
+async function showMoon(ctx, keypath) {
 
-  // Show the system
-  await showSystem(ctx, parentOf(keypath))
+  // Find the moon we are looking for
+  let moonSprite = document.getElementById(keypath)
 
   // Chase the planet with the camera
-  moveCameraFocus(document.getElementById(keypath))
+  moveCameraFocus(moonSprite)
 
+}
+
+/// Show the given planet, using the given Macroverse context
+/// Assumes the system has been shown already
+async function showPlanet(ctx, keypath) {
+
+  // Find the node we are going to parent the lunar system to
+  let planetSprite = document.getElementById(keypath)
+
+  // Chase the planet with the camera
+  moveCameraFocus(planetSprite)
+
+  // Start making the lunar system
+  
+  // Clear out any existing lunar system
+  let oldSystem = document.getElementById('lunar-system')
+  if (oldSystem) {
+    oldSystem.parentNode.removeChild(oldSystem)
+  }
+
+  // Make a root node
+  let root = document.createElement('a-entity')
+  root.id = 'lunar-system'
+
+  // Place it
+  planetSprite.appendChild(root)
+
+  // TODO: rotate it to match planet's equatorial plane
+
+  // Get the planet's mass, which determinses size
+  let worldMass = await ctx.ds.request(keypath + '.worldMass')
+  // Work out the actual size for it
+  // Size will be between 0.1 and 1.0
+  // TODO This is duplicated in the sprites code for actually drawing the planet
+  let size = Math.min(Math.max(Math.log10(worldMass) + 3, 1), 10) / 10
+
+  // Make a ScaleManager to let the moons tell each other how big the view scale should be
+  // Give it the desired inner and outer orbit sizes in 3d engine units
+  // Note that the scale manager and orbits still work natively in AU
+  // ScaleManager will give priority to the min scale.
+  let scaleManager = new sprites.ScaleManager(size * 1.1, 5)
+
+  // Count up the moons
+  let moonCount = await ctx.ds.request(keypath + '.moonCount')
+
+  // Each moon should report a min and max orbit param.
+  // Until then scale so we can see the temp orbits, which will be on the order of 1 LD in AU probably.
+  scaleManager.expect(moonCount * 2, mv.LD / mv.AU, (moonCount + 1) * mv.LD / mv.AU)
+
+  for (let i = moonCount - 1; i >= 0; i--) {
+    // Queue moons in reverse because later queries get answered first
+
+    // Make a moon sprite that moves with the orbit
+    // This is also responsible for reporting in to the ScaleManager about the orbit
+    let moonSprite = sprites.makePlanetSprite(ctx, keypath + '.' + i, scaleManager)
+    // Make an orbit line sprite
+    let orbitSprite = sprites.makeOrbitSprite(ctx, keypath + '.' + i, scaleManager)
+
+    root.appendChild(moonSprite)
+    root.appendChild(orbitSprite)
+
+    let clickHandler = () => {
+      // When clicked, show moon
+      console.log('Focus on ' + keypath + '.' + i)
+      ctx.emit('show', keypath + '.' + i)
+    }
+
+    for (let clickable of moonSprite.getElementsByClassName('world')) {
+      // Let all the actual moon parts of the moon sprite be clickable
+      clickable.addEventListener('click', clickHandler)
+    }
+    orbitSprite.addEventListener('click', clickHandler)
+  }
+
+  console.log('Made ' + moonCount + ' moons')
 }
 
 /// Show the planetary system of the star with the given keypath, using the given Macroverse context.
@@ -172,7 +248,8 @@ async function showSystem(ctx, keypath) {
     console.log('Queue up ' + planetCount + ' planets')
 
     // Make a ScaleManager to let the planets tell each other how big the view scale should be
-    let scaleManager = new sprites.ScaleManager()
+    // We want the output between 1 and 100 units
+    let scaleManager = new sprites.ScaleManager(1, 100)
     
     // Each planet should report a min and max orbit param, on top of the habitable zone.
     // Until then scale so we can see the temp orbits.
@@ -194,8 +271,11 @@ async function showSystem(ctx, keypath) {
         // When clicked, show planet 
         ctx.emit('show', keypath + '.' + i)
       }
-
-      planetSprite.addEventListener('click', clickHandler)
+      
+      // We want to be able to click on the actual planet but not things parented to it
+      for (let clickable of planetSprite.getElementsByClassName('world')) {
+        clickable.addEventListener('click', clickHandler)
+      }
       orbitSprite.addEventListener('click', clickHandler)
     }
 
@@ -369,9 +449,15 @@ async function main() {
     //console.log('Published ' + event_name)
   })
 
+  let lastShownKeypath = null
+
+  let showNonce = 0
+
   // Hook up an event listener to show things in the 3d view
-  ctx.on('show', (keypath) => {
+  ctx.on('show', async (keypath) => {
     console.log('Event to move to ' + keypath)
+    showNonce++
+    let ourNonce = showNonce
 
     document.title = 'Macroverse Explorer: ' + keypath
 
@@ -382,6 +468,17 @@ async function main() {
     }
 
     let parts = keypath.split('.')
+
+    // How many of those parts are unchanged from the last thing we tried to show?
+    let matches = 0
+
+    if (lastShownKeypath !== null) {
+      let oldParts = lastShownKeypath.split('.')
+      // Count up how many of the keypaht parts are the same until the first mismatch
+      for (let i = 0; i < Math.min(parts.length, oldParts.length) && parts[i] == oldParts[i]; i++) {
+        matches++;
+      }
+    }
 
     // Save the old sector
     let oldX = curX
@@ -400,15 +497,33 @@ async function main() {
 
     if (parts.length == 4) {
       // This is a star. Show it.
-      showSystem(ctx, keypath) 
+      if (matches < 4 && ourNonce == showNonce) {
+        await showSystem(ctx, parentOf(keypath))
+      }
     } else if (parts.length == 5) {
       // It must be a planet
-      showPlanet(ctx, keypath)
+      if (matches < 4 && ourNonce == showNonce) {
+        // Planet depends on system
+        await showSystem(ctx, parentOf(keypath))
+      }
+      if (matches < 5 && ourNonce == showNonce) {
+        await showPlanet(ctx, keypath)
+      }
     } else if (parts.length == 6) {
       // It must be a moon
-      // TODO: Implement moon display
-      showPlanet(ctx, parentOf(keypath))
+      if (matches < 4 && ourNonce == showNonce) {
+        // Planet depends on system
+        await showSystem(ctx, parentOf(parentOf(keypath)))
+      }
+      if (matches < 5 && ourNonce == showNonce) {
+        await showPlanet(ctx, parentOf(keypath))
+      }
+      if (matches < 6 && ourNonce == showNonce) {
+        await showMoon(ctx, keypath)
+      }
     }
+
+    lastShownKeypath = keypath
   })
 
 

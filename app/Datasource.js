@@ -106,7 +106,7 @@ class Datasource extends EventEmitter2 {
   // seed, x, y, z, objClass, objType, objMass, luminosity, hasPlanets, planetCount, habitableZone (which has start, end, realStart, realEnd)
   // <x>.<y>.<z>.<objectNumber>.<planetNumber> to get a whole planet record (without moons)
   // <x>.<y>.<z>.<objectNumber>.<planetNumber>.<propertyName>
-  // Planet properties include seed, planetClass, planetMass, orbit (which has a bunch of its own properties), moonCount, moonScale 
+  // Planet properties include seed, worldClass, worldMass, orbit (which has a bunch of its own properties), moonCount, moonScale 
   // <x>.<y>.<z>.<objectNumber>.<planetNumber>.<moonNumber> to get a whole moon record
   // <x>.<y>.<z>.<objectNumber>.<palnetNumber>.<moonNumber>.<propertyName>
   // Moon properties are the same as planet properties
@@ -506,7 +506,7 @@ class Datasource extends EventEmitter2 {
   // Publish the property.
   // Return a promise that resolves with nothing after publication.
   // '' keypath = whole planet
-  // Planet properties include seed, planetClass, planetMass, orbit (which has a bunch of its own properties),
+  // Planet properties include seed, worldClass, worldMass, orbit (which has a bunch of its own properties),
   // periapsisIrradiance, apoapsisIrradiance, moonCount, moonScale, spin (which has its own properties)
   // Orbit properties are: periapsis, apoapsis, clearance, lan, inclination, aop, meanAnomalyAtEpoch, semimajor, semiminor, period,
   // realPeriapsis, realApoapsis, realClearance, realLan, realInclination, realAop, realMeanAnomalyAtEpoch
@@ -546,7 +546,7 @@ class Datasource extends EventEmitter2 {
     case '':
       {
         let value = {}
-        for (let key of ['seed', 'planetClass', 'planetMass', 'orbit', 'periapsisIrradiance', 'apoapsisIrradiance', 'moonCount', 'moonScale']) {
+        for (let key of ['seed', 'worldClass', 'worldMass', 'orbit', 'periapsisIrradiance', 'apoapsisIrradiance', 'moonCount', 'moonScale']) {
           // Go get and fill in all the properties
           value[key] = await get(key)
         }
@@ -560,7 +560,7 @@ class Datasource extends EventEmitter2 {
         await save(keypath, value)
       }
       break
-    case 'planetClass':
+    case 'worldClass':
       {
         let seed = await get('seed')
         let totalPlanets = await getStar('planetCount')
@@ -568,15 +568,15 @@ class Datasource extends EventEmitter2 {
         await save(keypath, value)
       }
       break
-    case 'realPlanetMass':
-    case 'planetMass':
+    case 'realWorldMass':
+    case 'worldMass':
       {
         let seed = await get('seed')
-        let planetClass = await get('planetClass')
-        let realPlanetMass = await this.sys.getWorldMass.call(seed, planetClass)
-        let planetMass = mv.fromReal(realPlanetMass)
-        await save('realPlanetMass', realPlanetMass)
-        await save('planetMass', planetMass)
+        let worldClass = await get('worldClass')
+        let realWorldMass = await this.sys.getWorldMass.call(seed, worldClass)
+        let worldMass = mv.fromReal(realWorldMass)
+        await save('realWorldMass', realWorldMass)
+        await save('worldMass', worldMass)
       }
       break
     case 'orbit':
@@ -599,13 +599,13 @@ class Datasource extends EventEmitter2 {
     case 'orbit.clearance':
       {
         let seed = await get('seed')
-        let planetClass = await get('planetClass')
+        let worldClass = await get('worldClass')
         // We need the clearance of the pervious planet, if there was one, or 0 otherwise
         let prevClearance = planetNumber == 0 ? 0 : await getPrevPlanet('orbit.realClearance')
         // And the habitable zone of the star
         let habStart = await getStar('habitableZone.realStart')
         let habEnd = await getStar('habitableZone.realEnd')
-        let parts = await this.sys.getPlanetOrbitDimensions.call(habStart, habEnd, seed, planetClass, prevClearance)
+        let parts = await this.sys.getPlanetOrbitDimensions.call(habStart, habEnd, seed, worldClass, prevClearance)
         let partialOrbit = {'realPeriapsis': parts[0], 'realApoapsis': parts[1], 'realClearance': parts[2],
           'periapsis': mv.fromReal(parts[0]), 'apoapsis': mv.fromReal(parts[1]), 'clearance': mv.fromReal(parts[2])}
         for (let prop in partialOrbit) {
@@ -627,8 +627,8 @@ class Datasource extends EventEmitter2 {
     case 'orbit.inclination':
       {
         let seed = await get('seed')
-        let planetClass = await get('planetClass')
-        let realInclination = await this.sys.getPlanetInclination.call(seed, planetClass)
+        let worldClass = await get('worldClass')
+        let realInclination = await this.sys.getPlanetInclination.call(seed, worldClass)
         let inclination = mv.fromReal(realInclination)
         await save('orbit.realInclination', realInclination)
         await save('orbit.inclination', inclination)
@@ -698,8 +698,8 @@ class Datasource extends EventEmitter2 {
     case 'moonCount':
       {
         let seed = await get('seed')
-        let planetClass = await get('planetClass')
-        let value = (await this.moon.getPlanetMoonCount.call(seed, planetClass)).toNumber()
+        let worldClass = await get('worldClass')
+        let value = (await this.moon.getPlanetMoonCount.call(seed, worldClass)).toNumber()
         await save(keypath, value)
       }
       break
@@ -707,8 +707,8 @@ class Datasource extends EventEmitter2 {
     case 'moonScale':
       {
         let seed = await get('seed')
-        let realPlanetMass = await get('realPlanetMass')
-        let realMoonScale = await this.moon.getPlanetMoonScale.call(seed, realPlanetMass)
+        let realWorldMass = await get('realWorldMass')
+        let realMoonScale = await this.moon.getPlanetMoonScale.call(seed, realWorldMass)
         let moonScale = mv.fromReal(realMoonScale)
         await save('realMoonScale', realMoonScale)
         await save('moonScale', moonScale)
@@ -789,7 +789,7 @@ class Datasource extends EventEmitter2 {
   // Publish the property.
   // Return a promise that resolves with nothing after publication.
   // '' keypath = whole moon
-  // Moon properties include seed, planetClass, planetMass, orbit (which has a bunch of its own properties),
+  // Moon properties include seed, worldClass, worldMass, orbit (which has a bunch of its own properties),
   // periapsisIrradiance, apoapsisIrradiance (which are computed based on moon min and max sun distance)
   // Orbit properties are: periapsis, apoapsis, clearance, lan, inclination, aop, meanAnomalyAtEpoch, semimajor, semiminor, period,
   // realPeriapsis, realApoapsis, realClearance, realLan, realInclination, realAop, realMeanAnomalyAtEpoch
@@ -839,7 +839,7 @@ class Datasource extends EventEmitter2 {
     case '':
       {
         let value = {}
-        for (let key of ['seed', 'planetClass', 'planetMass', 'orbit', 'periapsisIrradiance', 'apoapsisIrradiance']) {
+        for (let key of ['seed', 'worldClass', 'worldMass', 'orbit', 'periapsisIrradiance', 'apoapsisIrradiance']) {
           // Go get and fill in all the properties
           value[key] = await get(key)
         }
@@ -853,23 +853,23 @@ class Datasource extends EventEmitter2 {
         await save(keypath, value)
       }
       break
-    case 'planetClass':
+    case 'worldClass':
       {
-        let parentClass = await getPlanet('planetClass')
+        let parentClass = await getPlanet('worldClass')
         let seed = await get('seed')
         let value = (await this.moon.getMoonClass.call(parentClass, seed, moonNumber)).toNumber()
         await save(keypath, value)
       }
       break
-    case 'realPlanetMass':
-    case 'planetMass':
+    case 'realWorldMass':
+    case 'worldMass':
       {
         let seed = await get('seed')
-        let planetClass = await get('planetClass')
-        let realPlanetMass = await this.sys.getWorldMass.call(seed, planetClass)
-        let planetMass = mv.fromReal(realPlanetMass)
-        await save('realPlanetMass', realPlanetMass)
-        await save('planetMass', planetMass)
+        let worldClass = await get('worldClass')
+        let realWorldMass = await this.sys.getWorldMass.call(seed, worldClass)
+        let worldMass = mv.fromReal(realWorldMass)
+        await save('realWorldMass', realWorldMass)
+        await save('worldMass', worldMass)
       }
       break
     case 'orbit':
@@ -892,13 +892,13 @@ class Datasource extends EventEmitter2 {
     case 'orbit.clearance':
       {
         let seed = await get('seed')
-        let planetClass = await get('planetClass')
+        let worldClass = await get('worldClass')
         // We need the clearance of the pervious moon, if there was one, or 0 otherwise
         let prevClearance = moonNumber == 0 ? 0 : await getPrevMoon('orbit.realClearance')
         // We need the moon scale for the paret planet
         let realMoonScale = await getPlanet('realMoonScale')
         
-        let parts = await this.moon.getMoonOrbitDimensions.call(realMoonScale, seed, planetClass, prevClearance)
+        let parts = await this.moon.getMoonOrbitDimensions.call(realMoonScale, seed, worldClass, prevClearance)
         let partialOrbit = {'realPeriapsis': parts[0], 'realApoapsis': parts[1], 'realClearance': parts[2],
           'periapsis': mv.fromReal(parts[0]), 'apoapsis': mv.fromReal(parts[1]), 'clearance': mv.fromReal(parts[2])}
         for (let prop in partialOrbit) {
@@ -920,8 +920,8 @@ class Datasource extends EventEmitter2 {
     case 'orbit.inclination':
       {
         let seed = await get('seed')
-        let planetClass = await get('planetClass')
-        let realInclination = await this.moon.getMoonInclination.call(seed, planetClass)
+        let worldClass = await get('worldClass')
+        let realInclination = await this.moon.getMoonInclination.call(seed, worldClass)
         let inclination = mv.fromReal(realInclination)
         await save('orbit.realInclination', realInclination)
         await save('orbit.inclination', inclination)
@@ -967,9 +967,9 @@ class Datasource extends EventEmitter2 {
     case 'orbit.period':
       {
         let semimajor = await get('orbit.semimajor')
-        let planetMass = await getPlanet('planetMass')
+        let worldMass = await getPlanet('worldMass')
         // Make sure we convert to solar masses for the orbit math because that's what G is in
-        let value = 2 * Math.PI * Math.sqrt(Math.pow(semimajor, 3) / (mv.G_PER_SOL * planetMass / mv.EARTH_MASSES_PER_SOLAR_MASS))
+        let value = 2 * Math.PI * Math.sqrt(Math.pow(semimajor, 3) / (mv.G_PER_SOL * worldMass / mv.EARTH_MASSES_PER_SOLAR_MASS))
         await save(keypath, value)
       }
       break
@@ -989,6 +989,61 @@ class Datasource extends EventEmitter2 {
         let luminosity = await getStar('luminosity')
         let value = luminosity * mv.SOLAR_LUMINOSITY / (4 * Math.PI * Math.pow(parentApoapsis + apoapsis, 2))
         await save(keypath, value)
+      }
+      break
+    case 'spin':
+      {
+        let value = {}
+        for (let key of ['isTidallyLocked', 'axisAngleX', 'axisAngleY', 'rate', 'period']) {
+          // Go get and fill in all the properties
+          value[key] = await get('spin.' + key)
+        }
+        await save(keypath, value)
+      }
+      break
+    case 'spin.isTidallyLocked':
+      {
+        let seed = await get('seed')
+        let value = await this.sys.isTidallyLocked.call(seed, moonNumber)
+        await save(keypath, value)
+      }
+      break
+    case 'spin.axisAngleY':
+    case 'spin.axisAngleX':
+      {
+        let seed = await get('seed')
+        let tidal_lock = await get('spin.isTidallyLocked')
+        let axisAngleY
+        let axisAngleX
+        if (tidal_lock) {
+          // Rotation axis is normal to orbital plane
+          axisAngleY = 0
+          axisAngleX = 0
+        } else {
+          let [realAxisAngleY, realAxisAngleX] = await this.sys.getWorldYXAxisAngles(seed)
+          axisAngleY = mv.fromReal(realAxisAngleY)
+          axisAngleX = mv.fromReal(realAxisAngleX)
+        }
+        await save('spin.axisAngleY', axisAngleY)
+        await save('spin.axisAngleX', axisAngleX)
+      }
+      break
+    case 'spin.rate':
+    case 'spin.period':
+      {
+        let tidal_lock = await get('spin.isTidallyLocked')
+        let spinRate
+        if (tidal_lock) {
+          // Rotation rate is exactly 2 * PI radians / period
+          // TODO: Use the orbital mechanics contract instead which on-chain apps will use?
+          spinRate = 2 * Math.PI / await get('orbit.period')
+        } else {
+          let seed = await get('seed')
+          // Pull out and convert to rad/sec
+          spinRate = mv.fromReal(await this.sys.getWorldSpinRate(seed)) / mv.JULIAN_YEAR
+        }
+        await save('spin.rate', spinRate)
+        await save('spin.period', 2 * Math.PI / spinRate)
       }
       break
     default:

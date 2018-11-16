@@ -11,10 +11,6 @@ const orb = require('orbjs')
 // Our ScaleManager can emit events
 const { EventEmitter2 } = require('eventemitter2')
 
-// Load a real quaternion library since I can't seem to make threejs do Euler right
-const Quaternion = require('quaternion')
-const quaternionToEuler = require('quaternion-to-euler')
-
 // See http://www.isthe.com/chongo/tech/astro/HR-temp-mass-table-byhrclass.html for a nice table, also accounting for object class (IV/III/etc.) and 0-9 subtype.
 const typeToColor = {
   'TypeO': [144, 166, 255],
@@ -59,15 +55,17 @@ function arrayToColor(arr) {
 
 // A set of planet sprites in a star system use one instance of this to decide on the overall scale of the system.
 // It can scale down or up as planets materialize.
-// TODO: Make it keep temporary orbits in view until overridden.
+// Manages a scale in 3d engine units per AU
 // TODO: This is kind of wanting to be really reactive.
 class ScaleManager extends EventEmitter2 {
-  constructor() {
+  // Make a ScaleManager that tries to scale the smallest orbit to the inner target and the largest orbit to the outer target
+  constructor(innerTarget, outerTarget) {
     super()
     this.setMaxListeners(1000)
 
-    // What scale are we at
-    this.scale = 1.0
+    // What are the target scales
+    this.innerTarget = innerTarget
+    this.outerTarget = outerTarget
 
     // What are the min and max observed orbit scales?
     this.minAU = null
@@ -82,6 +80,10 @@ class ScaleManager extends EventEmitter2 {
 
     // How many reports do we expect? This should be 2 * number of planets
     this.expectedReports = 0
+
+    // What scale are we at initially?
+    // Divide units by AU to get units per AU
+    this.scale = this.innerTarget / this.tempMin
   }
 
   // Get the scale factor to draw the star system with, in 3D units per AU
@@ -89,11 +91,12 @@ class ScaleManager extends EventEmitter2 {
     return this.scale
   }
   
-  // Until the given number of total reports are received, use the given temporary min and max values in scaling
+  // Until the given number of total reports are received, use the given temporary min and max orbit AU values in scaling
   expect(total, tempMin, tempMax) {
     this.expectedReports = total
     this.tempMin = tempMin
     this.tempMax = tempMax
+    this.rescale()
   }
 
   // Report the periapsis or apoapsis of a planet, or a habitable zone boundary, in AU, and potentially adjust the scale
@@ -109,6 +112,10 @@ class ScaleManager extends EventEmitter2 {
       this.maxAU = au
       rescaled = true
     }
+    if (this.totalReports == this.expectedReports) {
+      // We made the critical report to turn off the temp scaling
+      rescaled = true
+    }
     if (rescaled) {
       this.rescale()
     }
@@ -117,27 +124,27 @@ class ScaleManager extends EventEmitter2 {
   // Actually compute a new scale, and issue an event if it has changed.
   rescale() {
     
-    let minAU = this.minAU
-    let maxAU = this.maxAU
+    let minAU = this.minAU !== null ? this.minAU : this.tempMin
+    let maxAU = this.maxAU !== null ? this.maxAU : this.tempMax
     if (this.expectedReports > this.totalReports) {
       // Mix in the temp bounds
       minAU = Math.min(minAU, this.tempMin)
       maxAU = Math.max(maxAU, this.tempMax)
     }
 
-    // We would prefer to scale up the innermost orbit to 1 units
-    let minAUWantsScale = 1 / this.minAU
+    // We would prefer to scale up the innermost orbit to the min size
+    let minAUWantsScale = this.innerTarget / minAU
 
-    // We would prefer to scale down the outermost orbit to 100 units
-    let maxAUWantsScale = 100 / this.maxAU
+    // We would prefer to scale down the outermost orbit to the max size
+    let maxAUWantsScale = this.outerTarget / maxAU
 
     let newScale = this.scale
-    if (maxAUWantsScale < 1) {
-      // Scale down
-      newScale = maxAUWantsScale
-    } else if (minAUWantsScale > 1) {
-      // Scale up
+    if (minAUWantsScale > 1) {
+      // Scale up first, giving priority to the minimum scale
       newScale = Math.min(minAUWantsScale, maxAUWantsScale)
+    } else if (maxAUWantsScale < 1) {
+      // Scale down if we don't need to scale up
+      newScale = maxAUWantsScale
     }
 
     if (newScale != this.scale) {
@@ -149,8 +156,8 @@ class ScaleManager extends EventEmitter2 {
   }
 }
 
-// Given a planet object from the cache, return a DOM node for a sprite to represent the planet
-// The planet will automatically orbit on the orbit it carries, if the star is passed.
+// Given a keypath to a planet or moon, return a DOM node for a sprite to represent the planet or moon.
+// The sprite has a root element that moves with the planet but does not rotate.
 function makePlanetSprite(ctx, keypath, scaleManager) {
 
   // Define an easy function to get a promise for a property of the star
@@ -158,8 +165,8 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     return ctx.ds.request(keypath + '.' + prop)
   }
 
-  // And for the parent star
-  let getStar = (prop) => {
+  // And for the parent star or planet
+  let getParent = (prop) => {
     return ctx.ds.request(parentOf(keypath) + '.' + prop)
   }
 
@@ -186,15 +193,16 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     rate: 0.00007272205,
   }
 
-  // And similarly for the star, which we assume has a mass of 1 sol until proven otherwise
-  let star = {
+  // And similarly for the parent star or planet, which we assume has a mass of 1 sol until proven otherwise
+  // We adopt the convention used for stars, and fake the mass if the parent is a planet
+  let parentObj = {
     objMass: 1
   }
 
   // Make sure to report orbit to the scale manager when it comes in
   // TODO: This will make extra requests
   get('orbit.periapsis').then((periapsis) => {
-    scaleManager.report(pariapsis / mv.AU)
+    scaleManager.report(periapsis / mv.AU)
   })
   get('orbit.apoapsis').then((apoapsis) => {
     scaleManager.report(apoapsis / mv.AU)
@@ -214,21 +222,34 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     })
   }
 
-  for(let key in star) {
-    // Similarly for any star properties used in the orbit
-    getStar(key).then((val) => {
-      star[key] = val
+  // Go get the parent mass
+  if (keypath.split('.').length == 5) {
+    // We are a planet (sector x, y, z, star, and planet number)
+    // Go get the 'objMass' of our parent
+    getParent('objMass').then((objMass) => {
+      parentObj.objMass = objMass
+    })
+  } else {
+    // We are a moon
+    // Get the world mass, which is in earths, and convert to solar masses for the orbit math
+    getParent('worldMass').then((parentWorldMass) => {
+      parentObj.objMass = parentWorldMass / mv.EARTH_MASSES_PER_SOLAR_MASS
     })
   }
-
-  // Make a sprite
+  
+  // Make a non-rotating root element
+  let root = document.createElement('a-entity')
+  // Make a sprite that lives in it
   let sprite = document.createElement('a-entity')
+  root.appendChild(sprite)
+  // Mark the actual world, so we can find it and attach events to it
+  sprite.classList.add('world')
   // It will have an additional thing to show the axis orientation and rotation
   let spin_shower = document.createElement('a-entity')
   sprite.appendChild(spin_shower)
 
   // Give it the ID of the keypath, so we can find it
-  sprite.id = keypath
+  root.id = keypath
 
   // We initially use a random radius
   let initialRadius = Math.random()
@@ -252,9 +273,10 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       wireframeLinewidth: 1
     })
 
-    get('planetMass').then((planetMass) => {
+    get('worldMass').then((worldMass) => {
       // Work out the actual size for it
-      let size = Math.max(Math.log10(planetMass) + 3, 1) / 10
+      // Size will be between 0.1 and 1.0
+      let size = Math.min(Math.max(Math.log10(worldMass) + 3, 1), 10) / 10
 
       // Make the planet sphere
       sprite.setAttribute('geometry', {
@@ -265,9 +287,9 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       })
     })
 
-    get('planetClass').then((planetClass) => {
+    get('worldClass').then((worldClass) => {
       // Make it the right color for the class that it is
-      let planetColor = worldColors[mv.worldClasses[planetClass]]
+      let planetColor = worldColors[mv.worldClasses[worldClass]]
       sprite.setAttribute('material', {
         color: planetColor,
         shader: 'standard',
@@ -281,14 +303,15 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     // Define an update function for the planet's position in the orbit
     let update = () => {
       // Work out where the planet belongs at this time
-      let planetPos = computeOrbitPositionInAU(orbit, star.objMass, getRenderTime())
+      let planetPos = computeOrbitPositionInAU(orbit, parentObj.objMass, getRenderTime())
       // Convert to 3d system units
       let scale = scaleManager.get()
       planetPos.x *= scale
       planetPos.y *= scale
       planetPos.z *= scale
       // Put it there
-      sprite.setAttribute('position', planetPos)
+      // Move the root and not the visible planet
+      root.setAttribute('position', planetPos)
 
       // Compute rotation based on orbit plane angles, planet angles/rates, and time
       let planetRot = computeWorldRotation(orbit, spin, getRenderTime());
@@ -298,7 +321,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     // Update the planet position now and later (when more values come in) according to the orbit
     update()
     let interval = setInterval(() => {
-      if (sprite.parentNode != null) {
+      if (root.parentNode != null) {
         // We are still visible
         update()
       } else {
@@ -342,10 +365,10 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       wireframeLinewidth: 1
     })
 
-    get('planetMass').then((planetMass) => {
+    get('worldMass').then((worldMass) => {
       // Work out the actual size and position for it
       // TODO: Duplicative with the same code for the planet node
-      let size = Math.max(Math.log10(planetMass) + 3, 1) / 10
+      let size = Math.min(Math.max(Math.log10(worldMass) + 3, 1), 10) / 10
 
       spin_shower.setAttribute('position', {
         x: 0,
@@ -360,7 +383,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     })
   })
 
-  return sprite
+  return root
 }
 
 // Mount the given node on a parent, translated by nothing, and then rotated by nothing
@@ -407,6 +430,7 @@ function makeUpdater(node, updateAssumingLoaded) {
 
 // Make a sprite to represent an orbit.
 // Scales with the given ScaleManager.
+// Takes a keypath representing either a planet or a moon.
 function makeOrbitSprite(ctx, keypath, scaleManager) {
 
   // Define an easy function to get a promise for a property of the planet
@@ -414,20 +438,21 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
     return ctx.ds.request(keypath + '.' + prop)
   }
 
-  // And for the parent star
-  let getStar = (prop) => {
-    return ctx.ds.request(parentOf(keypath) + '.' + prop)
-  }
+  // We're a moon if we have anything after sector x, y, z, star number, and planet number
+  let isMoon = keypath.split('.').length > 5
 
   // Work out what planet this is
-  let planetNumber = parseInt(lastComponent(keypath))
+  let worldNumber = parseInt(lastComponent(keypath))
+
+  // Compute a default orbit radius in meters until we get a real one
+  let defaultRadius = (worldNumber + 1) *  (isMoon ? mv.LD : mv.AU)
 
   // We use the same default-and-refine half-reactive system that the planets use
   let orbit = {
-    periapsis: planetNumber * mv.AU,
-    apoapsis: planetNumber * mv.AU,
-    semimajor: planetNumber * mv.AU,
-    semiminor: planetNumber * mv.AU,
+    periapsis: defaultRadius,
+    apoapsis: defaultRadius,
+    semimajor: defaultRadius,
+    semiminor: defaultRadius,
     lan: 0,
     inclination: 0,
     aop: 0,

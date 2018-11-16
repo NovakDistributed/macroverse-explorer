@@ -14,7 +14,7 @@ body {
 }
 
 #scene {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   bottom: 0;
@@ -22,7 +22,7 @@ body {
 }
 
 #infobox {
-  position: fixed;
+  position: absolute;
   width: var(--infobox-width);
   top: 0;
   right: 0;
@@ -47,11 +47,16 @@ body {
 }
 
 .infobox-body {
+  position: absolute;
+  left: 0;
+  top: 25px;
+  right: 0;
+  bottom: 0;
+  overflow-y: scroll;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  margin-top: 1em;
 }
 
 .infobox-table, .infobox-table th, .infobox-table td {
