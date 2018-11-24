@@ -3,7 +3,7 @@
 // We want macroverse itself
 const mv = require('macroverse')
 
-const { parentOf, lastComponent } = require('./keypath.js')
+const { parentOf, lastComponent, keypathToId } = require('./keypath.js')
 
 // We want someone else's implementation of orbital mechanics
 const orb = require('orbjs')
@@ -57,8 +57,8 @@ function arrayToColor(arr) {
 // Does some fun-size-ing
 function worldMassToSize(worldMass) {
   // Work out the actual size for it
-  // Size will be between 0.1 and 1.0
-  return Math.min(Math.max(Math.log10(worldMass) + 3, 1), 10) / 10
+  // Size will be between 0.01 and 1.0
+  return Math.min(Math.max(Math.log10(worldMass) + 3, 0.1), 10) / 10
 }
 
 // A set of planet sprites in a star system use one instance of this to decide on the overall scale of the system.
@@ -149,7 +149,7 @@ class ScaleManager extends EventEmitter2 {
     let newScale = this.scale
     if (minAUWantsScale > 1) {
       // Scale up first, giving priority to the minimum scale
-      newScale = Math.min(minAUWantsScale, maxAUWantsScale)
+      newScale = minAUWantsScale
     } else if (maxAUWantsScale < 1) {
       // Scale down if we don't need to scale up
       newScale = maxAUWantsScale
@@ -246,7 +246,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
   sprite.appendChild(spin_shower)
 
   // Give it the ID of the keypath, so we can find it
-  root.id = keypath
+  root.id = keypathToId(keypath)
 
   // We initially use a random radius
   let initialRadius = Math.random()

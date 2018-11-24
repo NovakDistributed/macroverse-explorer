@@ -9,6 +9,8 @@ const aframe_orbit_controls = require('aframe-orbit-controls-component-2')
 const aframe_particles = require('aframe-particle-system-component')
 // And animations
 const aframe_animation = require('aframe-animation-component')
+// And a parent constraint
+require('./aframe-parent-constraint.js')
 
 // We want macroverse itself
 const mv = require('macroverse')
@@ -19,7 +21,7 @@ const eth = require('./eth.js')
 const {desynchronize} = require('./robust.js')
 const sprites = require('./sprites.js')
 const Infobox = require('./Infobox.js')
-const {parentOf} = require('./keypath.js')
+const {parentOf, keypathToId} = require('./keypath.js')
 
 /// Make a promise that waits for the given number of ms and then resolves
 function sleep(time) {
@@ -31,9 +33,7 @@ function sleep(time) {
 // Nonce for remembering which system was most recenty requested
 let systemNonce = 0
 
-// HTML element to make the camera follow, for tracking orbiting planets
-let followElement = null
-let followInterval = null
+let nextCameraTargetId = 0
 
 /// Animate the camera's focus to the given position or HTML element
 function moveCameraFocus(position) {
@@ -44,38 +44,28 @@ function moveCameraFocus(position) {
   if (position instanceof HTMLElement) {
     followElement = position
 
-    // Work out the world position of the object
-    // THREE is magically in scope because we have A-Frame.
+    if (!followElement.id) {
+      // Assign an id
+      followElement.id = 'camera-target' + nextCameraTargetId++
+    }
+
+    // Work out where the target really is
     let worldPos = new THREE.Vector3()
+    worldPos.setFromMatrixPosition(followElement.object3D.matrixWorld)
     
-    // I tried animating right to there, but it would jump to some other place because the position wouldn't be ready or something.
-    // So just rely on the update timer.
-    
-    if (followInterval == null) {
-      // Add code to follow the element
-      // TODO: This should really be a component with a tick() handler
-      followInterval = setInterval(() => {
-        // Re-use an existing vector to keep tracking the object
-        worldPos.setFromMatrixPosition(followElement.object3D.matrixWorld)
+    // Teleport to the new target
+    dolly.setAttribute('position', worldPos)
 
-        let lastPos = dolly.getAttribute('position')
-
-        // Animate to there
-        dolly.setAttribute('animation', {
-          property: 'position',
-          from: {x: lastPos.x, y: lastPos.y, z: lastPos.z},
-          to: {x: worldPos.x, y: worldPos.y, z: worldPos.z},
-          dur: 60,
-          easing: 'linear'
-        })
-      }, 50)
-    }
+    // Make a fake parent constraint now that we have the correct position relative to the parent
+    dolly.setAttribute('parent-constraint', {
+      parent: '#' + followElement.id,
+      rotation: false,
+      scale: false
+    })
   } else {
-    followElement = null
-    if (followInterval !== null) {
-      clearInterval(followInterval)
-    }
-    followInterval = null
+
+    // De-parent
+    dolly.removeAttribute('parent-constraint')
 
     dolly.setAttribute('animation', {
       property: 'position',
@@ -93,7 +83,7 @@ function moveCameraFocus(position) {
 async function showMoon(ctx, keypath) {
 
   // Find the moon we are looking for
-  let moonSprite = document.getElementById(keypath)
+  let moonSprite = document.getElementById(keypathToId(keypath))
 
   // Chase the planet with the camera
   moveCameraFocus(moonSprite)
@@ -105,7 +95,7 @@ async function showMoon(ctx, keypath) {
 async function showPlanet(ctx, keypath) {
 
   // Find the node we are going to parent the lunar system to
-  let planetSprite = document.getElementById(keypath)
+  let planetSprite = document.getElementById(keypathToId(keypath))
 
   // Chase the planet with the camera
   moveCameraFocus(planetSprite)
@@ -136,7 +126,7 @@ async function showPlanet(ctx, keypath) {
   // Give it the desired inner and outer orbit sizes in 3d engine units
   // Note that the scale manager and orbits still work natively in AU
   // ScaleManager will give priority to the min scale.
-  let scaleManager = new sprites.ScaleManager(size * 1.1, 5)
+  let scaleManager = new sprites.ScaleManager(size + 0.3, 5)
 
   // Count up the moons
   let moonCount = await ctx.ds.request(keypath + '.moonCount')
@@ -498,6 +488,10 @@ async function main() {
       if (matches < 4 && ourNonce == showNonce) {
         await showSystem(ctx, keypath)
       }
+      if (matches == 4 && ourNonce == showNonce) {
+        // Just focus on it
+        moveCameraFocus(document.getElementById('system'))
+      }
     } else if (parts.length == 5) {
       // It must be a planet
       if (matches < 4 && ourNonce == showNonce) {
@@ -506,6 +500,10 @@ async function main() {
       }
       if (matches < 5 && ourNonce == showNonce) {
         await showPlanet(ctx, keypath)
+      }
+      if (matches == 5 && ourNonce == showNonce) {
+        // Just focus on it
+        moveCameraFocus(document.getElementById(keypathToId(keypath)))
       }
     } else if (parts.length == 6) {
       // It must be a moon
@@ -518,6 +516,10 @@ async function main() {
       }
       if (matches < 6 && ourNonce == showNonce) {
         await showMoon(ctx, keypath)
+      }
+      if (matches == 6 && ourNonce == showNonce) {
+        // Just focus on it
+        moveCameraFocus(document.getElementById(keypathToId(keypath)))
       }
     }
 

@@ -96,5 +96,11 @@ function setKeypath(obj, keypath, value) {
   }
 }
 
+// Convert a keypath to an HTML element identifier.
+// A keypath is a perfectly cromulent ID by itself, but things start to break
+// down when you want to use it in a CSS selector where '.' is significant.
+function keypathToId(keypath) {
+    return 'kp' + keypath.replace(/\./g, '_')
+}
 
-module.exports = { parentOf, lastComponent, getKeypath, setKeypath }
+module.exports = { parentOf, lastComponent, getKeypath, setKeypath, keypathToId }
