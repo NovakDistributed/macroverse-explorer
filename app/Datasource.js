@@ -225,7 +225,7 @@ class Datasource extends EventEmitter2 {
         } catch (err) {
           // If it doesn't come in, try again
           console.log('Error getting ' + keypath, err)
-          await this.resolveImmediately(keypath)
+          //await this.resolveImmediately(keypath)
         }
       } else {
         // Otherwise it's a star number

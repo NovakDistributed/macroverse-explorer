@@ -375,11 +375,27 @@ class Infobox {
             <td>${this.when(keypath + '.orbit.inclination', (x) => format(mv.degrees(x)))}&deg;</td>
           </tr>
           <tr>
-            <td>Climate</td>
+            <td rowspan="5">Climate</td>
             <td>Normal Irradiance</td>
             <!-- Earth is like 1.3-1.5k or something -->
             <td>${this.when(keypath + '.apoapsisIrradiance', (x) => format(x))} -
             ${this.when(keypath + '.periapsisIrradiance', (x) => format(x))} W/m<sup>2</sup></td>
+          </tr>
+          <tr>
+            <td>Tidally Locked?</td>
+            <td>${this.when(keypath + '.spin.isTidallyLocked', (x) => (x ? 'Yes' : 'No'), '?')}</td>
+          </tr>
+          <tr>
+            <td>Obliquity</td>
+            <td>${this.when(keypath + '.spin.axisAngleX', (x) => format(mv.degrees(x)))}&deg;</td>
+          </tr>
+          <tr>
+            <td>Ecliptic-Equator Longitude</td>
+            <td>${this.when(keypath + '.spin.axisAngleY', (x) => format(mv.degrees(x)))}&deg;</td>
+          </tr>
+          <tr>
+            <td>Rotational Period</td>
+            <td>${this.when(keypath + '.spin.period', (x) => formatTime(x), '???? D')}</td>
           </tr>
         </table>
       </div>

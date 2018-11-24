@@ -53,6 +53,14 @@ function arrayToColor(arr) {
   return hex
 }
 
+/// Turn a mass in kg into a planet size in 3d engine units
+// Does some fun-size-ing
+function worldMassToSize(worldMass) {
+  // Work out the actual size for it
+  // Size will be between 0.1 and 1.0
+  return Math.min(Math.max(Math.log10(worldMass) + 3, 1), 10) / 10
+}
+
 // A set of planet sprites in a star system use one instance of this to decide on the overall scale of the system.
 // It can scale down or up as planets materialize.
 // Manages a scale in 3d engine units per AU
@@ -183,21 +191,17 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     meanAnomalyAtEpoch: 0
   }
 
-  // And the rotation info, in radians
-  let spin = {
-    // Applied first; angle around the +Y axis to spin before tilting
-    axisAngleY: 0,
-    // Applied second; angle forward around Y-rotation-transformed planet +X
-    axisAngleX: 0.1,
-    // Rate of spin around planet's transformed +Y axis, applied last
-    rate: 0.00007272205,
-  }
-
   // And similarly for the parent star or planet, which we assume has a mass of 1 sol until proven otherwise
   // We adopt the convention used for stars, and fake the mass if the parent is a planet
   let parentObj = {
     objMass: 1
   }
+
+  // We also track the rate of spin
+  let spinRate = 0
+  get('spin.rate').then((val) => {
+    spinRate = val
+  })
 
   // Make sure to report orbit to the scale manager when it comes in
   // TODO: This will make extra requests
@@ -212,13 +216,6 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     // Kick off requests to update the orbit in place with all the real data when available
     get('orbit.' + key).then((val) => {
       orbit[key] = val
-    })
-  }
-
-  for(let key in spin) {
-    // Kick off requests to update the spin in place with all the real data when available
-    get('spin.' + key).then((val) => {
-      spin[key] = val
     })
   }
 
@@ -237,7 +234,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     })
   }
   
-  // Make a non-rotating root element
+  // Make a non-spinning root element that defines the equatorial plane
   let root = document.createElement('a-entity')
   // Make a sprite that lives in it
   let sprite = document.createElement('a-entity')
@@ -275,8 +272,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
     get('worldMass').then((worldMass) => {
       // Work out the actual size for it
-      // Size will be between 0.1 and 1.0
-      let size = Math.min(Math.max(Math.log10(worldMass) + 3, 1), 10) / 10
+      let size = worldMassToSize(worldMass)
 
       // Make the planet sphere
       sprite.setAttribute('geometry', {
@@ -299,6 +295,12 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
         roughness: 0.8
       })
     })
+
+    // Compute the orientation that the world should be in, relative to its parent's equatorial plane.
+    // This includes rotation into the orbital plane and from there into the world's own equatorial plane
+    computeWorldEquatorialRotation(ctx, keypath).then((rot) => {
+      root.setAttribute('rotation', rot)
+    })
     
     // Define an update function for the planet's position in the orbit
     let update = () => {
@@ -313,9 +315,8 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       // Move the root and not the visible planet
       root.setAttribute('position', planetPos)
 
-      // Compute rotation based on orbit plane angles, planet angles/rates, and time
-      let planetRot = computeWorldRotation(orbit, spin, getRenderTime());
-      sprite.setAttribute('rotation', planetRot)
+      // Compute spin rotation for planet, in its own equatorial-plane coordinates (i.e. Y only)
+      sprite.setAttribute('rotation', {x: 0, y: mv.degrees((getRenderTime() * spinRate) % (2 * Math.PI)), z: 0})
     }
 
     // Update the planet position now and later (when more values come in) according to the orbit
@@ -367,8 +368,7 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
 
     get('worldMass').then((worldMass) => {
       // Work out the actual size and position for it
-      // TODO: Duplicative with the same code for the planet node
-      let size = Math.min(Math.max(Math.log10(worldMass) + 3, 1), 10) / 10
+      let size = worldMassToSize(worldMass)
 
       spin_shower.setAttribute('position', {
         x: 0,
@@ -557,40 +557,29 @@ function computeOrbitPositionInAU(orbit, centralMassSols, secondsSinceEpoch) {
 
 }
 
-// Compute the current orientation (A-frame XYZ Euler angles in degrees) of a planet, relative to its parent's non-spinning frame.
-// Accounts for the orbit LAN and inclination, and the spin axis angles on top of that
-// Takes the orbit object with 'lan' and 'inclination' in radians.
-// Takes a spin object with axisAngleY, axisAngleX, in radians (rotate on Z first, then X, then spin, all intrinsic), and also rate in radians per second.
-// Takes the seconds since Macroverse epoch
-function computeWorldRotation(orbit, spin, secondsSinceEpoch) {
+// Go look up the orbit angles and obliquity angles for a planet or moon.
+// Returns the {x:, y:, z:} rotation vector in degrees that defines the
+// planet's orientation relative to its parent's equatorial plane, at time 0
+// Accounts for the orbit LAN and inclination, and the spin axis angles on top of that.
+async function computeWorldEquatorialRotation(ctx, keypath) {
+
+  // Define an easy function to get a promise for a property of the star
+  let get = (prop) => {
+    return ctx.ds.request(keypath + '.' + prop)
+  }
 
   // Create the rotation that needs to happen first (orbit angles)
   // This is in Y by the LAN, and then in the rotated X by the inclination
-  let orbitEuler = new THREE.Euler(orbit.inclination, orbit.lan, 0, 'YXZ')
+  let orbitEuler = new THREE.Euler(await get('orbit.inclination'), await get('orbit.lan'), 0, 'YXZ')
 
   // Convert to a quaternion
   let orbitQuat = new THREE.Quaternion()
   orbitQuat.setFromEuler(orbitEuler)
 
-
-  // Precompute the spin
-  let currentSpinAngle = (secondsSinceEpoch * spin.rate) % (2 * Math.PI)
-
-  let constrainToDegrees = function(rads) {
-    // Convert radians from -PI to PI to degrees from 0 to 360
-
-    let degrees = mv.degrees(rads)
-
-    if (degrees < 0) {
-      degrees += 360
-    }
-    return degrees
-  }
-
   // Rotate the planet according to its pre-spin axis angles
   // First in Y, then in transformed X. Angles always go in
   // in XYZ no matter the order we apply them.
-  let planetEuler = new THREE.Euler(spin.axisAngleX, spin.axisAngleY, 0, 'YXZ')
+  let planetEuler = new THREE.Euler(await get('spin.axisAngleX'), await get('spin.axisAngleY'), 0, 'YXZ')
   
   // Convert to quaternion
   let planetQuat = new THREE.Quaternion()
@@ -600,20 +589,16 @@ function computeWorldRotation(orbit, spin, secondsSinceEpoch) {
   // We want parent rotation * child rotation = orbit rotation * planet rotation
   planetQuat.premultiply(orbitQuat)
 
-  // Add in the actual spin angle
-  let spinEuler = new THREE.Euler(0, currentSpinAngle, 0, 'XYZ')
-  let spinQuat = new THREE.Quaternion()
-  spinQuat.setFromEuler(spinEuler)
-  planetQuat.multiply(spinQuat)
-
   // Convert back to Euler angles.
   // A-Frame uses a YXZ rotation order, not that it documents it. So convert
   // our angles to be applied in that order.
   planetEuler.setFromQuaternion(planetQuat, 'YXZ')
 
-  let rot = {x: constrainToDegrees(planetEuler.x), y: constrainToDegrees(planetEuler.y), z: constrainToDegrees(planetEuler.z)}
+  let rot = {x: mv.degrees(planetEuler.x), y: mv.degrees(planetEuler.y), z: mv.degrees(planetEuler.z)}
   
   return rot
+
+
 }
 
 // Return the time to draw right now, in seconds since epoch
@@ -812,4 +797,4 @@ function makeStarSprite(ctx, keypath, positionSelf) {
   return sprite
 }
 
-module.exports = {makeStarSprite, makePlanetSprite, makeOrbitSprite, makeHabitableZoneSprite, ScaleManager}
+module.exports = {makeStarSprite, makePlanetSprite, makeOrbitSprite, makeHabitableZoneSprite, ScaleManager, worldMassToSize}

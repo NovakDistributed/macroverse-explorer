@@ -130,9 +130,7 @@ async function showPlanet(ctx, keypath) {
   // Get the planet's mass, which determinses size
   let worldMass = await ctx.ds.request(keypath + '.worldMass')
   // Work out the actual size for it
-  // Size will be between 0.1 and 1.0
-  // TODO This is duplicated in the sprites code for actually drawing the planet
-  let size = Math.min(Math.max(Math.log10(worldMass) + 3, 1), 10) / 10
+  let size = sprites.worldMassToSize(worldMass)
 
   // Make a ScaleManager to let the moons tell each other how big the view scale should be
   // Give it the desired inner and outer orbit sizes in 3d engine units
@@ -498,7 +496,7 @@ async function main() {
     if (parts.length == 4) {
       // This is a star. Show it.
       if (matches < 4 && ourNonce == showNonce) {
-        await showSystem(ctx, parentOf(keypath))
+        await showSystem(ctx, keypath)
       }
     } else if (parts.length == 5) {
       // It must be a planet
