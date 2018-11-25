@@ -13,14 +13,14 @@ AFRAME.registerComponent('follow-constraint', {
     // This is the element we follow
     target: {type: 'selector', default: null},
     // This is the fraction of the distance we travel each frame
-    speed: {default: 0.5},
+    speed: {default: 0.3},
     // This is the distance within which we snap to the final position
     snap: {default: 0.1}
   },
   multiple: false,
   init: function() {
     this.target = null
-    this.speed = 0.5
+    this.speed = 0.3
     this.snap = 0.1
   },
   update: function(oldData) {
