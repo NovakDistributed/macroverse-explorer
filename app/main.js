@@ -9,8 +9,8 @@ const aframe_orbit_controls = require('aframe-orbit-controls-component-2')
 const aframe_particles = require('aframe-particle-system-component')
 // And animations
 const aframe_animation = require('aframe-animation-component')
-// And a parent constraint
-require('./aframe-parent-constraint.js')
+// And a follow constraint to make the camera chase things
+require('./aframe-follow-constraint.js')
 
 // We want macroverse itself
 const mv = require('macroverse')
