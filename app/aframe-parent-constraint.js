@@ -7,6 +7,55 @@
  * See also: https://github.com/aframevr/aframe/issues/2425
  */
 
+AFRAME.registerComponent('follow-constraint', {
+  // What parts of the component data can exist?
+  schema: {
+    target: {type: 'selector', default: null}
+  },
+  multiple: false,
+  init: function() {
+    this.target = null
+  },
+  update: function(oldData) {
+    // This is the a-frame component made by init
+    // The new data is this.data
+
+    if (this.data.target) {
+      // Update the target
+      this.target = this.data.target
+    } else {
+      this.target = null
+    }
+
+    // TODO: We require the target and this element to both be set up before this component starts.
+    // We don't have any logic to wait for them to load
+  },
+  tick: function(time, timeDelta) {
+      if (this.target !== null) {
+        // Find our object3d
+        let ourObj = this.el.object3D
+        // And the target's
+        let targetObj = this.target.object3D
+
+        // Get the target's world space position
+        let targetWorldPos = targetObj.getWorldPosition()
+
+        // Make our inverse matrix
+        let worldToLocal = new THREE.Matrix4().getInverse(ourObj.matrixWorld)
+
+        // Transform target pos to our local coordinate space
+        // TODO: Assumes we have no rotation or scale!
+        let targetLocalPos = targetWorldPos.clone()
+        targetLocalPos.applyMatrix4(worldToLocal)
+
+        // Adjust our local position to match the target's
+        ourObj.position.add(targetLocalPos)
+      }
+  },
+  remove: function() {
+  }
+})
+
 AFRAME.registerComponent('parent-constraint', {
     //dependencies: ['mdmu-gltf', 'mdmu-controls'],
     schema: {

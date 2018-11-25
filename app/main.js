@@ -42,30 +42,21 @@ function moveCameraFocus(position) {
   let oldPos = dolly.getAttribute('position')
 
   if (position instanceof HTMLElement) {
-    followElement = position
+    let followElement = position
 
     if (!followElement.id) {
       // Assign an id
       followElement.id = 'camera-target' + nextCameraTargetId++
     }
 
-    // Work out where the target really is
-    let worldPos = new THREE.Vector3()
-    worldPos.setFromMatrixPosition(followElement.object3D.matrixWorld)
-    
-    // Teleport to the new target
-    dolly.setAttribute('position', worldPos)
-
-    // Make a fake parent constraint now that we have the correct position relative to the parent
-    dolly.setAttribute('parent-constraint', {
-      parent: '#' + followElement.id,
-      rotation: false,
-      scale: false
+    // Make a following constraint to follow the target around
+    dolly.setAttribute('follow-constraint', {
+      target: '#' + followElement.id
     })
   } else {
 
     // De-parent
-    dolly.removeAttribute('parent-constraint')
+    dolly.removeAttribute('follow-constraint')
 
     dolly.setAttribute('animation', {
       property: 'position',
