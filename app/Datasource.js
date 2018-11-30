@@ -726,47 +726,64 @@ class Datasource extends EventEmitter2 {
       break
     case 'spin.isTidallyLocked':
       {
-        let seed = await get('seed')
-        let value = await this.sys.isTidallyLocked.call(seed, planetNumber)
-        await save(keypath, value)
+        let worldClass = await get('worldClass')
+        if (mv.hasBody(worldClass)) {
+          let seed = await get('seed')
+          let value = await this.sys.isTidallyLocked.call(seed, planetNumber)
+          await save(keypath, value)
+        } else {
+          await save(keypath, null)
+        }
       }
       break
     case 'spin.axisAngleY':
     case 'spin.axisAngleX':
       {
-        let seed = await get('seed')
-        let tidal_lock = await get('spin.isTidallyLocked')
-        let axisAngleY
-        let axisAngleX
-        if (tidal_lock) {
-          // Rotation axis is normal to orbital plane
-          axisAngleY = 0
-          axisAngleX = 0
+        let worldClass = await get('worldClass')
+        if (mv.hasBody(worldClass)) {
+          let seed = await get('seed')
+          let tidal_lock = await get('spin.isTidallyLocked')
+          let axisAngleY
+          let axisAngleX
+          if (tidal_lock) {
+            // Rotation axis is normal to orbital plane
+            axisAngleY = 0
+            axisAngleX = 0
+          } else {
+            let [realAxisAngleY, realAxisAngleX] = await this.sys.getWorldYXAxisAngles(seed)
+            axisAngleY = mv.fromReal(realAxisAngleY)
+            axisAngleX = mv.fromReal(realAxisAngleX)
+          }
+          await save('spin.axisAngleY', axisAngleY)
+          await save('spin.axisAngleX', axisAngleX)
         } else {
-          let [realAxisAngleY, realAxisAngleX] = await this.sys.getWorldYXAxisAngles(seed)
-          axisAngleY = mv.fromReal(realAxisAngleY)
-          axisAngleX = mv.fromReal(realAxisAngleX)
+          await save('spin.axisAngleY', null)
+          await save('spin.axisAngleX', null)
         }
-        await save('spin.axisAngleY', axisAngleY)
-        await save('spin.axisAngleX', axisAngleX)
       }
       break
     case 'spin.rate':
     case 'spin.period':
       {
-        let tidal_lock = await get('spin.isTidallyLocked')
-        let spinRate
-        if (tidal_lock) {
-          // Rotation rate is exactly 2 * PI radians / period
-          // TODO: Use the orbital mechanics contract instead which on-chain apps will use?
-          spinRate = 2 * Math.PI / await get('orbit.period')
+        let worldClass = await get('worldClass')
+        if (mv.hasBody(worldClass)) {
+          let tidal_lock = await get('spin.isTidallyLocked')
+          let spinRate
+          if (tidal_lock) {
+            // Rotation rate is exactly 2 * PI radians / period
+            // TODO: Use the orbital mechanics contract instead which on-chain apps will use?
+            spinRate = 2 * Math.PI / await get('orbit.period')
+          } else {
+            let seed = await get('seed')
+            // Pull out and convert to rad/sec
+            spinRate = mv.fromReal(await this.sys.getWorldSpinRate(seed)) / mv.JULIAN_YEAR
+          }
+          await save('spin.rate', spinRate)
+          await save('spin.period', 2 * Math.PI / spinRate)
         } else {
-          let seed = await get('seed')
-          // Pull out and convert to rad/sec
-          spinRate = mv.fromReal(await this.sys.getWorldSpinRate(seed)) / mv.JULIAN_YEAR
+          await save('spin.rate', null)
+          await save('spin.period', null)
         }
-        await save('spin.rate', spinRate)
-        await save('spin.period', 2 * Math.PI / spinRate)
       }
       break
     default:
@@ -1003,47 +1020,64 @@ class Datasource extends EventEmitter2 {
       break
     case 'spin.isTidallyLocked':
       {
-        let seed = await get('seed')
-        let value = await this.sys.isTidallyLocked.call(seed, moonNumber)
-        await save(keypath, value)
+        let worldClass = await get('worldClass')
+        if (mv.hasBody(worldClass)) {
+          let seed = await get('seed')
+          let value = await this.sys.isTidallyLocked.call(seed, moonNumber)
+          await save(keypath, value)
+        } else {
+          await save(keypath, null)
+        }
       }
       break
     case 'spin.axisAngleY':
     case 'spin.axisAngleX':
       {
-        let seed = await get('seed')
-        let tidal_lock = await get('spin.isTidallyLocked')
-        let axisAngleY
-        let axisAngleX
-        if (tidal_lock) {
-          // Rotation axis is normal to orbital plane
-          axisAngleY = 0
-          axisAngleX = 0
+        let worldClass = await get('worldClass')
+        if (mv.hasBody(worldClass)) {
+          let seed = await get('seed')
+          let tidal_lock = await get('spin.isTidallyLocked')
+          let axisAngleY
+          let axisAngleX
+          if (tidal_lock) {
+            // Rotation axis is normal to orbital plane
+            axisAngleY = 0
+            axisAngleX = 0
+          } else {
+            let [realAxisAngleY, realAxisAngleX] = await this.sys.getWorldYXAxisAngles(seed)
+            axisAngleY = mv.fromReal(realAxisAngleY)
+            axisAngleX = mv.fromReal(realAxisAngleX)
+          }
+          await save('spin.axisAngleY', axisAngleY)
+          await save('spin.axisAngleX', axisAngleX)
         } else {
-          let [realAxisAngleY, realAxisAngleX] = await this.sys.getWorldYXAxisAngles(seed)
-          axisAngleY = mv.fromReal(realAxisAngleY)
-          axisAngleX = mv.fromReal(realAxisAngleX)
+          await save('spin.axisAngleY', null)
+          await save('spin.axisAngleX', null)
         }
-        await save('spin.axisAngleY', axisAngleY)
-        await save('spin.axisAngleX', axisAngleX)
       }
       break
     case 'spin.rate':
     case 'spin.period':
       {
-        let tidal_lock = await get('spin.isTidallyLocked')
-        let spinRate
-        if (tidal_lock) {
-          // Rotation rate is exactly 2 * PI radians / period
-          // TODO: Use the orbital mechanics contract instead which on-chain apps will use?
-          spinRate = 2 * Math.PI / await get('orbit.period')
+        let worldClass = await get('worldClass')
+        if (mv.hasBody(worldClass)) {
+          let tidal_lock = await get('spin.isTidallyLocked')
+          let spinRate
+          if (tidal_lock) {
+            // Rotation rate is exactly 2 * PI radians / period
+            // TODO: Use the orbital mechanics contract instead which on-chain apps will use?
+            spinRate = 2 * Math.PI / await get('orbit.period')
+          } else {
+            let seed = await get('seed')
+            // Pull out and convert to rad/sec
+            spinRate = mv.fromReal(await this.sys.getWorldSpinRate(seed)) / mv.JULIAN_YEAR
+          }
+          await save('spin.rate', spinRate)
+          await save('spin.period', 2 * Math.PI / spinRate)
         } else {
-          let seed = await get('seed')
-          // Pull out and convert to rad/sec
-          spinRate = mv.fromReal(await this.sys.getWorldSpinRate(seed)) / mv.JULIAN_YEAR
+          await save('spin.rate', null)
+          await save('spin.period', null)
         }
-        await save('spin.rate', spinRate)
-        await save('spin.period', 2 * Math.PI / spinRate)
       }
       break
     default:

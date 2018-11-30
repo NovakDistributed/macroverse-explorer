@@ -24,14 +24,14 @@ const typeToColor = {
 }
 
 const worldColors = {
-  'Lunar': 'white',
+  'Lunar': '#cec7bd',
   'Europan': 'brown',
   'Terrestrial': 'blue',
   'Panthalassic': 'aqua',
   'Neptunian': 'purple',
   'Jovian': 'orange',
   'AsteroidBelt': 'gray',
-  'Ring': 'yellow'
+  'Ring': 'beige'
 }
 
 // Convert an array of 0-255 values into a hex color code.
@@ -284,16 +284,25 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     })
 
     get('worldClass').then((worldClass) => {
-      // Make it the right color for the class that it is
-      let planetColor = worldColors[mv.worldClasses[worldClass]]
-      sprite.setAttribute('material', {
-        color: planetColor,
-        shader: 'standard',
-        wireframe: false,
-        // Give it some reasonable physics-based rendering stats
-        metalness: 0.1,
-        roughness: 0.8
-      })
+      if (!mv.hasBody(worldClass)) {
+        // This is a ring or an asteroid belt or something.
+        // Hide the spherical sprite
+        sprite.setAttribute('visible', false)
+        spin_shower.setAttribute('visible', false)
+      } else {
+        // This is a real spherical thing
+        
+        // Make it the right color for the class that it is
+        let planetColor = worldColors[mv.worldClasses[worldClass]]
+        sprite.setAttribute('material', {
+          color: planetColor,
+          shader: 'standard',
+          wireframe: false,
+          // Give it some reasonable physics-based rendering stats
+          metalness: 0.1,
+          roughness: 0.8
+        })
+      }
     })
 
     // Compute the orientation that the world should be in, relative to its parent's equatorial plane.
@@ -449,7 +458,7 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
 
   // We use the same default-and-refine half-reactive system that the planets use
   let orbit = {
-    periapsis: defaultRadius,
+    periapsis: defaultRadius - 0.001, // Subtract to make rings not look silly initially
     apoapsis: defaultRadius,
     semimajor: defaultRadius,
     semiminor: defaultRadius,
@@ -458,6 +467,11 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
     aop: 0,
     meanAnomalyAtEpoch: 0
   }
+
+  // We also have the world class, which lets us know whether we have a
+  // spherical body, or whether we just fill the region between periapsis and
+  // apoapsis with e.g. a ring. Have a body-having default.
+  let worldClass = mv.worldClass['Terrestrial']
 
   // Prepare the scene nodes
 
@@ -474,15 +488,41 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
 
   // Make an updater for it that we can call again when the orbit changes
   let updateCircle = makeUpdater(circleNode, () => {
-    // Give it its basic shape
-    circleNode.setAttribute('geometry', {
-      primitive: 'ring',
-      radiusInner: orbit.semiminor / mv.AU * scaleManager.get(),
-      radiusOuter: orbit.semiminor / mv.AU * scaleManager.get() - 0.001
-    })
+    if (mv.hasBody(worldClass)) {
+      // We are drawing a simple line
+    
+      // Give it its basic shape
+      circleNode.setAttribute('geometry', {
+        primitive: 'ring',
+        radiusInner: orbit.semiminor / mv.AU * scaleManager.get() - 0.001,
+        radiusOuter: orbit.semiminor / mv.AU * scaleManager.get()
+      })
 
-    // Stretch it out in X to be the semimajor radius
-    circleNode.setAttribute('scale', {x: orbit.semimajor / orbit.semiminor, y: 1, z: 1})
+      // Stretch it out in X to be the semimajor radius
+      circleNode.setAttribute('scale', {x: orbit.semimajor / orbit.semiminor, y: 1, z: 1})
+    } else {
+      // We want a ring that fills periapsis to apoapsis
+      
+      circleNode.setAttribute('geometry', {
+        primitive: 'ring',
+        radiusInner: orbit.periapsis / mv.AU * scaleManager.get(),
+        radiusOuter: orbit.apoapsis / mv.AU * scaleManager.get()
+      })
+      
+      // Give it uniform scale
+      circleNode.setAttribute('scale', {x: 1, y: 1, z: 1})
+
+      // Color it and make it look like a real solid disc
+      circleNode.setAttribute('material', {
+        color: worldColors[mv.worldClasses[worldClass]],
+        // Use a flat shader for asteroid belts because they are going to be lit edge-on
+        // And for rings because they scatter light
+        shader: 'flat',
+        opacity: 0.9,
+        side: 'double', 
+        wireframe: false
+      })
+    }
   })
 
   // Mount the elipse on another scene node so the little lobe (periapsis) is +X
@@ -490,7 +530,14 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
   // that around Y by the AoP. We have to move towards -X.
   let mounted1 = mount(circleNode)
   let updateMount1 = makeUpdater(mounted1, () => {
-    let budge = (orbit.apoapsis - orbit.semimajor) / mv.AU * scaleManager.get()
+    let budge
+    if (mv.hasBody(worldClass)) {
+      // We're drawing an ellipse so we need a budge
+      budge = (orbit.apoapsis - orbit.semimajor) / mv.AU * scaleManager.get()
+    } else {
+      // We're drawing a field/ring so no budge
+      budge = 0
+    }
     applyTranslateRotate(mounted1, -budge, 0, 0, 0, mv.degrees(orbit.aop), 0)
   })
 
@@ -518,6 +565,12 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
       updateMount3()
     })
   }
+
+  // Also go looking to see if we are a ring or something
+  get('worldClass').then((wc) => {
+    worldClass = wc
+    updateCircle()
+  })
 
   // When the scale changes, also update the sprite
   scaleManager.on('rescale', () => {

@@ -9,6 +9,10 @@ const mv = require('macroverse')
 
 // Make a number fixed precision, with commas
 function format(number) {
+  if (number === null) {
+    // This property is not applicable for this thing
+    return 'N/A'
+  }
   if (number > 0.01) {
     // It is big enough to do 2 digits.
     return parseFloat(number.toFixed(2)).toLocaleString()
@@ -18,8 +22,35 @@ function format(number) {
   }
 }
 
+// Format an angle in radians as degrees.
+// Handles null values for angles that don't really exist.
+function formatAngle(number) {
+  if (number === null) {
+    // This property is not applicable for this thing
+    return 'N/A'
+  }
+
+  return format(mv.degrees(number))
+}
+
+// Format a bool as yes/no
+// Handles null values for properties that don't really exist.
+function formatBool(bool) {
+  if (bool === null) {
+    // This property is not applicable for this thing
+    return 'N/A'
+  }
+
+  return bool ? 'Yes' : 'No'
+}
+
 // Given a number and two corresponding lists of units, find the best unit and display the value
 function formatWithUnits(number, unitNames, unitValues) {
+  if (number === null) {
+    // This property is not applicable for this thing
+    return 'N/A'
+  }
+  
   let bestIndex = 0
   let bestBadness = 99999
 
@@ -297,7 +328,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Inclination</td>
-            <td>${this.when(keypath + '.orbit.inclination', (x) => format(mv.degrees(x)))}&deg;</td>
+            <td>${this.when(keypath + '.orbit.inclination', (x) => formatAngle(x))}&deg;</td>
           </tr>
           <tr>
             <td rowspan="5">Climate</td>
@@ -308,15 +339,15 @@ class Infobox {
           </tr>
           <tr>
             <td>Tidally Locked?</td>
-            <td>${this.when(keypath + '.spin.isTidallyLocked', (x) => (x ? 'Yes' : 'No'), '?')}</td>
+            <td>${this.when(keypath + '.spin.isTidallyLocked', (x) => formatBool(x), '?')}</td>
           </tr>
           <tr>
             <td>Obliquity</td>
-            <td>${this.when(keypath + '.spin.axisAngleX', (x) => format(mv.degrees(x)))}&deg;</td>
+            <td>${this.when(keypath + '.spin.axisAngleX', (x) => formatAngle(x))}&deg;</td>
           </tr>
           <tr>
             <td>Ecliptic-Equator Longitude</td>
-            <td>${this.when(keypath + '.spin.axisAngleY', (x) => format(mv.degrees(x)))}&deg;</td>
+            <td>${this.when(keypath + '.spin.axisAngleY', (x) => formatAngle(x))}&deg;</td>
           </tr>
           <tr>
             <td>Rotational Period</td>
@@ -372,7 +403,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Inclination</td>
-            <td>${this.when(keypath + '.orbit.inclination', (x) => format(mv.degrees(x)))}&deg;</td>
+            <td>${this.when(keypath + '.orbit.inclination', (x) => formatAngle(x))}&deg;</td>
           </tr>
           <tr>
             <td rowspan="5">Climate</td>
@@ -383,15 +414,15 @@ class Infobox {
           </tr>
           <tr>
             <td>Tidally Locked?</td>
-            <td>${this.when(keypath + '.spin.isTidallyLocked', (x) => (x ? 'Yes' : 'No'), '?')}</td>
+            <td>${this.when(keypath + '.spin.isTidallyLocked', (x) => formatBool(x), '?')}</td>
           </tr>
           <tr>
             <td>Obliquity</td>
-            <td>${this.when(keypath + '.spin.axisAngleX', (x) => format(mv.degrees(x)))}&deg;</td>
+            <td>${this.when(keypath + '.spin.axisAngleX', (x) => formatAngle(x))}&deg;</td>
           </tr>
           <tr>
             <td>Ecliptic-Equator Longitude</td>
-            <td>${this.when(keypath + '.spin.axisAngleY', (x) => format(mv.degrees(x)))}&deg;</td>
+            <td>${this.when(keypath + '.spin.axisAngleY', (x) => formatAngle(x))}&deg;</td>
           </tr>
           <tr>
             <td>Rotational Period</td>
