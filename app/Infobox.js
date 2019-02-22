@@ -119,8 +119,19 @@ class Infobox {
     // TODO: No more than 1 Infobox per page unless we unique-ify this!
     this.nextId = 0
 
+    // Set up our list of subscriptions outstanding with the Registry
+    // We clear all of these on every show, so we don't go trying to update old page state
+    this.regSubscriptions = []
+
     // Set up listeners to context show messages, so we know what to look at
     this.ctx.on('show', (keypath) => {
+      // Clear out any current subscriptions
+      for (let sub of this.regSubscriptions) {
+        this.ctx.reg.unsubscribe(sub)
+      }
+      this.regSubscriptions = []
+
+      // Look at the keypath
       let parts = keypath.split('.')
 
       if (parts.length == 3) {
@@ -178,6 +189,29 @@ class Infobox {
       }
       root.appendChild(option)
     }
+
+    return root
+  }
+
+  
+  // Return a live updating HTML element tracking the ownership of the token represented by the given keypath.
+  // Valid until we get another show event from the context.
+  makeOwnershipWidget(keypath) {
+    let root = document.createElement('span')
+    root.innerText = 'Retrieving...'
+
+    // Listen for owner updates, and remember that we're doing so
+    this.regSubscriptions.push(this.ctx.reg.subscribe(keypath + '.owner', (owner) => {
+      // When the owner updates, plug it in
+
+      if (owner == 0 || owner == '0x0') {
+        // TODO: does the zero address equal 0?
+        root.innerText = 'Not Owned'
+      } else {
+        // It is owned by an address
+        root.innerText = owner
+      }
+    }))
 
     return root
   }
@@ -269,6 +303,10 @@ class Infobox {
           <tr>
             <td>Planets</td>
             <td>${this.when(keypath + '.planetCount')}</td>
+          </tr>
+          <tr>
+            <td>Owner</td>
+            <td>${this.placeDomNode(this.makeOwnershipWidget(keypath))}</td>
           </tr>
           <tr>
             <td>Children</td>
@@ -490,6 +528,35 @@ class Infobox {
     // TODO: We assume the throbber makes it on to the actual page before the event handler can possibly run
     return throbber
   }
+
+  // Return a string to be added to the DOM. When the string is added to the
+  // DOM on the current JS tick, it will be replaced with the DOM node passed
+  // to this function on the next tick.
+  // Hacky DOM node embedding for template literals, so events can come along.
+  // TODO: Maybe we should just port this whole thing to React or something.
+  placeDomNode(node) {
+    // Come up with a unique HTML ID for the element we will return.
+    let id = 'infobox-placeDomNode-' + this.nextId
+    this.nextId++
+
+    timers.setImmediate(() => {
+      // On the next tick, after our text is in the DOM...
+
+      // Find it
+      let waiting = document.getElementById(id)
+      if (waiting) {
+        // Put the actual DOM node we want to embed before it
+        waiting.parentNode.insertBefore(node, waiting)
+        // Remove the placeholder
+        waiting.parentNode.removeChild(waiting)
+      }
+    })
+
+    // Return text to make the element we are going to look for.
+    return `<span id="${id}"></span>`
+  }
+
+
 }
 
 

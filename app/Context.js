@@ -9,8 +9,12 @@ const eth = require('./eth.js')
 // And the event emitter which we use to be a bus for global navigation events
 const { EventEmitter2 } = require('eventemitter2')
 
-// And the datasource we are replacing them with
+// And the datasource, which lets us see fixed properties of the Macroverse world 
 const Datasource = require('./Datasource.js')
+
+// And the Registry, which handles real estate token ownership and commitments
+// And the datasource we are replacing them with
+const Registry = require('./Registry.js')
 
 // The actual context class. External interface.
 // Users should listen to the 'show' event for keypaths to draw, and raise it when they want to navigate.
@@ -21,10 +25,6 @@ class Context extends EventEmitter2 {
 
     // Save the base path
     this.basePath = basePath
-
-    // Set up some fields for the caches
-    this.stars = undefined
-    this.planets = undefined
 
     // Say we aren't initializing yet
     this.initPromise = undefined
@@ -41,25 +41,15 @@ class Context extends EventEmitter2 {
       this.initPromise = (async () => {
         // Do the actual init work here.
 
-        // Find the MacroverseStarGenerator instance
-        let MacroverseStarGenerator = await eth.get_instance(this.getContractPath('MacroverseStarGenerator'))
-
-        // And the generator for planets (which fills in some more star properties relevant for planets)
-        let MacroverseSystemGenerator = await eth.get_instance(this.getContractPath('MacroverseSystemGenerator'))
-        
         // Make a Datasource
         this.ds = await Datasource(this.basePath)
+
+        // And a Registry
+        this.reg = await Registry(this.basePath)
 
       })()
     }
     return this.initPromise
-  }
-
-  // Get the full relative URL to the JSON file for the contract, given its name (e.g. MacroverseStarGenerator).
-  getContractPath(contractName) {
-    // Only use the separating slash if we have a path component to separate from.
-    // Otherwise we would be asking for /whatever.json at the web server root.
-    return this.basePath + (this.basePath != '' ? '/' : '') + contractName + '.json'
   }
 
 }
