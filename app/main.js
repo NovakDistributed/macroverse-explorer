@@ -418,6 +418,7 @@ async function main() {
 
   console.log("Using star generator: " + ctx.ds.star.address)
   console.log("Using system generator: " + ctx.ds.sys.address)
+  console.log("Using registry: " + ctx.reg.reg.address)
 
   // Make an infobox object with access to the data source
   // It will look up values for whatever we tell it to display

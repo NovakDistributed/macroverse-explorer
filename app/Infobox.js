@@ -206,7 +206,22 @@ class Infobox {
 
       if (owner == 0 || owner == '0x0') {
         // TODO: does the zero address equal 0?
-        root.innerText = 'Not Owned'
+        root.innerText = ''
+        let claimButton = document.createElement('button')
+        claimButton.innerText = 'Claim'
+        root.appendChild(claimButton)
+
+        claimButton.addEventListener('click', async () => {
+          // When someone clicks the claim button, start making a claim for them.
+          let hash = await ctx.reg.createClaim(keypath, mv.getMinimumDeposit(keypath))
+          
+          // Advance time for 2 days which should be enough.
+          // TODO: Detect we're testing and only try this then?
+          await mv.advanceTime(60 * 24 * 2)
+
+          // Reveal.
+          await ctx.reg.revealClaim(hash)
+        })
       } else {
         // It is owned by an address
         root.innerText = owner
@@ -392,6 +407,10 @@ class Infobox {
             <td>${this.when(keypath + '.spin.period', (x) => formatTime(x), '???? D')}</td>
           </tr>
           <tr>
+            <td>Owner</td>
+            <td colspan="2">${this.placeDomNode(this.makeOwnershipWidget(keypath))}</td>
+          </tr>
+          <tr>
             <td>Children</td>
             <td colspan="2">${this.when(keypath + '.moonCount', (x) => this.makeChildPicker(keypath, x, moonDescriptionCallback))}</td>
           </td>
@@ -465,6 +484,10 @@ class Infobox {
           <tr>
             <td>Rotational Period</td>
             <td>${this.when(keypath + '.spin.period', (x) => formatTime(x), '???? D')}</td>
+          </tr>
+          <tr>
+            <td>Owner</td>
+            <td colspan="2">${this.placeDomNode(this.makeOwnershipWidget(keypath))}</td>
           </tr>
         </table>
       </div>

@@ -34,6 +34,8 @@ class Registry extends EventEmitter2 {
 
     // Make a place to put the registry contract 
     this.reg = undefined
+    // And the MRV token contract for approvals
+    this.mrv = undefined
 
     // Make a cache from keypath to last known value.
     // We only do in memory cacheing; we get everything from the chain on every run since it's not much data.
@@ -62,7 +64,8 @@ class Registry extends EventEmitter2 {
         // Do the actual init work here.
 
         // Find the registry instance
-        this.reg = await eth.get_instance(this.getContractPath('MacroverseUniversalRegistry'))
+        [this.reg, this.mrv] = await Promise.all([eth.get_instance(this.getContractPath('MacroverseUniversalRegistry')),
+          eth.get_instance(this.getContractPath('MRVToken'))])
       })()
     }
     return this.initPromise
@@ -83,8 +86,6 @@ class Registry extends EventEmitter2 {
   // May not be called multiple times for the same event and function without
   // intervening unsubscribe calls.
   subscribe(keypath, handler) {
-    console.log('Subscribing to ' + keypath, handler)
-
     // Listen for the event
     this.on(keypath, handler)
 
@@ -213,6 +214,112 @@ class Registry extends EventEmitter2 {
     this.watchers[keypath].stopWatching()
     this.watchers[keypath] = undefined
   }
+
+  // Now we have a bunch of code to work with claims.
+  // We locally store (in local storage) the keypath and nonce for every claim, by hash.
+  // We also collect the commitment ID for the hash when we get a chance, by querying the events.
+  // For now we don't implement recovery/searching for claims we don't have in local storage
+
+  // Make a claim for the given keypath. Prompt the user to approve the transaction and send it to the chain.
+  // Record the nonce locally for the keypath, and if/when the claim gets an ID, record that too.
+  // We only let you have one claim for a given keypath at a time.
+  // Deposit must be a BigNumber.
+  // Returns the hash that identifies the claim.
+  async createClaim(keypath, deposit) {
+
+    // Work out our account
+    let account = await eth.get_account()
+
+    // Pack up the token
+    let token = mv.keypathToToken(keypath)
+
+    // Roll a random secret nonce
+    let nonce = mv.generateNonce()
+    
+    // Compute a hash
+    let data_hash = mv.hashTokenAndNonce(token, nonce)
+
+    console.log('Token: 0x' + token.toString(16))
+    console.log('Nonce: 0x' + nonce.toString(16))
+    console.log('Hash: ' + data_hash)
+    console.log('Deposit: ' + deposit.toString())
+
+    // Save all this stuff to local storage under the hash.
+    // If we lose these, all we can do is cancel the commitment, if we can even find it.
+    window.localStorage.setItem('commitment.' + data_hash + '.token', '0x' + token.toString(16))
+    window.localStorage.setItem('commitment.' + data_hash + '.nonce', '0x' + nonce.toString(16))
+    window.localStorage.setItem('commitment.' + data_hash + '.account', account)
+
+    console.log('Approving deposit transfer by ' + this.reg.address)
+
+    // Prompt for the approve transaction on the ERC20, for the deposit
+    // This always seems to work with the default gas.
+    await this.mrv.approve(this.reg.address, deposit, {from: account})
+
+    console.log('Approved deposit')
+
+    // Now the deposit approval is mined.
+
+    // Estimate commitment gas.
+    // truffle-contract is too conservative (gives the conserved gas exactly,
+    // which makes us hit 0) so we double it.
+    let gas = await this.reg.commit.estimateGas(data_hash, deposit, {from: account}) * 2
+
+    console.log('Commitment will probably take ' + gas + ' gas')
+
+    // Make a place for the commitment ID when we see the event for it
+    let commitment_id
+
+    // Watch commit events
+    // TODO: restrict by hash so we can always find the ID for a hash if it took.
+    let filter = this.reg.Commit({owner: account}, { fromBlock: 'latest', toBlock: 'latest'})
+    filter.watch((error, event_report) => { 
+      if (event_report.event == 'Commit' && event_report.args.owner == account) {
+        // We did a commit.
+        // TODO: Distinguish it from any other attempt we are simultaneously making to commit.
+        // Include the hash in the event?
+        // Remember the ID we observed
+        commitment_id = event_report.args.commitment_id.toNumber()
+      }
+    })
+
+    // Commit for it
+    await this.reg.commit(data_hash, deposit, {from: account, gas: gas})
+
+    console.log('Commitment ID received: ', commitment_id)
+
+    // Save the ID the commitment received. If we don't have it later we'll have to go looking for it.
+    window.localStorage.setItem('commitment.' + data_hash + '.id', commitment_id)
+
+    return data_hash
+  }
+
+  // Given the hash used to create a (successfully finished) claim, do the reveal.
+  // Fails if the claim has not matured
+  async revealClaim(data_hash) {
+    // Load from local storage
+    let id = window.localStorage.getItem('commitment.' + data_hash + '.id')
+    let token = window.localStorage.getItem('commitment.' + data_hash + '.token')
+    let nonce = window.localStorage.getItem('commitment.' + data_hash + '.nonce')
+    let account = window.localStorage.getItem('commitment.' + data_hash + '.account')
+
+    console.log('Commitment: ' + id)
+    console.log('Token: ' + token)
+    console.log('Nonce: ' + nonce)
+    console.log('Hash: ' + data_hash)
+
+    let gas = await this.reg.reveal.estimateGas(id, token, nonce, {from: account}) * 2
+
+    console.log('Reveal will probably take ' + gas + ' gas')
+
+    await this.reg.reveal(id, token, nonce, {from: account, gas: gas})
+
+    console.log('Commitment revealed successfully')
+  }
+
+  
+
+
 
 }
 
