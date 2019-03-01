@@ -222,7 +222,6 @@ class Registry extends EventEmitter2 {
 
   // Make a claim for the given keypath. Prompt the user to approve the transaction and send it to the chain.
   // Record the nonce locally for the keypath, and if/when the claim gets an ID, record that too.
-  // We only let you have one claim for a given keypath at a time.
   // Deposit must be a BigNumber.
   // Returns the hash that identifies the claim.
   async createClaim(keypath, deposit) {
@@ -267,52 +266,31 @@ class Registry extends EventEmitter2 {
 
     console.log('Commitment will probably take ' + gas + ' gas')
 
-    // Make a place for the commitment ID when we see the event for it
-    let commitment_id
-
-    // Watch commit events
-    // TODO: restrict by hash so we can always find the ID for a hash if it took.
-    let filter = this.reg.Commit({owner: account}, { fromBlock: 'latest', toBlock: 'latest'})
-    filter.watch((error, event_report) => { 
-      if (event_report.event == 'Commit' && event_report.args.owner == account) {
-        // We did a commit.
-        // TODO: Distinguish it from any other attempt we are simultaneously making to commit.
-        // Include the hash in the event?
-        // Remember the ID we observed
-        commitment_id = event_report.args.commitment_id.toNumber()
-      }
-    })
-
     // Commit for it
     await this.reg.commit(data_hash, deposit, {from: account, gas: gas})
 
-    console.log('Commitment ID received: ', commitment_id)
-
-    // Save the ID the commitment received. If we don't have it later we'll have to go looking for it.
-    window.localStorage.setItem('commitment.' + data_hash + '.id', commitment_id)
+    console.log('Commitment made')
 
     return data_hash
   }
 
-  // Given the hash used to create a (successfully finished) claim, do the reveal.
-  // Fails if the claim has not matured
+  // Given the hash used to create a (successfully made) claim, do the reveal.
+  // Fails if the claim has not matured or has expired
   async revealClaim(data_hash) {
     // Load from local storage
-    let id = window.localStorage.getItem('commitment.' + data_hash + '.id')
     let token = window.localStorage.getItem('commitment.' + data_hash + '.token')
     let nonce = window.localStorage.getItem('commitment.' + data_hash + '.nonce')
     let account = window.localStorage.getItem('commitment.' + data_hash + '.account')
 
-    console.log('Commitment: ' + id)
     console.log('Token: ' + token)
     console.log('Nonce: ' + nonce)
     console.log('Hash: ' + data_hash)
 
-    let gas = await this.reg.reveal.estimateGas(id, token, nonce, {from: account}) * 2
+    let gas = await this.reg.reveal.estimateGas(token, nonce, {from: account}) * 2
 
     console.log('Reveal will probably take ' + gas + ' gas')
 
-    await this.reg.reveal(id, token, nonce, {from: account, gas: gas})
+    await this.reg.reveal(token, nonce, {from: account, gas: gas})
 
     console.log('Commitment revealed successfully')
   }

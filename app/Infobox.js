@@ -215,9 +215,8 @@ class Infobox {
           // When someone clicks the claim button, start making a claim for them.
           let hash = await ctx.reg.createClaim(keypath, mv.getMinimumDeposit(keypath))
           
-          // Advance time for 2 days which should be enough.
-          // TODO: Detect we're testing and only try this then?
-          await mv.advanceTime(60 * 24 * 2)
+          // Advance time for 1 *minute*, which is enough for our sped-up testing deployment
+          await mv.advanceTime(1)
 
           // Reveal.
           await ctx.reg.revealClaim(hash)

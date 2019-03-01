@@ -42,7 +42,7 @@ module.exports = function(deployer, network, accounts) {
     }).then(function() {
       return deployer.deploy(MacroverseMoonGenerator, MinimumBalanceAccessControl.address)
     }).then(function() {
-      return deployer.deploy(MacroverseUniversalRegistry, MRVToken.address, web3.toWei(1000, "ether"))
+      return deployer.deploy(MacroverseUniversalRegistry, MRVToken.address, web3.toWei(1000, "ether"), 60)
     }).then(function() {
       console.log("Macroverse deployed!")
     })
