@@ -86,6 +86,8 @@ class Registry extends EventEmitter2 {
   // May not be called multiple times for the same event and function without
   // intervening unsubscribe calls.
   subscribe(keypath, handler) {
+    console.log('Subscribing to ' + keypath)
+
     // Listen for the event
     this.on(keypath, handler)
 
@@ -163,14 +165,26 @@ class Registry extends EventEmitter2 {
       // Pack the token value
       let token = mv.keypathToToken(parentOf(keypath))
 
-      // TODO: We need a method we can call to get the owner that will succeed eevn if the token is nonexistent.
-      // Or we need a good way to tell a throw in the contract code from a failure to talk to the Ethereum node.
-      let token_owner = await this.reg.ownerOf(token).catch((err) => {
-        console.log('Error getting owner, assuming unowned', err)
+      // Decide if it should have an owner right now
+      let owned = await this.reg.exists(token);
+
+      if (owned) {
+        // We think it is owned
+
+        let token_owner = await this.reg.ownerOf(token).catch((err) => {
+          // Maybe it became unowned while we were looking at it
+          console.log('Error getting owner, assuming unowned', err)
+          return 0
+        })
+
+        return token_owner
+
+      } else {
+        // It doesn't appear to have an owner
         return 0
-      })
+      }
       
-      return token_owner
+      
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -179,6 +193,8 @@ class Registry extends EventEmitter2 {
   // Start listening for Ethereum events that back the given keypath. When they
   // arrive, fire the keypath's event with the appropriate value.
   watchChain(keypath) {
+    console.log('Watching chain for changes to ' + keypath)
+
     if (this.watchers[keypath] !== undefined) {
       throw new Error('Trying to double-watch ' + keypath)
     }
@@ -188,13 +204,16 @@ class Registry extends EventEmitter2 {
       // Pack the token value
       let token = mv.keypathToToken(parentOf(keypath))
 
-      // Set up a filter for the transfer of this token from here on out
+      // Set up a filter for the transfer of this token from here on out.
+      // Note: this also catches any events in the current top block when we make it
       let filter = this.reg.Transfer({'tokenId': token}, { fromBlock: 'latest', toBlock: 'latest'})
       filter.watch((error, event_report) => {
-        if (event_report.event == 'Transfer' && event_report.args.tokenId == token) {
-          // This actually should have passed the filter. Emit the to address.
-          this.emit(keypath, event_report.args.to)
+        console.log('Saw event: ', event_report)
+        if (event_report.type != 'mined') {
+          // This transaction hasn't confirmed, so ignore it
+          return
         }
+        this.emit(keypath, event_report.args.to)
       })
 
       // Remember the filter so we can stop watching.

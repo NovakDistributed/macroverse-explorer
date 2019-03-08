@@ -7,6 +7,9 @@ const { parentOf, lastComponent } = require('./keypath.js')
 
 const mv = require('macroverse')
 
+// Load up the web3 wrapper so we can get our own address
+const eth = require('./eth.js')
+
 // Make a number fixed precision, with commas
 function format(number) {
   if (number === null) {
@@ -203,6 +206,7 @@ class Infobox {
     // Listen for owner updates, and remember that we're doing so
     this.regSubscriptions.push(this.ctx.reg.subscribe(keypath + '.owner', (owner) => {
       // When the owner updates, plug it in
+      console.log('Owner of ' + keypath + ' changed to ' + owner)
 
       if (owner == 0 || owner == '0x0') {
         // TODO: does the zero address equal 0?
@@ -221,6 +225,9 @@ class Infobox {
           // Reveal.
           await ctx.reg.revealClaim(hash)
         })
+      } else if (owner == eth.get_account()) {
+        // It is owned by us
+        root.innerText = 'You'
       } else {
         // It is owned by an address
         root.innerText = owner
