@@ -255,9 +255,8 @@ class Registry extends EventEmitter2 {
   }
 
   // Make a claim for the given keypath. Prompt the user to approve the transaction and send it to the chain.
-  // Record the nonce locally for the keypath, and if/when the claim gets an ID, record that too.
-  // Deposit must be a BigNumber.
-  // Returns the hash that identifies the claim.
+  // Deposit must be a BigNumber and already approved.
+  // Returns an object containing: token, nonce, account
   async createClaim(keypath, deposit) {
 
     // Work out our account
@@ -283,11 +282,6 @@ class Registry extends EventEmitter2 {
     window.localStorage.setItem('commitment.' + data_hash + '.nonce', '0x' + nonce.toString(16))
     window.localStorage.setItem('commitment.' + data_hash + '.account', account)
 
-    // Approve the deposit
-    await approveDeposit(deposit)
-
-    // Now the deposit approval is mined.
-
     // Estimate commitment gas.
     // truffle-contract is too conservative (gives the conserved gas exactly,
     // which makes us hit 0) so we double it.
@@ -300,7 +294,7 @@ class Registry extends EventEmitter2 {
 
     console.log('Commitment made')
 
-    return data_hash
+    return {token, nonce, account}
   }
 
   // Given the hash used to create a (successfully made) claim, do the reveal.
