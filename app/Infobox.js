@@ -7,6 +7,9 @@ const { parentOf, lastComponent } = require('./keypath.js')
 
 const mv = require('macroverse')
 
+// Load up our reactive web framework
+const { placeDomNode } = require('./halfact.js')
+
 // Load up the web3 wrapper so we can get our own address
 const eth = require('./eth.js')
 
@@ -216,7 +219,12 @@ class Infobox {
         root.appendChild(claimButton)
 
         claimButton.addEventListener('click', async () => {
-          // When someone clicks the claim button, start making a claim for them.
+
+          ctx.wallet.showCommitDialog(keypath)
+
+          return
+
+          // When someone clicks the claim button, make a dialog from the wallet that will walk them through committing
           let hash = await ctx.reg.createClaim(keypath, mv.getMinimumDeposit(keypath))
           
           // Advance time for 1 *minute*, which is enough for our sped-up testing deployment
@@ -327,7 +335,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Owner</td>
-            <td>${this.placeDomNode(this.makeOwnershipWidget(keypath))}</td>
+            <td>${placeDomNode(this.makeOwnershipWidget(keypath))}</td>
           </tr>
           <tr>
             <td>Children</td>
@@ -414,7 +422,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Owner</td>
-            <td colspan="2">${this.placeDomNode(this.makeOwnershipWidget(keypath))}</td>
+            <td colspan="2">${placeDomNode(this.makeOwnershipWidget(keypath))}</td>
           </tr>
           <tr>
             <td>Children</td>
@@ -493,7 +501,7 @@ class Infobox {
           </tr>
           <tr>
             <td>Owner</td>
-            <td colspan="2">${this.placeDomNode(this.makeOwnershipWidget(keypath))}</td>
+            <td colspan="2">${placeDomNode(this.makeOwnershipWidget(keypath))}</td>
           </tr>
         </table>
       </div>
@@ -557,34 +565,6 @@ class Infobox {
     // TODO: We assume the throbber makes it on to the actual page before the event handler can possibly run
     return throbber
   }
-
-  // Return a string to be added to the DOM. When the string is added to the
-  // DOM on the current JS tick, it will be replaced with the DOM node passed
-  // to this function on the next tick.
-  // Hacky DOM node embedding for template literals, so events can come along.
-  // TODO: Maybe we should just port this whole thing to React or something.
-  placeDomNode(node) {
-    // Come up with a unique HTML ID for the element we will return.
-    let id = 'infobox-placeDomNode-' + this.nextId
-    this.nextId++
-
-    timers.setImmediate(() => {
-      // On the next tick, after our text is in the DOM...
-
-      // Find it
-      let waiting = document.getElementById(id)
-      if (waiting) {
-        // Put the actual DOM node we want to embed before it
-        waiting.parentNode.insertBefore(node, waiting)
-        // Remove the placeholder
-        waiting.parentNode.removeChild(waiting)
-      }
-    })
-
-    // Return text to make the element we are going to look for.
-    return `<span id="${id}"></span>`
-  }
-
 
 }
 

@@ -16,6 +16,9 @@ const Datasource = require('./Datasource.js')
 // And the datasource we are replacing them with
 const Registry = require('./Registry.js')
 
+// Add the Wallet UI server
+const Wallet = require('./Wallet.js')
+
 // The actual context class. External interface.
 // Users should listen to the 'show' event for keypaths to draw, and raise it when they want to navigate.
 class Context extends EventEmitter2 {
@@ -46,6 +49,9 @@ class Context extends EventEmitter2 {
 
         // And a Registry
         this.reg = await Registry(this.basePath)
+
+        // Add a Wallet UI
+        this.wallet = new Wallet(this)
 
       })()
     }

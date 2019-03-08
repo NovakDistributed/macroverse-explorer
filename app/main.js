@@ -22,6 +22,7 @@ const {desynchronize} = require('./robust.js')
 const sprites = require('./sprites.js')
 const Infobox = require('./Infobox.js')
 const {parentOf, keypathToId} = require('./keypath.js')
+const dialog = require('./dialog.js')
 
 /// Make a promise that waits for the given number of ms and then resolves
 function sleep(time) {

@@ -2,6 +2,7 @@
 /// which allows subscribing to ownership update events for token keypaths,
 /// creating, revealing, and canceling commitments, and sending ERC721 tokens
 /// representing Macroverse virtual real estate.
+/// Also handles making MRV transactions and reporting MRV balances.
 
 // Load up the facade over web3 and truffle-contract
 const eth = require('./eth.js')
@@ -239,6 +240,20 @@ class Registry extends EventEmitter2 {
   // We also collect the commitment ID for the hash when we get a chance, by querying the events.
   // For now we don't implement recovery/searching for claims we don't have in local storage
 
+  // Approve a certain number of MRV (in MRV-wei) as a deposit with the registry
+  async approveDeposit(deposit) {
+    // Work out our account
+    let account = await eth.get_account()
+
+    console.log('Approving deposit transfer by ' + this.reg.address)
+
+    // Prompt for the approve transaction on the ERC20, for the deposit
+    // This always seems to work with the default gas.
+    await this.mrv.approve(this.reg.address, deposit, {from: account})
+
+    console.log('Approved deposit')
+  }
+
   // Make a claim for the given keypath. Prompt the user to approve the transaction and send it to the chain.
   // Record the nonce locally for the keypath, and if/when the claim gets an ID, record that too.
   // Deposit must be a BigNumber.
@@ -268,13 +283,8 @@ class Registry extends EventEmitter2 {
     window.localStorage.setItem('commitment.' + data_hash + '.nonce', '0x' + nonce.toString(16))
     window.localStorage.setItem('commitment.' + data_hash + '.account', account)
 
-    console.log('Approving deposit transfer by ' + this.reg.address)
-
-    // Prompt for the approve transaction on the ERC20, for the deposit
-    // This always seems to work with the default gas.
-    await this.mrv.approve(this.reg.address, deposit, {from: account})
-
-    console.log('Approved deposit')
+    // Approve the deposit
+    await approveDeposit(deposit)
 
     // Now the deposit approval is mined.
 
