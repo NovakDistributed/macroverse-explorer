@@ -14,7 +14,7 @@ const { placeDomNode } = require('./halfact.js')
 const eth = require('./eth.js')
 
 // Make a number fixed precision, with commas
-function format(number) {
+function formatNumber(number) {
   if (number === null) {
     // This property is not applicable for this thing
     return 'N/A'
@@ -36,7 +36,7 @@ function formatAngle(number) {
     return 'N/A'
   }
 
-  return format(mv.degrees(number))
+  return formatNumber(mv.degrees(number))
 }
 
 // Format a bool as yes/no
@@ -75,7 +75,7 @@ function formatWithUnits(number, unitNames, unitValues) {
     }
   }
   // Format in the given unit
-  return format(number / unitValues[bestIndex]) + ' ' + unitNames[bestIndex]
+  return formatNumber(number / unitValues[bestIndex]) + ' ' + unitNames[bestIndex]
   
 }
 
@@ -131,11 +131,8 @@ class Infobox {
 
     // Set up listeners to context show messages, so we know what to look at
     this.ctx.on('show', (keypath) => {
-      // Clear out any current subscriptions
-      for (let sub of this.regSubscriptions) {
-        this.ctx.reg.unsubscribe(sub)
-      }
-      this.regSubscriptions = []
+      // Clear out registry subscriptions from whatever we were showing before
+      this.clearSubscriptions()  
 
       // Look at the keypath
       let parts = keypath.split('.')
@@ -154,6 +151,14 @@ class Infobox {
         this.showMoon(keypath)
       }
     })
+  }
+
+  /// Clear out any current registry subscriptions.
+  clearSubscriptions() {
+    for (let sub of this.regSubscriptions) {
+      this.ctx.reg.unsubscribe(sub)
+    }
+    this.regSubscriptions = []
   }
 
   // Everything that needs a child picker can use this one
@@ -219,19 +224,7 @@ class Infobox {
         root.appendChild(claimButton)
 
         claimButton.addEventListener('click', async () => {
-
           ctx.wallet.showCommitDialog(keypath)
-
-          return
-
-          // When someone clicks the claim button, make a dialog from the wallet that will walk them through committing
-          let hash = await ctx.reg.createClaim(keypath, mv.getMinimumDeposit(keypath))
-          
-          // Advance time for 1 *minute*, which is enough for our sped-up testing deployment
-          await mv.advanceTime(1)
-
-          // Reveal.
-          await ctx.reg.revealClaim(hash)
         })
       } else if (owner == eth.get_account()) {
         // It is owned by us
@@ -318,16 +311,16 @@ class Infobox {
           </tr>
           <tr>
             <td>Mass</td>
-            <td>${this.when(keypath + '.objMass', (x) => format(x))} M<sub>☉</sub></td>
+            <td>${this.when(keypath + '.objMass', (x) => formatNumber(x))} M<sub>☉</sub></td>
           </tr>
           <tr>
             <td>Luminosity</td>
-            <td>${this.when(keypath + '.luminosity', (x) => format(x))} L<sub>☉</sub></td>
+            <td>${this.when(keypath + '.luminosity', (x) => formatNumber(x))} L<sub>☉</sub></td>
           </tr>
           <tr>
             <td>Habitable Zone</td>
-            <td>${this.when(keypath + '.habitableZone.start', (x) => format(x / mv.AU))} - 
-            ${this.when(keypath + '.habitableZone.end', (x) => format(x / mv.AU))} AU</td>
+            <td>${this.when(keypath + '.habitableZone.start', (x) => formatNumber(x / mv.AU))} - 
+            ${this.when(keypath + '.habitableZone.end', (x) => formatNumber(x / mv.AU))} AU</td>
           </tr>
           <tr>
             <td>Planets</td>
@@ -401,8 +394,8 @@ class Infobox {
             <td rowspan="5">Climate</td>
             <td>Normal Irradiance</td>
             <!-- Earth is like 1.3-1.5k or something -->
-            <td>${this.when(keypath + '.apoapsisIrradiance', (x) => format(x))} -
-            ${this.when(keypath + '.periapsisIrradiance', (x) => format(x))} W/m<sup>2</sup></td>
+            <td>${this.when(keypath + '.apoapsisIrradiance', (x) => formatNumber(x))} -
+            ${this.when(keypath + '.periapsisIrradiance', (x) => formatNumber(x))} W/m<sup>2</sup></td>
           </tr>
           <tr>
             <td>Tidally Locked?</td>
@@ -480,8 +473,8 @@ class Infobox {
             <td rowspan="5">Climate</td>
             <td>Normal Irradiance</td>
             <!-- Earth is like 1.3-1.5k or something -->
-            <td>${this.when(keypath + '.apoapsisIrradiance', (x) => format(x))} -
-            ${this.when(keypath + '.periapsisIrradiance', (x) => format(x))} W/m<sup>2</sup></td>
+            <td>${this.when(keypath + '.apoapsisIrradiance', (x) => formatNumber(x))} -
+            ${this.when(keypath + '.periapsisIrradiance', (x) => formatNumber(x))} W/m<sup>2</sup></td>
           </tr>
           <tr>
             <td>Tidally Locked?</td>

@@ -539,6 +539,11 @@ async function main() {
   window.onhashchange = () => {
     ctx.emit('show', location.hash.substr(1))
   }
+
+  // Hook up the wallet open handler
+  document.getElementById('wallet-tool').addEventListener('click', () => {
+    ctx.wallet.showWalletDialog()
+  })
   
   // Expose context for debugging
   window.ctx = ctx

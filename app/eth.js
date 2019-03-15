@@ -23,6 +23,7 @@ const fetch = window.fetch
 function create_provider() {
   const TRUFFLE_DEVELOP_URL='http://localhost:9545'
   // TODO: sometimes use real in-browser web3
+  console.log('Creating provider for url ' + TRUFFLE_DEVELOP_URL)
   return new Web3.providers.HttpProvider(TRUFFLE_DEVELOP_URL)
 }
 

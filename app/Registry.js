@@ -46,7 +46,8 @@ class Registry extends EventEmitter2 {
     // can know when to create/destroy Ethereum listeners.
     this.subscriberCount = {}
 
-    // This holds outstanding Ethereum watch filters by the keypath they back
+    // This holds outstanding Ethereum watch filters by the keypath they back.
+    // Each entry is an array because more than one filter may be necessary to support a keypath.
     this.watchers = {}
 
     // Say we aren't initializing yet
@@ -89,8 +90,17 @@ class Registry extends EventEmitter2 {
   subscribe(keypath, handler) {
     console.log('Subscribing to ' + keypath)
 
+    // Wrap the handler to report errors
+    let wrappedHandler = (val) => {
+      try {
+        handler(val)
+      } catch (err) {
+        console.error('Error in Registry subscriber for ' + keypath + ':', err)
+      }
+    }
+
     // Listen for the event
-    this.on(keypath, handler)
+    this.on(keypath, wrappedHandler)
 
     if (this.subscriberCount[keypath]) {
       // This keypath is already being listened to
@@ -104,9 +114,12 @@ class Registry extends EventEmitter2 {
 
     if (this.cache.hasOwnProperty(keypath)) {
       // If we have the current value cached, emit it at once.
+      console.log('Registry has ' + keypath + ' in cache')
       this.emit(keypath, this.cache[keypath])
     } else {
       // We don't have it
+
+      console.log('Registry needs to go get ' + keypath)
 
       // See if that fires before we can get an initial value
       let gotValueAlready = false
@@ -129,12 +142,10 @@ class Registry extends EventEmitter2 {
       })
     }
 
-    // If we aren't listening for the appropriate backing events from the blockchain, do it
-
     // The subscription is just the keypath and the handler, because the
     // backing EventEmitter2 has each function subscribe to each event up to
     // once.
-    return [keypath, handler]
+    return [keypath, wrappedHandler]
 
   }
 
@@ -153,6 +164,8 @@ class Registry extends EventEmitter2 {
       // Stop listening for updates to the item from the chain
       this.unwatchChain(keypath)
       this.subscriberCount[keypath] = 0
+      // Clear the cache since it is no longer being kept up to date
+      delete this.cache[keypath]
     } else {
       // The client has gotten confused in matching their subscribes and unsubscribes
       throw new Error('Too many unsubscribes for event ' + keypath)
@@ -161,6 +174,7 @@ class Registry extends EventEmitter2 {
 
   // Return a promise for the value represented by the given keypath
   async retrieveFromChain(keypath) {
+    console.log('Getting initial value for ' + keypath)
     if (lastComponent(keypath) == 'owner') {
       // We want the owner of something
       // Pack the token value
@@ -184,8 +198,9 @@ class Registry extends EventEmitter2 {
         // It doesn't appear to have an owner
         return 0
       }
-      
-      
+    } else if (keypath == 'mrv.balance') {
+      let balance = await this.mrv.balanceOf(eth.get_account())
+      return balance
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -214,11 +229,36 @@ class Registry extends EventEmitter2 {
           // This transaction hasn't confirmed, so ignore it
           return
         }
-        this.emit(keypath, event_report.args.to)
+        let val = event_report.args.to
+        this.cache[keypath] = val
+        this.emit(keypath, val)
       })
 
       // Remember the filter so we can stop watching.
-      this.watchers[keypath] = filter
+      this.watchers[keypath] = [filter]
+    } else if (keypath == 'mrv.balance') {
+      // Watch the user's MRV balance.
+      // We have to filter separately for in and out transactions
+      let in_filter = this.mrv.Transfer({to: eth.get_account()}, { fromBlock: 'latest', toBlock: 'latest'})
+      let out_filter = this.mrv.Transfer({from: eth.get_account()}, { fromBlock: 'latest', toBlock: 'latest'})
+      
+      // On either event, update the balance
+      let handle_event = async (error, event_report) => {
+        console.log('Saw event: ', event_report)
+        if (event_report.type != 'mined') {
+          // This transaction hasn't confirmed, so ignore it
+          return
+        }
+        // Just query the balance again to update instead of doing real tracking.
+        let val = await this.mrv.balanceOf(eth.get_account())
+        this.cache[keypath] = val
+        this.emit(keypath, val)
+      }
+      in_filter.watch(handle_event)
+      out_filter.watch(handle_event)
+
+      // Register filters for deactivation
+      this.watchers[keypath] = [in_filter, out_filter]
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -230,8 +270,12 @@ class Registry extends EventEmitter2 {
       throw new Error('Trying to unwatch unwatched ' + keypath)
     }
 
-    // Stop and clear out the watcher
-    this.watchers[keypath].stopWatching()
+    for (let watcher of this.watchers[keypath]) {
+      // Stop all the watchers
+      watcher.stopWatching()
+    }
+
+    // Claer them out
     this.watchers[keypath] = undefined
   }
 
@@ -239,6 +283,20 @@ class Registry extends EventEmitter2 {
   // We locally store (in local storage) the keypath and nonce for every claim, by hash.
   // We also collect the commitment ID for the hash when we get a chance, by querying the events.
   // For now we don't implement recovery/searching for claims we don't have in local storage
+
+  // Send a certain number of MRV (in MRV-wei) to an arbitrary address
+  async sendMRV(destination, wei) {
+    // Work out our account
+    let account = await eth.get_account()
+
+    console.log('Sending ' + wei + ' wei from ' + account + ' to ' + destination)
+
+    // Prompt for the transfer transaction on the ERC20
+    // This always seems to work with the default gas.
+    let receipt = await this.mrv.transfer(destination, wei, {from: account})
+
+    console.log('Transfer receipt: ', receipt)
+  }
 
   // Approve a certain number of MRV (in MRV-wei) as a deposit with the registry
   async approveDeposit(deposit) {
