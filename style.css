@@ -1,5 +1,11 @@
 :root {
-  --infobox-width: 300px;
+  /* How wide is our sidebar next to the 3d view? */
+  --sidebar-width: 300px;
+  /* How tall is the toolbar at the bottom of the sidebar? */
+  --toolbar-height: 25px;
+  /* How tall are the infobox and dialog headers? */
+  --header-height: 25px;
+  /* What is our color scheme? */
   --dark: #333;
   --light: #fff;
 }
@@ -18,15 +24,43 @@ body {
   top: 0;
   left: 0;
   bottom: 0;
-  width: calc(100% - var(--infobox-width));
+  width: calc(100% - var(--sidebar-width));
+}
+
+#sidebar {
+  position: absolute;
+  width: var(--sidebar-width);
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border: 1px solid var(--dark);
+}
+
+#toolbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--toolbar-height);
+  color: var(--light);
+  background-color: var(--dark);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.toolbar-tool {
+  margin-left: 2px;
+  height: calc(var(--toolbar-height) - 4px);
 }
 
 #infobox {
   position: absolute;
-  width: var(--infobox-width);
+  left: 0;
   top: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--toolbar-height);
   border: 1px solid var(--dark);
 }
 
@@ -35,21 +69,21 @@ body {
   background-color: var(--dark);
   font-family: 'Voltaire', sans-serif;
   text-align: center;
-  font-size: 20px;
-  height: 25px;
+  font-size: calc(var(--header-height) - 5px);
+  height: var(--header-height);
 }
 
 .infobox-back {
   position: absolute;
   left: 2px;
   top: 2px;
-  height: 21px;
+  height: calc(var(--header-height) - 4px);
 }
 
 .infobox-body {
   position: absolute;
   left: 0;
-  top: 25px;
+  top: var(--header-height);
   right: 0;
   bottom: 0;
   overflow-y: scroll;
@@ -86,8 +120,8 @@ body {
   background-color: var(--dark);
   font-family: 'Voltaire', sans-serif;
   text-align: center;
-  font-size: 20px;
-  height: 25px;
+  font-size: calc(var(--header-height) - 5px);
+  height: var(--header-height);
   width: 100%;
 }
 
