@@ -7,7 +7,7 @@ const FileSaver = require('file-saver')
 // Load the code for displaying dialogs
 const dialog = require('./dialog.js')
 
-const { placeDomNode } = require('./halfact.js')
+const { placeDomNode, placeText, formatWithUnits } = require('./halfact.js')
 
 const throbber = require('./throbber.js')
 
@@ -50,6 +50,37 @@ class Wallet {
       node.innerText = Web3Utils.fromWei(Web3Utils.toBN(balance)) + ' MRV'
     }))
     return node
+  }
+
+  /// Return a DOM node which displays a time that depends on the commitment maturation time, which is retrieved from the chain.
+  /// Factor expresses the time to display, in multiples of the commitment maturation time.
+  createTimeDisplay(factor) {
+    if (!factor) {
+      // Default to a multiple of 1
+      factor = 1
+    }
+
+    let node = document.createElement('span')
+    node.innerText = '??? days'
+
+    this.regSubscriptions.push(this.ctx.reg.subscribe('reg.commitmentMinWait', (wait_seconds) => {
+      // When we get the commitment maturation time from the chain
+      // Format our time and put it in the node.
+      // TODO: Should we use a real Javascript time formatting library?
+      node.innerText = formatWithUnits(wait_seconds * factor, ['days', 'hours', 'minutes', 'seconds'], [24 * 60 * 60, 60 * 60, 60, 1])
+    }))
+
+    return node
+  }
+
+  /// Return a DOM node which displays the wait time for commitments to mature, read from the chain.
+  createMaturationTimeDisplay() {
+    return this.createTimeDisplay(1)
+  }
+
+  /// Return a DOM node which displays the wait time for commitments to expire, read from the chain.
+  createExpirationTimeDisplay() {
+    return this.createTimeDisplay(mv.COMMITMENT_MAX_WAIT_FACTOR)
   }
 
   /// Display a general wallet dialog to allow sending tokens and canceling commitments
@@ -108,6 +139,7 @@ class Wallet {
         return sendButton
       })}
       ${placeDomNode(sendMRVThrobber)}
+      <h2>Your Virtual Real Estate</h2>
     `);
   }
 
@@ -169,10 +201,14 @@ class Wallet {
       <p>Press the button below to broadcast a claim for this piece of virtual real estate. <strong>This process will give you a secret value in a file to keep. Without this value, your claim will be worthless.</strong> If you lose it, or do not save it, all you will be able to do will be to cancel the claim and try again.</p>
       ${placeDomNode(() => {
         let claimButton = document.createElement('button')
-        claimButton.innerText = 'Claim'
-        claimButton.addEventListener('click', async () => {
-          claimButton.disabled = true
 
+        claimButton.innerText = 'Claim'
+
+
+
+
+        claimButton.addEventListener('click', () => {
+          claimButton.disabled = true
           // Start the throbber
           throbber.start(claimThrobber)
 
@@ -182,7 +218,7 @@ class Wallet {
           // Make the claim with the chain
           this.ctx.reg.createClaim(keypath, Web3Utils.toWei(depositField.value, 'ether')).then((claimData) => {
             // Save the claim info including nonce. TODO: would be good to do this first.
-            FileSaver.saveAs(new Blob([JSON.stringify(claimData)], {type: 'application/json;charset=utf-8'}), 'commitment.' + keypath + '.json')
+            FileSaver.saveAs(new Blob([JSON.stringify(claimData)], {type: 'application/json;charset=utf-8'}), 'claim.' + keypath + '.json')
 
             // Say we succeeded, assuming the user downloaded the data.
             // TODO: let them try downloading again if they forget/cancel
@@ -199,7 +235,9 @@ class Wallet {
       })}
       ${placeDomNode(claimThrobber)}
       <h2>Step 3: Wait</h2>
-      <p>After broadcasting your claim, you must <strong>wait at least 24 hours</strong>. This delay is required to prevent claim sniping; it is the longest time that a malicious actor can be permitted to delay your claim transaction without compromising the security of the system. Come back tomorrow (but before 7 days, or your claim will expire and you will have to start over!).</p>
+      <p>After broadcasting your claim, you must <strong>wait ${placeDomNode(this.createMaturationTimeDisplay())} for your claim to mature</strong>, but <strong> no more than ${placeDomNode(this.createExpirationTimeDisplay())} or your claim will expire</strong>. Maturation and expiration are required to prevent claim snipers from front-running your reveal transaction.</p>
+      <h2>Step 4: Reveal</h2>
+      <p>After ${placeDomNode(this.createMaturationTimeDisplay())}, you can use the file you got in Step 2 to reveal your claim and actually take ownership of your virtual real estate. Click on the ⛳ icon in the toolbar at the lower right of the main Macroverse Explorer window, and provide the file in the resulting form.
       ${placeDomNode(() => {
         // Have a button to close the dialog
         let doneButton = document.createElement('button')
@@ -211,14 +249,221 @@ class Wallet {
         return doneButton
       })}
     `)
-
-    // TODO: Make it so we don't have to remember to return DOM elements we make
-    
   }
 
-  
+  /// Display a dialog to help people manage claims (cancel/reveal)
+  showClaimsDialog() {
+    // Clear any old subscriptions.
+    // TODO: Have a way to know when our dialog closes itself.
+    this.clearSubscriptions()
 
+    // This will hold the claim data when we load it
+    let claimData = null
+
+    // This will show info about the claim and update when it updates
+    let claimDataView = document.createElement('div')
+    // This will hold all the chain data subscriptions that support that live view
+    // TODO: Unwatch all of these on dialog close!
+    let claimSubscriptions = []
+    // This will update the claim data view when the claim is changed
+    let updateClaimDataView = () => {
+      for (let sub of claimSubscriptions) {
+        this.ctx.reg.unsubscribe(sub)
+      }
+      claimSubscriptions = []
+
+      // Pack the keypath into a token
+      let token = mv.keypathToToken(claimData.keypath)
+      // Determine the claim hash
+      let hash = mv.hashTokenAndNonce(token, claimData.nonce)
+
+      // Determine the keypath at which the Registry exposes info about the claim
+      let claimKeypath = 'commitment.' + claimData.account + '.' + hash
+
+
+      // Build a table to show the claim info
+      claimDataView.innerHTML = `
+        <table>
+          <tr>
+            <td>Account</td>
+            <td>${placeText(claimData.account)}</td>
+          </tr>
+          <tr>
+            <td>Keypath</td>
+            <td>${placeText(claimData.keypath)}</td>
+          </tr>
+          <tr>
+            <td>Nonce</td>
+            <td>${placeText(claimData.nonce)}</td>
+          </tr>
+          <tr>
+            <td>Claim Creation Time</td>
+            <td>${placeDomNode(() => {
+              let timeNode = document.createElement('span')
+              timeNode.innerText = '???'
+
+              claimSubscriptions.push(this.ctx.reg.subscribe(claimKeypath + '.creationTime'), (creationTime) => {
+                // When the claim crwation time of this person's claim for this thing with this nonce is available or updates, fill it in.
+                timeNode.innerText = creationTime
+              })
+
+              return timeNode
+            })}</td>
+          </tr>
+        </table>
+      `
+    }
+
+    // Make a reveal throbber 
+    let revealThrobber = throbber.create()
+
+    // And a cancel throbber
+    let cancelThrobber = throbber.create()
+
+    // Make all the buttons and inputs that need to interact
+    let picker = document.createElement('input')
+    let revealButton = document.createElement('button')
+    let cancelButton = document.createElement('button')
+
+    picker.setAttribute('type', 'file')
+    picker.setAttribute('accept', 'application/json')
+    picker.addEventListener('change', () => {
+      // Find the files we were given
+      let files = picker.files
+
+      // Disable the picker
+      picker.disabled = true
+
+      if (files.length == 1) {
+        // Load the JSON from the file
+        let reader = new FileReader()
+        reader.addEventListener('error', (e) => {
+          // Report the error
+          console.error('Error reading claim file', e)
+          
+          // Let the user try again
+          revealButton.disabled = true
+          cancelButton.disabled = true
+          picker.disabled = false
+        })
+
+        reader.addEventListener('load', () => {
+          // Now we have the JSON claim data available. Probably.
+          let json = reader.result
+
+          try {
+            // Parse into our dialog-scope claim data variable
+            claimData = JSON.parse(json)
+
+            // TODO: Validate the claim
+
+
+            // Enable the next step
+            revealButton.disabled = false
+            cancelButton.disabled = false
+
+            // Let the user switch to a new file now that validation is done
+            picker.disabled = false
+          } catch (e) {
+            // There's something wrong with the JSON
+            console.error('Error parsing claim file', e)
+
+            // TODO: report an error in the UI
+
+            // Let the user try again
+            revealButton.disabled = true
+            cancelButton.disabled = true
+            picker.disabled = false
+          }
+        })
+
+        // Kick off the reader with the file we were given
+        reader.readAsText(files[0])
+
+      } else {
+        // These files are bad. Let the user try again.
+        revealButton.disabled = true
+        cancelButton.disabled = true
+        picker.disabled = false
+      }
+    })
+
+    revealButton.disabled = true
+    revealButton.innerText = 'Reveal Claim'
+    revealButton.addEventListener('click', () => {
+      // When the user hits reveal
+
+      // Stop them doing things twice
+      revealButton.disabled = true
+      cancelButton.disabled = true
+      picker.disabled = true
+      throbber.start(revealThrobber)
+
+      // Try the reveal
+      this.ctx.reg.revealClaim(claimData).then(() => {
+        // The reveal worked
+        throbber.succeed(revealThrobber)
+        // Let them start again
+        picker.disabled = false
+      }).catch((e) => {
+        // Claim did not reveal successfully
+        console.error('Error revealing claim', e)
+        throbber.fail(revealThrobber)
+
+        // Let them do something else
+        revealButton.disabled = false
+        cancelButton.disabled = false
+        picker.disabled = false
+      })
+    })
+
+    cancelButton.disabled = true
+    cancelButton.innerText = 'Cancel Claim'
+    cancelButton.addEventListener('click', () => {
+      // When the user hits cancel
+
+      // Stop them doing things twice
+      revealButton.disabled = true
+      cancelButton.disabled = true
+      picker.disabled = true
+      throbber.start(cancelThrobber)
+
+      // Try the cancel
+      this.ctx.reg.cancelClaim(claimData).then(() => {
+        // The cancel worked
+        throbber.succeed(cancelThrobber)
+        // Let them start again
+        picker.disabled = false
+      }).catch((e) => {
+        // Claim did not cancel successfully
+        console.error('Error canceling claim', e)
+        throbber.fail(cancelThrobber)
+
+        // Let them do something else
+        revealButton.disabled = false
+        cancelButton.disabled = false
+        picker.disabled = false
+      })
+    })
+
+    dialog.showDialog('Manage Claims', `
+      <p>This dialog will walk you through revealing a claim on a piece of virtual real estate that you committed to earlier.</p>
+      <p>If you do not yet have a claim file, close this dialog, and navigate to the object in the Macroverse world which you want to own (star, planet, or moon) using the main Macroverse Explorer interface. When you have found an unowned object you want, click on the "Claim" button in the "Owner" row of the infobox table on the right side of the screen.</p>
+      <h2>Step 1: Provide Claim File</h2>
+      <p>Select the claim file you received when you committed.</p>
+      <label for="claimFile">Claim File (.json):</label>
+      ${placeDomNode(picker)}
+      <h3>Claim Data</h3>
+      ${placeDomNode(claimDataView)}
+      <h2>Step 2: Reveal Claim</h2>
+      <p>By clicking the button below, you can reveal the identity of the piece of virtual real estate that your claim is for to the general public. If you do this for a claim that has matured and has not expired, you will take ownership of the piece of virtual real estate in question.</p>
+      ${placeDomNode(revealButton)}
+      <h2>In Case of Emergency: Cancel Claim</h2>
+      <p>If something goes wrong with your claim (for example, if you accidentally let it expire, or if someone else reveals a conflicting claim), you can cancel it with the button below.</p>
+      <p><strong>You will no longer be able to use your claim to take ownership of the piece of virtual real estate in question</strong> after you cancel it. If you want the virtual real estate, you will have to start a new claim from scratch.</p>
+      ${placeDomNode(cancelButton)}
+    `)
+  }
 }
-
 
 module.exports = Wallet

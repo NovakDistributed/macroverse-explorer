@@ -50,4 +50,67 @@ function placeDomNode(node) {
   // DOM node around waiting for the script to run?
 }
 
-module.exports = {placeDomNode}
+/// Return some HTML that is the safely HTML-escaped version of the given text,
+/// or the return value of the given text-returning function. Only works in
+/// places you would put HTML elements; not secure inside the actual <> of an
+/// HTML tag.
+function placeText(text) {
+  if (text instanceof Function) {
+    // Evaluate function arguments
+    text = text()
+  }
+
+  // The only good way to do this is to make some fake DOM nodes.
+  // See https://stackoverflow.com/a/5251551
+  
+  let parent = document.createElement('div')
+  parent.innerText = text
+  return parent.innerHTML
+}
+
+/// Make a number fixed precision, with commas
+function formatNumber(number) {
+  if (number === null) {
+    // This property is not applicable for this thing
+    return 'N/A'
+  }
+  if (number > 0.01) {
+    // It is big enough to do 2 digits.
+    return parseFloat(number.toFixed(2)).toLocaleString()
+  } else {
+    // Go out to 4 digits, for some really dim luminosities
+    return number.toFixed(4)
+  }
+}
+
+/// Given a number and two corresponding lists of unit names and values, find
+/// the best unit and return a string of the number expressed in the best unit.
+function formatWithUnits(number, unitNames, unitValues) {
+  if (number === null) {
+    // This property is not applicable for this thing
+    return 'N/A'
+  }
+  
+  let bestIndex = 0
+  let bestBadness = 99999
+
+  if (number != 0) {
+    // If 0, just use that first unit
+    for (let index = 0; index < unitValues.length; index++) {
+      // We just use exhaustive search
+      let inUnit = number / unitValues[index]
+      // The larger the absolute value of the logarithm, the less 1-y the number is
+      let badness = Math.abs(Math.log(inUnit))
+      if (badness < bestBadness) {
+        // New winner!
+        bestIndex = index
+        bestBadness = badness
+      }
+    }
+  }
+  // Format in the given unit
+  return formatNumber(number / unitValues[bestIndex]) + ' ' + unitNames[bestIndex]
+  
+}
+
+module.exports = { placeDomNode, placeText, formatNumber, formatWithUnits }

@@ -8,25 +8,10 @@ const { parentOf, lastComponent } = require('./keypath.js')
 const mv = require('macroverse')
 
 // Load up our reactive web framework
-const { placeDomNode } = require('./halfact.js')
+const { placeDomNode, formatNumber, formatWithUnits } = require('./halfact.js')
 
 // Load up the web3 wrapper so we can get our own address
 const eth = require('./eth.js')
-
-// Make a number fixed precision, with commas
-function formatNumber(number) {
-  if (number === null) {
-    // This property is not applicable for this thing
-    return 'N/A'
-  }
-  if (number > 0.01) {
-    // It is big enough to do 2 digits.
-    return parseFloat(number.toFixed(2)).toLocaleString()
-  } else {
-    // Go out to 4 digits, for some really dim luminosities
-    return number.toFixed(4)
-  }
-}
 
 // Format an angle in radians as degrees.
 // Handles null values for angles that don't really exist.
@@ -48,35 +33,6 @@ function formatBool(bool) {
   }
 
   return bool ? 'Yes' : 'No'
-}
-
-// Given a number and two corresponding lists of units, find the best unit and display the value
-function formatWithUnits(number, unitNames, unitValues) {
-  if (number === null) {
-    // This property is not applicable for this thing
-    return 'N/A'
-  }
-  
-  let bestIndex = 0
-  let bestBadness = 99999
-
-  if (number != 0) {
-    // If 0, just use that first unit
-    for (let index = 0; index < unitValues.length; index++) {
-      // We just use exhaustive search
-      let inUnit = number / unitValues[index]
-      // The larger the absolute value of the logarithm, the less 1-y the number is
-      let badness = Math.abs(Math.log(inUnit))
-      if (badness < bestBadness) {
-        // New winner!
-        bestIndex = index
-        bestBadness = badness
-      }
-    }
-  }
-  // Format in the given unit
-  return formatNumber(number / unitValues[bestIndex]) + ' ' + unitNames[bestIndex]
-  
 }
 
 // Define some units

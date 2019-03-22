@@ -544,6 +544,11 @@ async function main() {
   document.getElementById('wallet-tool').addEventListener('click', () => {
     ctx.wallet.showWalletDialog()
   })
+
+  // Hook up the claim manager open handler
+  document.getElementById('claims-tool').addEventListener('click', () => {
+    ctx.wallet.showClaimsDialog()
+  })
   
   // Expose context for debugging
   window.ctx = ctx

@@ -10,6 +10,17 @@ function lastComponent(keypath) {
   return keypath.substr(keypath.lastIndexOf('.') + 1)
 }
 
+// And one that gets the first thing in the keypath
+function firstComponent(keypath) {
+  return keypath.substr(0, keypath.indexOf('.'))
+}
+
+// And one that just explodes a keypath
+function splitKeypath(keypath) {
+  return keypath.split('.')
+}
+
+
 // We define a tiny keypath get/set library
 
 // Return true if the given object has the given keypath set, and false otherwise
@@ -103,4 +114,4 @@ function keypathToId(keypath) {
     return 'kp' + keypath.replace(/\./g, '_')
 }
 
-module.exports = { parentOf, lastComponent, getKeypath, setKeypath, keypathToId }
+module.exports = { parentOf, lastComponent, firstComponent, splitKeypath, getKeypath, setKeypath, keypathToId }

@@ -8,7 +8,7 @@
 const eth = require('./eth.js')
 
 // And the keypath manipulatioin code
-const {getKeypath, setKeypath, lastComponent, parentOf} = require('./keypath.js')
+const {getKeypath, setKeypath, firstComponent, lastComponent, parentOf} = require('./keypath.js')
 
 // And the event emitter which we use to structure our API
 const { EventEmitter2 } = require('eventemitter2')
@@ -198,9 +198,38 @@ class Registry extends EventEmitter2 {
         // It doesn't appear to have an owner
         return 0
       }
+    } else if (firstComponent(keypath) == 'commitment') {
+      // Format is 'commitment.{owner}.{hash}.("hash"|"deposit"|"creationTime")'
+      // If the commitment doesn't exist, everything will resolve to 0.
+
+      let wanted = lastComponent(keypath)
+      if (wanted != 'hash' && wanted != 'deposit' && wanted != 'creationTime') {
+        throw new Error('Unsupported keypath ' + keypath)
+      }
+
+      let hash = lastComponent(parentOf(keypath))
+      let owner = lastComponent(parentOf(parentOf(keypath)))
+      // Generate the key to find it under on chain
+      let key_hash = mv.getClaimKey(hash, owner)
+
+      // Look it up on the chain. Should never throw; should just return zeroes
+      let [chain_hash, deposit, creation_time] = await this.reg.commitments(key_hash)
+
+      if (wanted == 'hash') {
+        return chain_hash
+      } else if (wanted == 'deposit') {
+        return deposit
+      } else {
+        // Must be the creation time
+        return creation_time
+      }
     } else if (keypath == 'mrv.balance') {
       let balance = await this.mrv.balanceOf(eth.get_account())
       return balance
+    } else if (keypath == 'reg.commitmentMinWait') {
+      // They want the min wait time of a commitment to mature.
+      let wait_seconds = (await this.reg.commitmentMinWait()).toNumber()
+      return wait_seconds
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -236,6 +265,58 @@ class Registry extends EventEmitter2 {
 
       // Remember the filter so we can stop watching.
       this.watchers[keypath] = [filter]
+    } else if (firstComponent(keypath) == 'commitment') {
+      // Format is 'commitment.{owner}.{hash}.("hash"|"deposit"|"creationTime")'
+      // If the commitment doesn't exist, everything will resolve to 0.
+
+      let wanted = lastComponent(keypath)
+      if (wanted != 'hash' && wanted != 'deposit' && wanted != 'creationTime') {
+        throw new Error('Unsupported keypath ' + keypath)
+      }
+
+      // Work out what commitment hash by what owner we are interested in
+      let hash = lastComponent(parentOf(keypath))
+      let owner = lastComponent(parentOf(parentOf(keypath)))
+      
+      // Work out what struct to check if we need to read the actual data
+      let key_hash = mv.getClaimKey(hash, owner)
+
+      // Determine the filters to watch to watch it
+      let commit_filter = this.reg.Commit({hash: hash, owner: owner}, { fromBlock: 'latest', toBlock: 'latest'})
+      let cancel_filter = this.reg.Cancel({hash: hash, owner: owner}, { fromBlock: 'latest', toBlock: 'latest'})
+      let reveal_filter = this.reg.Reveal({hash: hash, owner: owner}, { fromBlock: 'latest', toBlock: 'latest'})
+
+      // On any event, update
+      let handle_event = async (error, event_report) => {
+        console.log('Saw event: ', event_report)
+        if (event_report.type != 'mined') {
+          // This transaction hasn't confirmed, so ignore it
+          return
+        }
+        let val
+        if (event_report.event == 'Cancel' || event_report.event == 'Reveal') {
+          // Everything is now 0.
+          val = 0
+        } else {
+          // Just query the chain on a commit to get the actual info
+          let commitment = await this.mrv.commitments(key_hash)
+          if (wanted == 'hash') {
+            val = commitment[0]
+          } else if (wanted == 'deposit') {
+            val = commitment[1]
+          } else {
+            val = commitment[2]
+          }
+        }
+        this.cache[keypath] = val
+        this.emit(keypath, val)
+      }
+      commit_filter.watch(handle_event)
+      cancel_filter.watch(handle_event)
+      reveal_filter.watch(handle_event)
+
+      // Register filters for deactivation
+      this.watchers[keypath] = [commit_filter, cancel_filter, reveal_filter]
     } else if (keypath == 'mrv.balance') {
       // Watch the user's MRV balance.
       // We have to filter separately for in and out transactions
@@ -259,6 +340,9 @@ class Registry extends EventEmitter2 {
 
       // Register filters for deactivation
       this.watchers[keypath] = [in_filter, out_filter]
+    } else if (keypath == 'reg.commitmentMinWait') {
+      // They want the min wait time of a commitment to mature.
+      // This does not change.
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -334,12 +418,6 @@ class Registry extends EventEmitter2 {
     console.log('Hash: ' + data_hash)
     console.log('Deposit: ' + deposit.toString())
 
-    // Save all this stuff to local storage under the hash.
-    // If we lose these, all we can do is cancel the commitment, if we can even find it.
-    window.localStorage.setItem('commitment.' + data_hash + '.token', '0x' + token.toString(16))
-    window.localStorage.setItem('commitment.' + data_hash + '.nonce', '0x' + nonce.toString(16))
-    window.localStorage.setItem('commitment.' + data_hash + '.account', account)
-
     // Estimate commitment gas.
     // truffle-contract is too conservative (gives the conserved gas exactly,
     // which makes us hit 0) so we double it.
@@ -352,19 +430,25 @@ class Registry extends EventEmitter2 {
 
     console.log('Commitment made')
 
-    return {token, nonce, account}
+    return {keypath, nonce, account}
   }
 
-  // Given the hash used to create a (successfully made) claim, do the reveal.
+  // Given a {keypath, nonce, account} object for a successfully made claim, do the reveal.
   // Fails if the claim has not matured or has expired
-  async revealClaim(data_hash) {
-    // Load from local storage
-    let token = window.localStorage.getItem('commitment.' + data_hash + '.token')
-    let nonce = window.localStorage.getItem('commitment.' + data_hash + '.nonce')
-    let account = window.localStorage.getItem('commitment.' + data_hash + '.account')
+  async revealClaim(claim_data) {
+    // Load from the claim data
+    let {keypath, nonce, account} = claim_data
 
-    console.log('Token: ' + token)
+    console.log('Keypath: ' + token)
     console.log('Nonce: ' + nonce)
+    console.log('Account: ' + account)
+
+    // Compute the actual token number
+    let token = mv.keypathToToken(keypath)
+    console.log('Token: ' + token)
+
+    // Compute the hash the claim should be under
+    let data_hash = mv.hashTokenAndNonce(token, nonce)
     console.log('Hash: ' + data_hash)
 
     let gas = await this.reg.reveal.estimateGas(token, nonce, {from: account}) * 2
@@ -374,6 +458,33 @@ class Registry extends EventEmitter2 {
     await this.reg.reveal(token, nonce, {from: account, gas: gas})
 
     console.log('Commitment revealed successfully')
+  }
+
+  // Given a {keypath, nonce, account} object for a successfully made claim, cancel it.
+  // Fails if the claim has been revealed.
+  async cancelClaim(claim_data) {
+    // Load from the claim data
+    let {keypath, nonce, account} = claim_data
+
+    console.log('Keypath: ' + token)
+    console.log('Nonce: ' + nonce)
+    console.log('Account: ' + account)
+
+    // Compute the actual token number
+    let token = mv.keypathToToken(keypath)
+    console.log('Token: ' + token)
+
+    // Compute the hash the claim should be under
+    let data_hash = mv.hashTokenAndNonce(token, nonce)
+    console.log('Hash: ' + data_hash)
+
+    let gas = await this.reg.cancel.estimateGas(data_hash, {from: account}) * 2
+
+    console.log('Cancel will probably take ' + gas + ' gas')
+
+    await this.reg.cancel(data_hash, {from: account, gas: gas})
+
+    console.log('Commitment canceled successfully')
   }
 
   
