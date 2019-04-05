@@ -73,5 +73,48 @@ async function get_instance(url) {
   return deployed
 }
 
+// Return the latest block
+async function latest_block() {
+  return new Promise((resolve, reject) => {
+    // Go look for the block in a promise
+    web3.eth.getBlock('latest', (err, block) => {
+      if (err) {
+        // If we fail, reject
+        return reject(err)
+      }
+  
+      // Otherwise, resolve with the block
+      return resolve(block)
+    })
+  })
+}
+
+// Watch for blocks and call the given callback when new ones come in.
+// Returns a filter on which the user must call stopWatching() when done.
+function watch_block(listener) {
+  // Create a filter and start watching
+  let block_filter = web3.eth.filter('latest')
+  block_filter.watch((err, block_hash) => {
+    if (err) {
+      return console.error('Error watching blocks: ', err)
+    }
+    console.log('New block: ', block_hash)
+    // Go get the block
+    web3.eth.getBlock(block_hash, (err, block) => {
+      if (err) {
+        return console.error('Error getting block: ', err)
+      }
+      
+      try {
+        listener(block)
+      } catch (err) {
+        return console.error('Error running block listener: ', err)
+      }
+    })
+  })
+
+  return block_filter
+}
+
 // Nobody should really have to use web3; we have this stuff.
-module.exports = { get_instance, get_account, get_network_id, get_provider }
+module.exports = { get_instance, get_account, get_network_id, get_provider, latest_block, watch_block }

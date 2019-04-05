@@ -237,6 +237,10 @@ class Registry extends EventEmitter2 {
       // They want the min wait time of a commitment to mature.
       let wait_seconds = (await this.reg.commitmentMinWait()).toNumber()
       return wait_seconds
+    } else if (keypath == 'block.timestamp') {
+      // They want to watch the current network time
+      let latest_timestamp = (await eth.latest_block()).timestamp
+      return latest_timestamp
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -350,6 +354,15 @@ class Registry extends EventEmitter2 {
     } else if (keypath == 'reg.commitmentMinWait') {
       // They want the min wait time of a commitment to mature.
       // This does not change.
+    } else if (keypath == 'block.timestamp') {
+      // They want to watch the current network time
+      let block_filter = eth.watch_block((block) => {
+        let val = block.timestamp
+        this.cache[keypath] = val
+        this.emit(keypath, val)
+      })
+
+      this.watchers[keypath] = [block_filter]
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }

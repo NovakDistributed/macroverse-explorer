@@ -302,6 +302,20 @@ class Wallet {
               return timeNode
             })}</td>
           </tr>
+          <tr>
+            <td>Current Time</td>
+            <td>${placeDomNode(() => {
+              let timeNode = document.createElement('span')
+              timeNode.innerText = '???'
+
+              feed.subscribe('block.timestamp', (timestamp) => {
+                // When a block happens, update the timestamp
+                timeNode.innerText = timestamp
+              })
+
+              return timeNode
+            })}</td>
+          </tr>
         </table>
       `
     }
