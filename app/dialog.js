@@ -7,16 +7,26 @@
 // Load up our reactive web framework
 const { placeDomNode } = require('./halfact.js')
 
+// We have up to one modal dialog at a time. If one is open and it has a close handler, that lives here.
+let current_close_handler = undefined
+
 // We have a function to display text as a dialog.
 // The user should use a template literal and fill in the actual contents.
 // Title is optional.
-function showDialog(title, text) {
-
+// on_close is optional also, but will be called when the dialog is dismissed.
+function showDialog(title, text, on_close) {
+    
   if (!text) {
-    // Make the title a default and what we did get the text.
+    // Make the title a default; what we did get is the text.
     text = title
     title = 'Dialog'
   }
+
+  // Close the old dialog properly
+  closeDialog()
+  // Replace the handler with a new one or undefined
+  current_close_handler = on_close
+  
 
   let dialogRoot = document.getElementById('dialog')
   dialogRoot.style.display = 'none'
@@ -49,6 +59,10 @@ function createCloseButton() {
 // Close the current dialog. Use in event handlers in the dialog to dismiss it.
 function closeDialog() {
   document.getElementById('dialog').style.display = 'none'
+  if (current_close_handler) {
+    current_close_handler()
+    current_close_handler = undefined
+  }
 }
 
 module.exports = { showDialog, closeDialog }

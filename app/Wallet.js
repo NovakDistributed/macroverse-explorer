@@ -24,37 +24,25 @@ class Wallet {
   constructor(context) {
     // Keep ahold of the context object, which lets us get at the Registry, which is our backend
     this.ctx = context
-    // Keep a list of all the subscriptions to the registry that we can clear out when closing a dialog.
-    // TODO: share this code with the Infobox.
-    this.regSubscriptions = []
   }
 
-  /// Clear out any current registry subscriptions.
-  /// TODO: share this code with the Infobox
-  clearSubscriptions() {
-    for (let sub of this.regSubscriptions) {
-      this.ctx.reg.unsubscribe(sub)
-    }
-    this.regSubscriptions = []
-  }
-
-  /// Return a DOM node which dynamically updates when the user's MRV balance changes
-  createMRVBalanceDisplay() {
+  /// Return a DOM node which dynamically updates when the user's MRV balance changes, using the given feed to manage the subscription
+  createMRVBalanceDisplay(feed) {
     let node = document.createElement('span')
     node.innerText = '??? MRV'
-    this.regSubscriptions.push(this.ctx.reg.subscribe('mrv.balance', (balance) => {
+    feed.subscribe('mrv.balance', (balance) => {
       console.log('Got MRV balance: ', balance)
       // TODO: We need to toBN the balance because Web3Utils refuses BigNumber.
       // See https://github.com/ethereum/web3.js/blob/1f98597a60cefce0e560cce33b0fff7f7957b52e/packages/web3-utils/src/index.js#L196
       // See also: https://github.com/ethereum/web3.js/issues/2468
       node.innerText = Web3Utils.fromWei(Web3Utils.toBN(balance)) + ' MRV'
-    }))
+    })
     return node
   }
 
-  /// Return a DOM node which displays a time that depends on the commitment maturation time, which is retrieved from the chain.
+  /// Return a DOM node which displays a time that depends on the commitment maturation time, which is retrieved from the given feed.
   /// Factor expresses the time to display, in multiples of the commitment maturation time.
-  createTimeDisplay(factor) {
+  createTimeDisplay(feed, factor) {
     if (!factor) {
       // Default to a multiple of 1
       factor = 1
@@ -63,38 +51,37 @@ class Wallet {
     let node = document.createElement('span')
     node.innerText = '??? days'
 
-    this.regSubscriptions.push(this.ctx.reg.subscribe('reg.commitmentMinWait', (wait_seconds) => {
+    feed.subscribe('reg.commitmentMinWait', (wait_seconds) => {
       // When we get the commitment maturation time from the chain
       // Format our time and put it in the node.
       // TODO: Should we use a real Javascript time formatting library?
       node.innerText = formatWithUnits(wait_seconds * factor, ['days', 'hours', 'minutes', 'seconds'], [24 * 60 * 60, 60 * 60, 60, 1])
-    }))
+    })
 
     return node
   }
 
-  /// Return a DOM node which displays the wait time for commitments to mature, read from the chain.
-  createMaturationTimeDisplay() {
-    return this.createTimeDisplay(1)
+  /// Return a DOM node which displays the wait time for commitments to mature, read from the given feed.
+  createMaturationTimeDisplay(feed) {
+    return this.createTimeDisplay(feed, 1)
   }
 
-  /// Return a DOM node which displays the wait time for commitments to expire, read from the chain.
-  createExpirationTimeDisplay() {
-    return this.createTimeDisplay(mv.COMMITMENT_MAX_WAIT_FACTOR)
+  /// Return a DOM node which displays the wait time for commitments to expire, read from the given feed.
+  createExpirationTimeDisplay(feed) {
+    return this.createTimeDisplay(feed, mv.COMMITMENT_MAX_WAIT_FACTOR)
   }
 
   /// Display a general wallet dialog to allow sending tokens and canceling commitments
   showWalletDialog() {
-    // Clear any old subscriptions.
-    // TODO: Have a way to know when our dialog closes itself.
-    this.clearSubscriptions()
-
+    // Prepare a feed to manage subscriptions for this dialog display
+    let feed = this.ctx.reg.create_feed()
+    
     // Preapre throbbers for the form
     let sendMRVThrobber = throbber.create()
 
     dialog.showDialog('Wallet', `
       <p>This wallet allows you to send and receive MRV tokens and Macroverse virtual real estate, and to manage your real estate claim commitments.</p>
-      <h2>Your MRV balance: ${placeDomNode(this.createMRVBalanceDisplay())}</h2>
+      <h2>Your MRV balance: ${placeDomNode(this.createMRVBalanceDisplay(feed))}</h2>
       <h3>Receive MRV</h3>
       <p>Receiving address: ${eth.get_account()}</p>
       <h3>Send MRV</h3>
@@ -140,14 +127,16 @@ class Wallet {
       })}
       ${placeDomNode(sendMRVThrobber)}
       <h2>Your Virtual Real Estate</h2>
-    `);
+    `, () => {
+      // Dialog is closed, close out the feed
+      feed.unsubscribe()
+    });
   }
 
   /// Display a commit dialog/wizard to help people commit
   showCommitDialog(keypath) {
-    // Clear any old subscriptions.
-    // TODO: Have a way to know when our dialog closes itself.
-    this.clearSubscriptions()
+    // Prepare a feed to manage subscriptions for this dialog display
+    let feed = this.ctx.reg.create_feed()
 
     // Compute the minimum deposit for this item, in whole tokens.
     // Assumes no decimal place adjustment
@@ -235,9 +224,9 @@ class Wallet {
       })}
       ${placeDomNode(claimThrobber)}
       <h2>Step 3: Wait</h2>
-      <p>After broadcasting your claim, you must <strong>wait ${placeDomNode(this.createMaturationTimeDisplay())} for your claim to mature</strong>, but <strong> no more than ${placeDomNode(this.createExpirationTimeDisplay())} or your claim will expire</strong>. Maturation and expiration are required to prevent claim snipers from front-running your reveal transaction.</p>
+      <p>After broadcasting your claim, you must <strong>wait ${placeDomNode(this.createMaturationTimeDisplay(feed))} for your claim to mature</strong>, but <strong> no more than ${placeDomNode(this.createExpirationTimeDisplay(feed))} or your claim will expire</strong>. Maturation and expiration are required to prevent claim snipers from front-running your reveal transaction.</p>
       <h2>Step 4: Reveal</h2>
-      <p>After ${placeDomNode(this.createMaturationTimeDisplay())}, you can use the file you got in Step 2 to reveal your claim and actually take ownership of your virtual real estate. Click on the ⛳ icon in the toolbar at the lower right of the main Macroverse Explorer window, and provide the file in the resulting form.
+      <p>After ${placeDomNode(this.createMaturationTimeDisplay(feed))}, you can use the file you got in Step 2 to reveal your claim and actually take ownership of your virtual real estate. Click on the ⛳ icon in the toolbar at the lower right of the main Macroverse Explorer window, and provide the file in the resulting form.
       ${placeDomNode(() => {
         // Have a button to close the dialog
         let doneButton = document.createElement('button')
@@ -248,30 +237,24 @@ class Wallet {
         })
         return doneButton
       })}
-    `)
+    `, () => {
+      // Dialog is closed, close out the feed
+      feed.unsubscribe()
+    })
   }
 
   /// Display a dialog to help people manage claims (cancel/reveal)
   showClaimsDialog() {
-    // Clear any old subscriptions.
-    // TODO: Have a way to know when our dialog closes itself.
-    this.clearSubscriptions()
+    // Prepare a feed to manage subscriptions for this dialog display
+    let feed = this.ctx.reg.create_feed()
 
     // This will hold the claim data when we load it
     let claimData = null
 
     // This will show info about the claim and update when it updates
     let claimDataView = document.createElement('div')
-    // This will hold all the chain data subscriptions that support that live view
-    // TODO: Unwatch all of these on dialog close!
-    let claimSubscriptions = []
     // This will update the claim data view when the claim is changed
     let updateClaimDataView = () => {
-      for (let sub of claimSubscriptions) {
-        this.ctx.reg.unsubscribe(sub)
-      }
-      claimSubscriptions = []
-
       // Pack the keypath into a token
       let token = mv.keypathToToken(claimData.keypath)
       // Determine the claim hash
@@ -280,8 +263,8 @@ class Wallet {
       // Determine the keypath at which the Registry exposes info about the claim
       let claimKeypath = 'commitment.' + claimData.account + '.' + hash
 
-
-      // Build a table to show the claim info
+      // Build a table to show the claim info.
+      // TODO: Remove old subscriptions when updating the view for a new claim data file
       claimDataView.innerHTML = `
         <table>
           <tr>
@@ -302,8 +285,8 @@ class Wallet {
               let timeNode = document.createElement('span')
               timeNode.innerText = '???'
 
-              claimSubscriptions.push(this.ctx.reg.subscribe(claimKeypath + '.creationTime'), (creationTime) => {
-                // When the claim crwation time of this person's claim for this thing with this nonce is available or updates, fill it in.
+              feed.subscribe(claimKeypath + '.creationTime', (creationTime) => {
+                // When the claim creation time of this person's claim for this thing with this nonce is available or updates, fill it in.
                 timeNode.innerText = creationTime
               })
 
@@ -462,7 +445,10 @@ class Wallet {
       <p>If something goes wrong with your claim (for example, if you accidentally let it expire, or if someone else reveals a conflicting claim), you can cancel it with the button below.</p>
       <p><strong>You will no longer be able to use your claim to take ownership of the piece of virtual real estate in question</strong> after you cancel it. If you want the virtual real estate, you will have to start a new claim from scratch.</p>
       ${placeDomNode(cancelButton)}
-    `)
+    `, () => {
+      // Dialog is closed, close out the feed
+      feed.unsubscribe()
+    })
   }
 }
 

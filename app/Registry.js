@@ -81,10 +81,17 @@ class Registry extends EventEmitter2 {
     return this.basePath + (this.basePath != '' ? '/' : '') + contractName + '.json'
   }
 
+  // Get a feed to manage a bundle of subscriptions.
+  // This is preferred over direct subscribe/unsubscribe
+  create_feed() {
+    return new Feed(this)
+  }
+
   // Subscribe to events at the given keypath. Handler will be called with the
   // initial value of the keypath, and subsequently with new values as events
   // come from the chain. Returns a subscription value that can be passed back
   // to unsubscribe *exactly once* to stop listening. 
+  //
   // May not be called multiple times for the same event and function without
   // intervening unsubscribe calls.
   subscribe(keypath, handler) {
@@ -491,6 +498,33 @@ class Registry extends EventEmitter2 {
 
 
 
+}
+
+/**
+ * Represents a feed: a set of subscriptions to a Registry, bundled together.
+ * You can add subscriptions with subscribe(), which returns nothing. Call
+ * unsubscribe() to remove all the subscriptions.
+ */
+class Feed {
+  /// Construct a Feed backed by the given Registry
+  constructor(registry) {
+    // Hold the backing registry
+    this.registry = registry
+    // Track all subscriptions
+    this.subscriptions = []
+  }
+  
+  /// Subscribe the given handler to the given keypath
+  subscribe(keypath, handler) {
+    this.subscriptions.push(this.registry.subscribe(keypath, handler))
+  }
+
+  /// Unsubscribe all handlers
+  unsubscribe() {
+    for (let subscription of this.subscriptions) {
+      this.registry.unsubscribe(subscription)
+    }
+  }
 }
 
 // Async factory method for users to get a Registry. Actually exported.

@@ -87,7 +87,7 @@ class Infobox {
 
     // Set up listeners to context show messages, so we know what to look at
     this.ctx.on('show', (keypath) => {
-      // Clear out registry subscriptions from whatever we were showing before
+      // Clear out registry subscriptions from whatever we were showing before, and make a new feed
       this.clearSubscriptions()  
 
       // Look at the keypath
@@ -111,10 +111,10 @@ class Infobox {
 
   /// Clear out any current registry subscriptions.
   clearSubscriptions() {
-    for (let sub of this.regSubscriptions) {
-      this.ctx.reg.unsubscribe(sub)
+    if(this.feed) {
+      this.feed.unsubscribe()
     }
-    this.regSubscriptions = []
+    this.feed = this.ctx.reg.create_feed()
   }
 
   // Everything that needs a child picker can use this one
@@ -168,7 +168,7 @@ class Infobox {
     root.innerText = 'Retrieving...'
 
     // Listen for owner updates, and remember that we're doing so
-    this.regSubscriptions.push(this.ctx.reg.subscribe(keypath + '.owner', (owner) => {
+    this.feed.subscribe(keypath + '.owner', (owner) => {
       // When the owner updates, plug it in
       console.log('Owner of ' + keypath + ' changed to ' + owner)
 
@@ -189,7 +189,7 @@ class Infobox {
         // It is owned by an address
         root.innerText = owner
       }
-    }))
+    })
 
     return root
   }
