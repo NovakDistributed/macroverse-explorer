@@ -226,7 +226,7 @@ class Wallet {
       <h2>Step 3: Wait</h2>
       <p>After broadcasting your claim, you must <strong>wait ${placeDomNode(this.createMaturationTimeDisplay(feed))} for your claim to mature</strong>, but <strong> no more than ${placeDomNode(this.createExpirationTimeDisplay(feed))} or your claim will expire</strong>. Maturation and expiration are required to prevent claim snipers from front-running your reveal transaction.</p>
       <h2>Step 4: Reveal</h2>
-      <p>After ${placeDomNode(this.createMaturationTimeDisplay(feed))}, you can use the file you got in Step 2 to reveal your claim and actually take ownership of your virtual real estate. Click on the ⛳ icon in the toolbar at the lower right of the main Macroverse Explorer window, and provide the file in the resulting form.
+      <p>After ${placeDomNode(this.createMaturationTimeDisplay(feed))}, you can use the file you got in Step 2 to reveal your claim and actually take ownership of your virtual real estate. Click on the <button>⛳ Claims</button> button in the toolbar at the lower right of the main Macroverse Explorer window, and provide the file in the resulting form.</p>
       ${placeDomNode(() => {
         // Have a button to close the dialog
         let doneButton = document.createElement('button')
@@ -247,6 +247,15 @@ class Wallet {
   showClaimsDialog() {
     // Prepare a feed to manage subscriptions for this dialog display
     let feed = this.ctx.reg.create_feed()
+
+    // Make a claim data parse throbber
+    let parseThrobber = throbber.create()
+
+    // And a reveal throbber 
+    let revealThrobber = throbber.create()
+
+    // And a cancel throbber
+    let cancelThrobber = throbber.create()
 
     // This will hold the claim data when we load it
     let claimData = null
@@ -297,12 +306,6 @@ class Wallet {
       `
     }
 
-    // Make a reveal throbber 
-    let revealThrobber = throbber.create()
-
-    // And a cancel throbber
-    let cancelThrobber = throbber.create()
-
     // Make all the buttons and inputs that need to interact
     let picker = document.createElement('input')
     let revealButton = document.createElement('button')
@@ -311,6 +314,9 @@ class Wallet {
     picker.setAttribute('type', 'file')
     picker.setAttribute('accept', 'application/json')
     picker.addEventListener('change', () => {
+      console.log('Claim file selected')
+      throbber.start(parseThrobber)
+
       // Find the files we were given
       let files = picker.files
 
@@ -328,6 +334,8 @@ class Wallet {
           revealButton.disabled = true
           cancelButton.disabled = true
           picker.disabled = false
+
+          throbber.fail(parseThrobber)
         })
 
         reader.addEventListener('load', () => {
@@ -338,8 +346,12 @@ class Wallet {
             // Parse into our dialog-scope claim data variable
             claimData = JSON.parse(json)
 
+            console.log('Claim data:', claimData)
+
             // TODO: Validate the claim
 
+            // Display the claim data
+            updateClaimDataView()
 
             // Enable the next step
             revealButton.disabled = false
@@ -347,6 +359,8 @@ class Wallet {
 
             // Let the user switch to a new file now that validation is done
             picker.disabled = false
+
+            throbber.succeed(parseThrobber)
           } catch (e) {
             // There's something wrong with the JSON
             console.error('Error parsing claim file', e)
@@ -357,6 +371,8 @@ class Wallet {
             revealButton.disabled = true
             cancelButton.disabled = true
             picker.disabled = false
+
+            throbber.fail(parseThrobber)
           }
         })
 
@@ -364,10 +380,12 @@ class Wallet {
         reader.readAsText(files[0])
 
       } else {
-        // These files are bad. Let the user try again.
+        // We got no files or multiple files. Let the user try again.
         revealButton.disabled = true
         cancelButton.disabled = true
         picker.disabled = false
+        console.log('Received no files or multiple files')
+        throbber.fail(parseThrobber)
       }
     })
 
@@ -436,15 +454,18 @@ class Wallet {
       <p>Select the claim file you received when you committed.</p>
       <label for="claimFile">Claim File (.json):</label>
       ${placeDomNode(picker)}
+      ${placeDomNode(parseThrobber)}
       <h3>Claim Data</h3>
       ${placeDomNode(claimDataView)}
       <h2>Step 2: Reveal Claim</h2>
       <p>By clicking the button below, you can reveal the identity of the piece of virtual real estate that your claim is for to the general public. If you do this for a claim that has matured and has not expired, you will take ownership of the piece of virtual real estate in question.</p>
       ${placeDomNode(revealButton)}
+      ${placeDomNode(revealThrobber)}
       <h2>In Case of Emergency: Cancel Claim</h2>
       <p>If something goes wrong with your claim (for example, if you accidentally let it expire, or if someone else reveals a conflicting claim), you can cancel it with the button below.</p>
       <p><strong>You will no longer be able to use your claim to take ownership of the piece of virtual real estate in question</strong> after you cancel it. If you want the virtual real estate, you will have to start a new claim from scratch.</p>
       ${placeDomNode(cancelButton)}
+      ${placeDomNode(cancelThrobber)}
     `, () => {
       // Dialog is closed, close out the feed
       feed.unsubscribe()

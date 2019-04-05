@@ -473,7 +473,7 @@ class Registry extends EventEmitter2 {
     // Load from the claim data
     let {keypath, nonce, account} = claim_data
 
-    console.log('Keypath: ' + token)
+    console.log('Keypath: ' + keypath)
     console.log('Nonce: ' + nonce)
     console.log('Account: ' + account)
 

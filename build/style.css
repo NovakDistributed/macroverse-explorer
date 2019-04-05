@@ -93,7 +93,7 @@ body {
   justify-content: flex-start;
 }
 
-.infobox-table, .infobox-table th, .infobox-table td {
+table, th, td {
   border: 1px solid var(--dark);
 }
 
