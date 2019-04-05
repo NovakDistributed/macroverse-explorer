@@ -69,7 +69,7 @@ body {
   background-color: var(--dark);
   font-family: 'Voltaire', sans-serif;
   text-align: center;
-  font-size: calc(var(--header-height) - 5px);
+  font-size: calc(var(--header-height) - 8px);
   height: var(--header-height);
 }
 
@@ -112,7 +112,13 @@ body {
 }
 
 .dialog-body {
-  margin: 5px;
+  padding: 5px;
+  position: absolute;
+  left: 0;
+  top: var(--header-height);
+  right: 0;
+  bottom: 0;
+  overflow-y: scroll;
 }
 
 .dialog-header {
@@ -120,7 +126,7 @@ body {
   background-color: var(--dark);
   font-family: 'Voltaire', sans-serif;
   text-align: center;
-  font-size: calc(var(--header-height) - 5px);
+  font-size: calc(var(--header-height) - 8px);
   height: var(--header-height);
   width: 100%;
 }
