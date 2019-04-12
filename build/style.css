@@ -8,6 +8,9 @@
   /* What is our color scheme? */
   --dark: #333;
   --light: #fff;
+  --bad: #a00;
+  --good: #0a0;
+  --pending: #aa0;
 }
 
 /* Global defaults for not being ugly */
@@ -136,4 +139,19 @@ table, th, td {
   right: 2px;
   top: 2px;
   height: 21px;
+}
+
+.status.valid {
+   color: var(--good);
+   background-color: var(--light);
+}
+
+.status.invalid {
+   color: var(--bad);
+   background-color: var(--light);
+}
+
+.status.pending {
+   color: var(--pending);
+   background-color: var(--light);
 }

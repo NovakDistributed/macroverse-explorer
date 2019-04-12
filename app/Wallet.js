@@ -4,6 +4,8 @@ const Web3Utils = require('web3-utils')
 
 const FileSaver = require('file-saver')
 
+const moment = require('moment')
+
 // Load the code for displaying dialogs
 const dialog = require('./dialog.js')
 
@@ -51,11 +53,10 @@ class Wallet {
     let node = document.createElement('span')
     node.innerText = '??? days'
 
-    feed.subscribe('reg.commitmentMinWait', (wait_seconds) => {
+    feed.subscribe('reg.commitmentMinWait', (waitSeconds) => {
       // When we get the commitment maturation time from the chain
       // Format our time and put it in the node.
-      // TODO: Should we use a real Javascript time formatting library?
-      node.innerText = formatWithUnits(wait_seconds * factor, ['days', 'hours', 'minutes', 'seconds'], [24 * 60 * 60, 60 * 60, 60, 1])
+      node.innerText = moment.duration(waitSeconds * factor, 'seconds').humanize()
     })
 
     return node
@@ -262,8 +263,17 @@ class Wallet {
 
     // This will show info about the claim and update when it updates
     let claimDataView = document.createElement('div')
+    // Give it its own feed
+    let claimDataFeed = undefined
     // This will update the claim data view when the claim is changed
     let updateClaimDataView = () => {
+      // Clobber the old feed and set up a new one
+      if (claimDataFeed) {
+        claimDataFeed.unsubscribe()
+      }
+      claimDataFeed = this.ctx.reg.create_feed()
+
+
       // Pack the keypath into a token
       let token = mv.keypathToToken(claimData.keypath)
       // Determine the claim hash
@@ -295,25 +305,63 @@ class Wallet {
               timeNode.innerText = '???'
 
               feed.subscribe(claimKeypath + '.creationTime', (creationTime) => {
-                // When the claim creation time of this person's claim for this thing with this nonce is available or updates, fill it in.
-                timeNode.innerText = creationTime
+                if (creationTime == 0) {
+                  // Claim does not exist
+                  timeNode.innerText = 'Never'
+                } else {
+                  // When the claim creation time of this person's claim for this thing with this nonce is available or updates, fill it in.
+                  timeNode.innerText = creationTime
+                }
               })
 
               return timeNode
             })}</td>
           </tr>
           <tr>
-            <td>Current Time</td>
+            <td>Claim Status</td>
             <td>${placeDomNode(() => {
-              let timeNode = document.createElement('span')
-              timeNode.innerText = '???'
+              let ageNode = document.createElement('span')
+              ageNode.classList.add('status')
+              ageNode.innerText = '???'
 
-              feed.subscribe('block.timestamp', (timestamp) => {
-                // When a block happens, update the timestamp
-                timeNode.innerText = timestamp
+              feed.subscribe_all(['block.timestamp', claimKeypath + '.creationTime', 'reg.commitmentMinWait'], ([timestamp, creationTime, minWait]) => {
+                if (creationTime == 0) {
+                  // The commitment does not exist. Probably it has been revealed or canceled.
+                  ageNode.innerText = 'N/A'
+                  ageNode.classList.remove('valid')
+                  ageNode.classList.add('invalid')
+                } else {
+                  // Keep track of the age as a difference
+                  let age = timestamp - creationTime
+                  // Work out the bounds
+                  let maxWait = minWait * mv.COMMITMENT_MAX_WAIT_FACTOR
+
+                  if (age < minWait) {
+                    // Say it is not mature yet
+                    let maturesIn = minWait - age
+                    ageNode.innerText = 'Matures ' + moment.duration(maturesIn, 'seconds').humanize(true)
+                    ageNode.classList.remove('valid')
+                    ageNode.classList.remove('invalid')
+                    ageNode.classList.add('pending')
+                  } else if (age > maxWait) {
+                    // Say it has expired
+                    let expiredFor = age - maxWait
+                    ageNode.innerText = 'Expired ' + moment.duration(-expiredFor, 'seconds').humanize(true)
+                    ageNode.classList.remove('valid')
+                    ageNode.classList.add('invalid')
+                    ageNode.classList.remove('pending')
+                  } else {
+                    // Say it is currently mature but will expire
+                    let expiresIn = maxWait - age
+                    ageNode.innerText = 'Mature; expires ' + moment.duration(expiresIn, 'seconds').humanize(true)
+                    ageNode.classList.add('valid')
+                    ageNode.classList.remove('invalid')
+                    ageNode.classList.remove('pending')
+                  }
+                }
               })
 
-              return timeNode
+              return ageNode
             })}</td>
           </tr>
         </table>
@@ -483,6 +531,9 @@ class Wallet {
     `, () => {
       // Dialog is closed, close out the feed
       feed.unsubscribe()
+      if (claimDataFeed) {
+        claimDataFeed.unsubscribe()
+      }
     })
   }
 }

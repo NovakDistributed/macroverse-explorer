@@ -94,6 +94,8 @@ class Registry extends EventEmitter2 {
   //
   // May not be called multiple times for the same event and function without
   // intervening unsubscribe calls.
+  //
+  // You probably shouldn't use this directly; use a Feed instead.
   subscribe(keypath, handler) {
     console.log('Subscribing to ' + keypath)
 
@@ -310,7 +312,7 @@ class Registry extends EventEmitter2 {
           val = 0
         } else {
           // Just query the chain on a commit to get the actual info
-          let commitment = await this.mrv.commitments(key_hash)
+          let commitment = await this.reg.commitments(key_hash)
           if (wanted == 'hash') {
             val = commitment[0]
           } else if (wanted == 'deposit') {
@@ -354,6 +356,8 @@ class Registry extends EventEmitter2 {
     } else if (keypath == 'reg.commitmentMinWait') {
       // They want the min wait time of a commitment to mature.
       // This does not change.
+      // But we have to create a watcher list so unwatch doesn't complain it is mismatched.
+      this.watchers[keypath] = []
     } else if (keypath == 'block.timestamp') {
       // They want to watch the current network time
       let block_filter = eth.watch_block((block) => {
@@ -537,6 +541,38 @@ class Feed {
     for (let subscription of this.subscriptions) {
       this.registry.unsubscribe(subscription)
     }
+  }
+
+  /// Subscribe the given handler to the given list of keypaths.
+  /// When any of them changes, the hander is called with an array of all of them.
+  /// We wait for all of them to have values reported before making any handler calls.
+  subscribe_all(keypaths, handler) {
+    // This will hold the values as they come in.
+    let values = []
+    // This will hold flags for if the value has come in at all yet
+    let have_value = []
+    for (let i = 0; i < keypaths.length; i++) {
+      values.push(undefined)
+      have_value.push(false)
+    }
+
+    for (let i = 0; i < keypaths.length; i++) {
+      // Subscribe to each keypath
+      this.subscribe(keypaths[i], (val) => {
+        // When it comes in, put it in the array
+        values[i] = val
+        // Record we have it
+        have_value[i] = true
+
+        if (!have_value.includes(false)) {
+          // We have all the values
+          // Call the handler with a shallow copy of the array (in case the values change later)
+          handler(values.slice())
+        }
+      })
+    }
+
+    // When we unsubscribe all the subscriptions will go away and everything will be cleaned up.
   }
 }
 

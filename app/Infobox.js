@@ -176,7 +176,7 @@ class Infobox {
         // TODO: does the zero address equal 0?
         root.innerText = ''
         let claimButton = document.createElement('button')
-        claimButton.innerText = 'Claim'
+        claimButton.innerText = '⛳ Claim'
         root.appendChild(claimButton)
 
         claimButton.addEventListener('click', async () => {
