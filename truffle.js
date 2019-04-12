@@ -7,6 +7,11 @@ module.exports = {
       network_id: 1,
       gas: 4700000, // Knock down because it has to be les than block gas limit
       gasPrice: 4000000000 // Defaults to 100 gwei = 100 shannon = 100 billion, which is extremely high.
+    },
+    ganache: {
+      network_id: 5777,
+      host: "127.0.0.1",
+      port: 7545
     }
   }
 };

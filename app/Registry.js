@@ -8,7 +8,7 @@
 const eth = require('./eth.js')
 
 // And the keypath manipulatioin code
-const {getKeypath, setKeypath, firstComponent, lastComponent, parentOf} = require('./keypath.js')
+const { getKeypath, setKeypath, firstComponent, lastComponent, parentOf, splitKeypath } = require('./keypath.js')
 
 // And the event emitter which we use to structure our API
 const { EventEmitter2 } = require('eventemitter2')
@@ -233,12 +233,43 @@ class Registry extends EventEmitter2 {
         return creation_time
       }
     } else if (keypath == 'mrv.balance') {
+      // TODO: change this to balance of an address
       let balance = await this.mrv.balanceOf(eth.get_account())
       return balance
     } else if (keypath == 'reg.commitmentMinWait') {
       // They want the min wait time of a commitment to mature.
       let wait_seconds = (await this.reg.commitmentMinWait()).toNumber()
       return wait_seconds
+    } else if (firstComponent(keypath) == 'reg') {
+      // Match reg.{address}.tokens, reg.{address}.tokens.{number}
+      let parts = splitKeypath(keypath)
+
+      if (parts.length == 3 && parts[2] == 'tokens') {
+        // We want the token count
+        let owner = parts[1]
+
+        let val = await this.reg.balanceOf(owner)
+        this.cache[keypath] = val
+        this.emit(keypath, val)
+      } else if (parts.length == 4 && parts[2] == 'tokens') {
+        // We want token i
+        let owner = parts[1]
+        let index = parts[3]
+
+        let val = undefined
+        try {
+          val = await this.reg.tokenOfOwnerByIndex(owner, index)
+        } catch(e) {
+          // Maybe they no longer have this many tokens
+          console.error('Error getting token ' + index + ' of owner ' + owner + ', assuming 0', e)
+          val = 0
+        }
+        this.cache[keypath] = val
+        this.emit(keypath, val)
+        // TODO: deduplicate this code with the update-on-event code
+      } else {
+        throw new Error('Unsupported keypath ' + keypath)
+      }
     } else if (keypath == 'block.timestamp') {
       // They want to watch the current network time
       let latest_timestamp = (await eth.latest_block()).timestamp
@@ -358,6 +389,57 @@ class Registry extends EventEmitter2 {
       // This does not change.
       // But we have to create a watcher list so unwatch doesn't complain it is mismatched.
       this.watchers[keypath] = []
+    } else if (firstComponent(keypath) == 'reg') {
+      // Match reg.{address}.tokens, reg.{address}.tokens.{number}
+      let parts = splitKeypath(keypath)
+
+      if ((parts.length == 3 || parts.length == 4)  && parts[2] == 'tokens') {
+        let owner = parts[1]
+        // For any change to the virtual real estate tokens of an owner, we need to watch the transfer events in and out
+
+        let in_filter = this.reg.Transfer({to: owner}, { fromBlock: 'latest', toBlock: 'latest'})
+        let out_filter = this.reg.Transfer({from: owner}, { fromBlock: 'latest', toBlock: 'latest'})
+        
+        // On either event, update everything
+        let handle_event = async (error, event_report) => {
+          console.log('Saw event: ', event_report)
+          if (event_report.type != 'mined') {
+            // This transaction hasn't confirmed, so ignore it
+            return
+          }
+
+          if (parts.length == 3) {
+            // We just want the total NFT count for this owner
+            // Just query the balance again to update instead of doing real tracking.
+            let val = await this.reg.balanceOf(owner)
+            this.cache[keypath] = val
+            this.emit(keypath, val)
+          } else {
+            // We must want the token at an index. Query that
+            let index = parts[3]
+            let val = undefined
+            try {
+              val = await this.reg.tokenOfOwnerByIndex(owner, index)
+            } catch(e) {
+              // Maybe they no longer have this many tokens
+              console.error('Error getting token ' + index + ' of owner ' + owner + ', assuming 0', e)
+              val = 0
+            }
+            this.cache[keypath] = val
+            this.emit(keypath, val)
+          }
+        }
+        in_filter.watch(handle_event)
+        out_filter.watch(handle_event)
+
+        // Register filters for deactivation
+        this.watchers[keypath] = [in_filter, out_filter]
+      } else {
+        throw new Error('Unsupported keypath ' + keypath)
+      }
+      
+      let hash = lastComponent(parentOf(keypath))
+      let owner = lastComponent(parentOf(parentOf(keypath)))
     } else if (keypath == 'block.timestamp') {
       // They want to watch the current network time
       let block_filter = eth.watch_block((block) => {
@@ -463,7 +545,7 @@ class Registry extends EventEmitter2 {
     // Load from the claim data
     let {keypath, nonce, account} = claim_data
 
-    console.log('Keypath: ' + token)
+    console.log('Keypath: ' + keypath)
     console.log('Nonce: ' + nonce)
     console.log('Account: ' + account)
 

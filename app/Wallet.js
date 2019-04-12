@@ -71,6 +71,56 @@ class Wallet {
   createExpirationTimeDisplay(feed) {
     return this.createTimeDisplay(feed, mv.COMMITMENT_MAX_WAIT_FACTOR)
   }
+  
+  /// Create a token display LI element to put in the UL of owned tokens in the wallet.
+  /// Has controls for the token.
+  /// Note that it will need to update to a completely different token if tokens before it in the enumeration change.
+  createOwnedTokenDisplay(feed, index) {
+    let tokenDisplay = document.createElement('li')
+
+    // Render it
+    tokenDisplay.innerText = '???'
+    feed.subscribe('reg.' + eth.get_account() + '.tokens.' + index, (token) => {
+      if (token == 0) {
+        // They don't actually have this token
+        tokenDisplay.innerText = 'N/A'
+        return
+      }
+
+      // Otherwise it is a real token
+      let keypath = mv.tokenToKeypath(token)
+      let href = '#' + keypath
+      let hex = '0x' + token.toString(16)
+
+      tokenDisplay.innerHTML = ''
+      
+      tokenDisplay.innerHTML = `
+        ${keypath}
+        ${placeDomNode(() => {
+          let goToButton = document.createElement('button')
+          goToButton.innerText = '🎯 Go To'
+          goToButton.addEventListener('click', () => {
+            // Go look at the thing
+            this.ctx.emit('show', keypath)
+            dialog.closeDialog()
+          })
+          return goToButton
+        })}
+        ${placeDomNode(() => {
+          let releaseButton = document.createElement('button')
+          releaseButton.innerText = '♻️ Release'
+          releaseButton.addEventListener('click', () => {
+            // TODO: implement a separate release confirmation dialog
+            alert('Unimplemented')
+          })
+          return releaseButton
+        })}
+      `
+      // TODO: add deposit indicator, homesteading controls, transfer button
+    })
+
+    return tokenDisplay
+  }
 
   /// Display a general wallet dialog to allow sending tokens and canceling commitments
   showWalletDialog() {
@@ -128,6 +178,38 @@ class Wallet {
       })}
       ${placeDomNode(sendMRVThrobber)}
       <h2>Your Virtual Real Estate</h2>
+      ${placeDomNode(() => {
+        let tokenList = document.createElement('ul')
+
+        // Keep a list of individual token feeds
+        let tokenFeeds = []
+        
+        // We make sure this list always has the right number of entries that fill themselves in
+        feed.subscribe('reg.' + eth.get_account() + '.tokens', (tokenCount) => {
+          while (tokenList.children.length > tokenCount) {
+            // Drop the last item until we are down
+            tokenList.removeChild(tokenList.lastChild)
+            // Drop the last feed
+            tokenFeeds.pop().unsubscribe()
+          }
+          while (tokenList.children.length < tokenCount) {
+            // Create new token displays
+            let tokenFeed = this.ctx.reg.create_feed()
+
+            // Work out the token index to show
+            let tokenIndex = tokenList.children.length
+
+            // Make a control to render it
+            let tokenDisplay = this.createOwnedTokenDisplay(feed, tokenIndex)
+            
+            // Show it and remember its feed
+            tokenList.appendChild(tokenDisplay)
+            tokenFeeds.push(tokenFeed)
+          }
+        })
+
+        return tokenList
+      })}
     `, () => {
       // Dialog is closed, close out the feed
       feed.unsubscribe()
@@ -233,7 +315,6 @@ class Wallet {
         let doneButton = document.createElement('button')
         doneButton.innerText = 'Close'
         doneButton.addEventListener('click', () => {
-          this.clearSubscriptions()
           dialog.closeDialog()
         })
         return doneButton

@@ -22,9 +22,11 @@ const fetch = window.fetch
 // at localhost for Truffle Develop.
 function create_provider() {
   const TRUFFLE_DEVELOP_URL='http://localhost:9545'
+  const GANACHE_DEVELOP_URL='http://localhost:7545'
   // TODO: sometimes use real in-browser web3
-  console.log('Creating provider for url ' + TRUFFLE_DEVELOP_URL)
-  return new Web3.providers.HttpProvider(TRUFFLE_DEVELOP_URL)
+  // TODO: Tell the difference between Truffle and Ganache
+  console.log('Creating provider for url ' + GANACHE_DEVELOP_URL)
+  return new Web3.providers.HttpProvider(GANACHE_DEVELOP_URL)
 }
 
 // Get the proivider in use
