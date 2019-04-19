@@ -15,6 +15,9 @@ const throbber = require('./throbber.js')
 
 const eth = require('./eth.js')
 
+// Get the address avatar renderer
+const blockies = require('ethereum-blockies')
+
 const mv = require('macroverse')
 
 
@@ -127,18 +130,25 @@ class Wallet {
         }
       })
 
+      // Make a place to put the destination blocky icon
+      let destIconHolder = document.createElement('span')
+      destIconHolder.classList.add('blocky-holder')
+
       // Only let people hit the send button if they enter an address that
-      // checksums
+      // checksums. Also keep the dest icon up to date.
       sendButton.disabled = true
       sendButton.setAttribute('title', 'Enter a valid, checksummed address')
-      sendDest.addEventListener('change', () => {
+      sendDest.addEventListener('input', () => {
         let dest = sendDest.value
         if (Web3Utils.checkAddressChecksum(dest)) {
           sendButton.disabled = false
           sendButton.setAttribute('title', 'Give away virtual real estate to ' + dest)
+          destIconHolder.innerHTML = ''
+          destIconHolder.appendChild(blockies.create({seed: dest.toLowerCase()}))
         } else {
           sendButton.disabled = true
           sendButton.setAttribute('title', 'Enter a valid, checksummed address')
+          destIconHolder.innerHTML = ''
         }
       })
 
@@ -155,6 +165,7 @@ class Wallet {
           return goToButton
         })}
         ${placeDomNode(sendDest)}
+        ${placeDomNode(destIconHolder)}
         ${placeDomNode(sendButton)}
         ${placeDomNode(sendThrobber)}
         ${placeDomNode(() => {
@@ -196,52 +207,106 @@ class Wallet {
     // Preapre throbbers for the form
     let sendMRVThrobber = throbber.create()
 
+    // Prepare a place for the destination icon
+    let destIconHolder = document.createElement('span')
+    destIconHolder.classList.add('blocky-holder')
+
+    // Prepare destination field
+    // TODO: unify with NFT token send field
+    let sendDest = document.createElement('input')
+    sendDest.id = 'mrv-destination'
+    sendDest.setAttribute('placeholder', '0xDeAdBeEf...')
+
+    // Prepare a send button
+    let sendButton = document.createElement('button')
+    sendButton.innerText = 'Send'
+    sendButton.addEventListener('click', () => {
+      // TODO: validate entered data
+      
+      // Find the form data
+      let valueField = document.getElementById('mrv-amount')
+      let destField = document.getElementById('mrv-destination')
+
+      // Disable the form
+      valueField.disabled = true
+      destField.disabled = true
+      sendButton.disabled = true
+
+      // Start the throbber
+      throbber.start(sendMRVThrobber)
+
+      let wholeMRV = valueField.value
+      if (isNaN(wholeMRV) || wholeMRV == '') {
+        // Fail early
+        throbber.fail(sendMRVThrobber)
+        valueField.disabled = false
+        destField.disabled = false
+        sendButton.disabled = false
+        return
+      }
+      // TODO: just watch the amount field as well...
+      
+      try {
+        // Actually send the transaction. Metamask or other user agent should prompt to confirm.
+        this.ctx.reg.sendMRV(destField.value, Web3Utils.toWei(valueField.value, 'ether')).then(() => {
+          // Report success
+          throbber.succeed(sendMRVThrobber)
+          // Re-enable form
+          valueField.disabled = false
+          destField.disabled = false
+          sendButton.disabled = false
+        }).catch((err) => {
+          // Re-enable form
+          console.error(err)
+          throbber.fail(sendMRVThrobber)
+          valueField.disabled = false
+          destField.disabled = false
+          sendButton.disabled = false
+        })
+      } catch (err) {
+        // Collect errors from e.g. toWei
+        console.error('Could not send MRV', err)
+        throbber.fail(sendMRVThrobber)
+        valueField.disabled = false
+        destField.disabled = false
+        sendButton.disabled = false
+      }
+    })
+
+    // Only let people hit the send button if they enter an address that
+    // checksums. Also keep the dest icon up to date.
+    sendButton.disabled = true
+    sendButton.setAttribute('title', 'Enter a valid, checksummed address')
+    sendDest.addEventListener('input', () => {
+      let dest = sendDest.value
+      if (Web3Utils.checkAddressChecksum(dest)) {
+        sendButton.disabled = false
+        sendButton.setAttribute('title', 'Send MRV to ' + dest)
+        destIconHolder.innerHTML = ''
+        destIconHolder.appendChild(blockies.create({seed: dest.toLowerCase()}))
+      } else {
+        sendButton.disabled = true
+        sendButton.setAttribute('title', 'Enter a valid, checksummed address')
+        destIconHolder.innerHTML = ''
+      }
+    })
+    // TODO: Unify with checksum and icon logic for NFT token transfer
+
     dialog.showDialog('Wallet', `
       <p>This wallet allows you to send and receive MRV tokens and Macroverse virtual real estate, and to manage your real estate claim commitments.</p>
       <h2>Your MRV balance: ${placeDomNode(this.createMRVBalanceDisplay(feed))}</h2>
       <h3>Receive MRV</h3>
-      <p>Receiving address: ${Web3Utils.toChecksumAddress(eth.get_account())}</p>
+      <p>
+        Receiving address: ${Web3Utils.toChecksumAddress(eth.get_account())}
+        <span class="blocky-holder">${placeDomNode(blockies.create({seed: eth.get_account()}))}</span>
+      </p>
       <h3>Send MRV</h3>
       <label for="mrv-destination">Destination:</label>
-      <input id="mrv-destination" placeholder="0xDeAdBeEf..."/>
+      ${placeDomNode(sendDest)}
+      ${placeDomNode(destIconHolder)}
       <label for="mrv-amount">MRV:</label>
       <input id="mrv-amount" placeholder="0.01"/>
-      ${placeDomNode(() => {
-        let sendButton = document.createElement('button')
-        sendButton.innerText = 'Send'
-        sendButton.addEventListener('click', () => {
-          // TODO: validate entered data
-          
-          // Find the form data
-          let valueField = document.getElementById('mrv-amount')
-          let destField = document.getElementById('mrv-destination')
-
-          // Disable the form
-          valueField.disabled = true
-          destField.disabled = true
-          sendButton.disabled = true
-
-          // Start the throbber
-          throbber.start(sendMRVThrobber)
-          // Actually send the transaction. Metamask or other user agent should prompt to confirm.
-          this.ctx.reg.sendMRV(destField.value, Web3Utils.toWei(valueField.value, 'ether')).then(() => {
-            // Report success
-            throbber.succeed(sendMRVThrobber)
-            // Re-enable form
-            valueField.disabled = false
-            destField.disabled = false
-            sendButton.disabled = false
-          }).catch((err) => {
-            // Re-enable form
-            console.error(err)
-            throbber.fail(sendMRVThrobber)
-            valueField.disabled = false
-            destField.disabled = false
-            sendButton.disabled = false
-          })
-        })
-        return sendButton
-      })}
+      ${placeDomNode(sendButton)}
       ${placeDomNode(sendMRVThrobber)}
       <h2>Your Virtual Real Estate</h2>
       ${placeDomNode(() => {
@@ -522,7 +587,7 @@ class Wallet {
 
     picker.setAttribute('type', 'file')
     picker.setAttribute('accept', 'application/json')
-    picker.addEventListener('change', () => {
+    picker.addEventListener('input', () => {
       console.log('Claim file selected')
       throbber.start(parseThrobber)
 
