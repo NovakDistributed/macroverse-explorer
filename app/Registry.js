@@ -593,9 +593,64 @@ class Registry extends EventEmitter2 {
     console.log('Commitment canceled successfully')
   }
 
-  
+  // Send the NFT token for the given keypath to an arbitrary address
+  async sendToken(destination, keypath) {
+    // Work out our account
+    let account = await eth.get_account()
 
+    console.log('Sending ' + keypath + ' from ' + account + ' to ' + destination)
 
+    // Compute the actual token number
+    let token = mv.keypathToToken(keypath)
+
+    let gas = await this.reg.transferFrom.estimateGas(account, destination, token, {from: account}) * 2
+
+    console.log('Send will probably take ' + gas + ' gas')
+
+    let receipt = await this.reg.transferFrom(account, destination, token, {from: account, gas: gas})
+
+    console.log('Transfer receipt: ', receipt)
+  }
+
+  // Release the token for the given keypath.
+  // We have to own it.
+  // Token will be available to be claimed by someone else!
+  async releaseToken(keypath) {
+    console.log('Releasing keypath: ' + keypath)
+
+    // Work out our account
+    let account = await eth.get_account()
+
+    // Compute the actual token number
+    let token = mv.keypathToToken(keypath)
+
+    let gas = await this.reg.release.estimateGas(token, {from: account}) * 2
+
+    console.log('Release will probably take ' + gas + ' gas')
+
+    await this.reg.release(token, {from: account, gas: gas})
+
+    console.log('Token released successfully')
+  }
+
+  // Set homesteading under a token to on or off.
+  async setHomesteading(keypath, is_enabled) {
+    console.log('Setting homesteading on keypath ' + keypath + ' to ' + is_enabled)
+
+    // Work out our account
+    let account = await eth.get_account()
+
+    // Compute the actual token number
+    let token = mv.keypathToToken(keypath)
+
+    let gas = await this.reg.setHomesteading.estimateGas(token, is_enabled, {from: account}) * 2
+
+    console.log('Setting homesteading will probably take ' + gas + ' gas')
+
+    await this.reg.setHomesteading(token, is_enabled, {from: account, gas: gas})
+
+    console.log('Homesteading set successfully')
+  }
 
 }
 

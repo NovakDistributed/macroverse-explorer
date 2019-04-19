@@ -89,13 +89,61 @@ class Wallet {
 
       // Otherwise it is a real token
       let keypath = mv.tokenToKeypath(token)
-      let href = '#' + keypath
       let hex = '0x' + token.toString(16)
 
-      tokenDisplay.innerHTML = ''
-      
+      // Make throbbers
+      let releaseThrobber = throbber.create()
+      let sendThrobber = throbber.create()
+
+      // Make an input for entering an address to send to.
+      // We make it manually to avoid having to give it an ID.
+      let sendDest = document.createElement('input')
+      sendDest.setAttribute('placeholder', '0xDeAdBeEf...')
+
+      // Make a button for doing the send
+      let sendButton = document.createElement('button')
+      sendButton.innerText = '🎁 Give'
+      sendButton.addEventListener('click', () => {
+        let dest = sendDest.value
+        if (confirm('Are you sure you want to give away ' + keypath + ' to ' + dest + '?')) {
+          sendButton.disabled = true
+          sendDest.disabled = true
+          throbber.start(sendThrobber)
+
+          this.ctx.reg.sendToken(dest, keypath).then(() => {
+            // Token is owned by someone else
+            // Unless someone else is still us.
+            // So re-enable the UI
+            throbber.succeed(sendThrobber)
+            sendDest.value = ''
+            sendButton.disabled = false
+            sendDest.disabled = false
+          }).catch((e) => {
+            console.error('Could not give ' + keypath + ' to ' + dest, e)
+            throbber.fail(sendThrobber)
+            sendButton.disabled = false
+            sendDest.disabled = false
+          })
+        }
+      })
+
+      // Only let people hit the send button if they enter an address that
+      // checksums
+      sendButton.disabled = true
+      sendButton.setAttribute('title', 'Enter a valid, checksummed address')
+      sendDest.addEventListener('change', () => {
+        let dest = sendDest.value
+        if (Web3Utils.checkAddressChecksum(dest)) {
+          sendButton.disabled = false
+          sendButton.setAttribute('title', 'Give away virtual real estate to ' + dest)
+        } else {
+          sendButton.disabled = true
+          sendButton.setAttribute('title', 'Enter a valid, checksummed address')
+        }
+      })
+
       tokenDisplay.innerHTML = `
-        ${keypath}
+        ${keypath} (${hex})
         ${placeDomNode(() => {
           let goToButton = document.createElement('button')
           goToButton.innerText = '🎯 Go To'
@@ -106,17 +154,35 @@ class Wallet {
           })
           return goToButton
         })}
+        ${placeDomNode(sendDest)}
+        ${placeDomNode(sendButton)}
+        ${placeDomNode(sendThrobber)}
         ${placeDomNode(() => {
           let releaseButton = document.createElement('button')
           releaseButton.innerText = '♻️ Release'
           releaseButton.addEventListener('click', () => {
-            // TODO: implement a separate release confirmation dialog
-            alert('Unimplemented')
+            if (confirm('Are you sure you want to release ' + keypath + ' to be claimed by others? You will no longer own it.')) {
+              releaseButton.disabled = true
+              throbber.start(releaseThrobber)
+              
+              this.ctx.reg.releaseToken(keypath).then(() => {
+                // Token is released and should go away.
+                // Don't re-enable anything.
+                throbber.succeed(releaseThrobber)
+              }).catch((e) => {
+                console.error('Could not release ' + keypath, e)
+                throbber.fail(releaseThrobber)
+                releaseButton.disabled = false
+              })
+            }
           })
           return releaseButton
         })}
+        ${placeDomNode(releaseThrobber)}
       `
-      // TODO: add deposit indicator, homesteading controls, transfer button
+      // TODO: showing associated deposit and homesteading status requires
+      // making more subscriptions in a sort of subfeed that we can clear out
+      // when the token we are supposed to be displaying changes.
     })
 
     return tokenDisplay
@@ -134,7 +200,7 @@ class Wallet {
       <p>This wallet allows you to send and receive MRV tokens and Macroverse virtual real estate, and to manage your real estate claim commitments.</p>
       <h2>Your MRV balance: ${placeDomNode(this.createMRVBalanceDisplay(feed))}</h2>
       <h3>Receive MRV</h3>
-      <p>Receiving address: ${eth.get_account()}</p>
+      <p>Receiving address: ${Web3Utils.toChecksumAddress(eth.get_account())}</p>
       <h3>Send MRV</h3>
       <label for="mrv-destination">Destination:</label>
       <input id="mrv-destination" placeholder="0xDeAdBeEf..."/>
@@ -588,7 +654,7 @@ class Wallet {
         cancelButton.disabled = false
         picker.disabled = false
       })
-    })
+  })
 
     dialog.showDialog('Manage Claims', `
       <p>This dialog will walk you through revealing a claim on a piece of virtual real estate that you committed to earlier.</p>
