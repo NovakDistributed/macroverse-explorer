@@ -401,14 +401,11 @@ class Wallet {
       ${placeDomNode(approveThrobber)}
       <h2>Step 2: Broadcast Claim</h2>
       <p>The next step in claiming your virtual real estate is to <strong>commit</strong> to your claim. Committing publishes a cryptographic hash value on the blockchain to establish that you are going to claim a piece of virtual real estate, without revealing what, specifically, you are intending to claim. The commitment will have to sit on the blockchain to "mature" for a period of time before you can actually claim the real estate. When you do reveal what you are claiming, the requirement to have a matured commitment will prevent other people from sniping your claims and stealing the real estate you were intending to claim by paying a higher gas price.</p>
-      <p>Press the button below to broadcast a claim for this piece of virtual real estate. <strong>This process will give you a secret value in a file to keep. Without this value, your claim will be worthless.</strong> If you lose it, or do not save it, all you will be able to do will be to cancel the claim and try again.</p>
+      <p>Press the button below to broadcast a claim for this piece of virtual real estate. <strong>This process will give you a secret value in a file to keep. Without this value, your claim will be worthless</strong> and <strong>your deposit <u>will not be recoverable</u> through this application</strong> If you lose this file, or do not save it, <strong>you will not get your virtual real estate</strong> and <strong>you will have to manually cancel the claim</strong> by interacting directly with the on-chain registry contract.</p>
       ${placeDomNode(() => {
         let claimButton = document.createElement('button')
 
         claimButton.innerText = 'Claim'
-
-
-
 
         claimButton.addEventListener('click', () => {
           claimButton.disabled = true
@@ -500,7 +497,7 @@ class Wallet {
         <table>
           <tr>
             <td>Account</td>
-            <td>${placeText(claimData.account)}</td>
+            <td>${placeText(Web3Utils.toChecksumAddress(claimData.account))}</td>
           </tr>
           <tr>
             <td>Keypath</td>
