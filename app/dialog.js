@@ -42,6 +42,9 @@ function showDialog(title, text, on_close) {
     </div>
   `
   dialogRoot.style.display = 'block'
+
+  // Scroll to top of dialog.
+  window.scrollTo(0,0)
 }
 
 // This function creates the close button with attached event handler

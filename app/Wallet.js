@@ -79,11 +79,23 @@ class Wallet {
   /// Has controls for the token.
   /// Note that it will need to update to a completely different token if tokens before it in the enumeration change.
   createOwnedTokenDisplay(feed, index) {
+    // Make the element to display the token
     let tokenDisplay = document.createElement('li')
+
+    // Make a feed that we can subscribe to token properies on.
+    // We will re-make it every time the token changes.
+    // When the parent feed goes away, it will too.
+    let tokenFeed = feed.derive()
 
     // Render it
     tokenDisplay.innerText = '???'
     feed.subscribe('reg.' + eth.get_account() + '.tokens.' + index, (token) => {
+      // Unsubscribe the old token feed
+      tokenFeed.unsubscribe()
+
+      // Make a new one to ask for info about this particular token
+      tokenFeed = feed.derive()
+      
       if (token == 0) {
         // They don't actually have this token
         tokenDisplay.innerText = 'N/A'
@@ -152,6 +164,13 @@ class Wallet {
         }
       })
 
+      // Define a deposit display
+      let depositDisplay = document.createElement('span')
+      tokenFeed.subscribe(keypath + '.deposit', (deposit) => {
+        // We need the base int he toString or we get exponential format instead of digits.
+        depositDisplay.innerText = Web3Utils.fromWei(deposit.toString(10)) + ' MRV'
+      })
+
       tokenDisplay.innerHTML = `
         ${keypath} (${hex})
         ${placeDomNode(() => {
@@ -168,11 +187,12 @@ class Wallet {
         ${placeDomNode(destIconHolder)}
         ${placeDomNode(sendButton)}
         ${placeDomNode(sendThrobber)}
+        Deposit: ${placeDomNode(depositDisplay)}
         ${placeDomNode(() => {
           let releaseButton = document.createElement('button')
           releaseButton.innerText = '♻️ Release'
           releaseButton.addEventListener('click', () => {
-            if (confirm('Are you sure you want to release ' + keypath + ' to be claimed by others? You will no longer own it.')) {
+            if (confirm('Are you sure you want to release ' + keypath + ' to be claimed by others? You will no longer own it, but you will get your deposit back.')) {
               releaseButton.disabled = true
               throbber.start(releaseThrobber)
               

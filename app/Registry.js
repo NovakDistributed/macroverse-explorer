@@ -184,30 +184,7 @@ class Registry extends EventEmitter2 {
   // Return a promise for the value represented by the given keypath
   async retrieveFromChain(keypath) {
     console.log('Getting initial value for ' + keypath)
-    if (lastComponent(keypath) == 'owner') {
-      // We want the owner of something
-      // Pack the token value
-      let token = mv.keypathToToken(parentOf(keypath))
-
-      // Decide if it should have an owner right now
-      let owned = await this.reg.exists(token);
-
-      if (owned) {
-        // We think it is owned
-
-        let token_owner = await this.reg.ownerOf(token).catch((err) => {
-          // Maybe it became unowned while we were looking at it
-          console.log('Error getting owner, assuming unowned', err)
-          return 0
-        })
-
-        return token_owner
-
-      } else {
-        // It doesn't appear to have an owner
-        return 0
-      }
-    } else if (firstComponent(keypath) == 'commitment') {
+    if (firstComponent(keypath) == 'commitment') {
       // Format is 'commitment.{owner}.{hash}.("hash"|"deposit"|"creationTime")'
       // If the commitment doesn't exist, everything will resolve to 0.
 
@@ -274,6 +251,40 @@ class Registry extends EventEmitter2 {
       // They want to watch the current network time
       let latest_timestamp = (await eth.latest_block()).timestamp
       return latest_timestamp
+    } else if (['owner', 'deposit', 'homesteading'].includes(lastComponent(keypath))) {
+      // We want the owner, deposit, or homesteading status of a token (not a claim)
+      // Pack the token value
+      let token = mv.keypathToToken(parentOf(keypath))
+
+      // Decide if it should have an owner right now
+      let owned = await this.reg.exists(token);
+
+      if (owned) {
+        // We think it is owned
+
+        let wanted = lastComponent(keypath)
+
+        if (wanted == 'owner') {
+          let token_owner = await this.reg.ownerOf(token).catch((err) => {
+            // Maybe it became unowned while we were looking at it
+            console.log('Error getting owner, assuming unowned', err)
+            return 0
+          })
+
+          return token_owner
+        } else if (wanted == 'deposit') {
+          // This returns 0 for unowned tokens.
+          let deposit = await this.reg.getDeposit(token);
+          return deposit
+        } else if (wanted == 'homesteading') {
+          // This returns false for unowned tokens
+          let homesteading = await this.reg.getHomesteading(token);
+          return homesteading
+        }
+      } else {
+        // It doesn't appear to have an owner. The answer is 0/falsey for all of them.
+        return 0
+      }
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -288,28 +299,7 @@ class Registry extends EventEmitter2 {
       throw new Error('Trying to double-watch ' + keypath)
     }
     
-    if (lastComponent(keypath) == 'owner') {
-      // We want the owner of something
-      // Pack the token value
-      let token = mv.keypathToToken(parentOf(keypath))
-
-      // Set up a filter for the transfer of this token from here on out.
-      // Note: this also catches any events in the current top block when we make it
-      let filter = this.reg.Transfer({'tokenId': token}, { fromBlock: 'latest', toBlock: 'latest'})
-      filter.watch((error, event_report) => {
-        console.log('Saw event: ', event_report)
-        if (event_report.type != 'mined') {
-          // This transaction hasn't confirmed, so ignore it
-          return
-        }
-        let val = event_report.args.to
-        this.cache[keypath] = val
-        this.emit(keypath, val)
-      })
-
-      // Remember the filter so we can stop watching.
-      this.watchers[keypath] = [filter]
-    } else if (firstComponent(keypath) == 'commitment') {
+    if (firstComponent(keypath) == 'commitment') {
       // Format is 'commitment.{owner}.{hash}.("hash"|"deposit"|"creationTime")'
       // If the commitment doesn't exist, everything will resolve to 0.
 
@@ -449,6 +439,70 @@ class Registry extends EventEmitter2 {
       })
 
       this.watchers[keypath] = [block_filter]
+    } else if (['owner', 'deposit', 'homesteading'].includes(lastComponent(keypath))) {
+      // We want the owner, deposit, or homesteading status of a token (not a claim)
+      // Pack the token value
+      let token = mv.keypathToToken(parentOf(keypath))
+
+      let wanted = lastComponent(keypath)
+
+      // Set up a filter for the transfer of this token from here on out.
+      // Note: this also catches any events in the current top block when we make it
+      let filter = this.reg.Transfer({'tokenId': token}, { fromBlock: 'latest', toBlock: 'latest'})
+      filter.watch(async (error, event_report) => {
+        console.log('Saw event: ', event_report)
+        if (event_report.type != 'mined') {
+          // This transaction hasn't confirmed, so ignore it
+          return
+        }
+        let new_owner = event_report.args.to
+
+        if (wanted == 'owner') {
+          // Just spit out the owner
+          this.cache[keypath] = new_owner
+          this.emit(keypath, new_owner)
+        } else if (wanted == 'deposit') {
+          // We want the deposit, or 0 for unowned tokens.
+          // The contract already does that.
+          let deposit = await this.reg.getDeposit(token)
+
+          this.cache[keypath] = deposit
+          this.emit(keypath, deposit)
+        } else if (wanted == 'homesteading') {
+          // Maybe the token was destroyed or created. Check homesteading.
+          let homesteading = await this.reg.getDeposit(token)
+
+          this.cache[keypath] = homesteading
+          this.emit(keypath, homesteading)
+        }
+      })
+
+      // Remember the filter so we can stop watching.
+      this.watchers[keypath] = [filter]
+      
+      if (wanted == 'homesteading') {
+        // Also watch the homesteading event
+
+        let filter2 = this.reg.Homesteading({'token': token}, { fromBlock: 'latest', toBlock: 'latest'})
+        filter2.watch((error, event_report) => {
+          console.log('Saw event: ', event_report)
+          if (event_report.type != 'mined') {
+            // This transaction hasn't confirmed, so ignore it
+            return
+          }
+
+          // It says whether homesteading was turned on or off
+          let val = event_report.args.value
+
+          // Report it
+          this.cache[keypath] = val
+          this.emit(keypath, val)
+        })
+
+        this.watchers[keypath].push(filter2)
+
+      }
+
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -660,12 +714,16 @@ class Registry extends EventEmitter2 {
  * unsubscribe() to remove all the subscriptions.
  */
 class Feed {
-  /// Construct a Feed backed by the given Registry
-  constructor(registry) {
+  /// Construct a Feed backed by the given Registry, possibly with the given parent.
+  constructor(registry, parent) {
     // Hold the backing registry
     this.registry = registry
     // Track all subscriptions
     this.subscriptions = []
+    // Track all children
+    this.children = new Set()
+    // Save the parent, which may be undefined
+    this.parent = parent
   }
   
   /// Subscribe the given handler to the given keypath
@@ -673,10 +731,23 @@ class Feed {
     this.subscriptions.push(this.registry.subscribe(keypath, handler))
   }
 
-  /// Unsubscribe all handlers
+  /// Unsubscribe all handlers, and all children
   unsubscribe() {
     for (let subscription of this.subscriptions) {
       this.registry.unsubscribe(subscription)
+    }
+    this.subscriptions = []
+
+    // Clean up children and sever connection to us.
+    for (let child of this.children) {
+      child.unsubscribe()
+      child.parent = undefined
+    }
+    this.children = new Set()
+
+    if (this.parent !== undefined) {
+      // Don't let our parent unsubscribe us again
+      this.parent.children.delete(this)
     }
   }
 
@@ -710,6 +781,19 @@ class Feed {
     }
 
     // When we unsubscribe all the subscriptions will go away and everything will be cleaned up.
+  }
+
+  /// Create a child Feed backed by the same Registry as this one.
+  /// When this feed unsubscribes, so will the child feed, if it hasn't already.
+  derive() {
+    // Make the child
+    let child = new Feed(this.registry, this)
+
+    // Save it as a child
+    this.children.add(child)
+
+    // Return it
+    return child
   }
 }
 
