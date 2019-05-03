@@ -114,6 +114,14 @@ class Wallet {
       // We make it manually to avoid having to give it an ID.
       let sendDest = document.createElement('input')
       sendDest.setAttribute('placeholder', '0xDeAdBeEf...')
+      sendDest.setAttribute('id', 'send' + hex)
+
+      // Make an (aria-only) label for the destination box.
+      let sendDestLabel = document.createElement('label')
+      sendDestLabel.setAttribute('for', sendDest.id)
+      sendDestLabel.innerText='Send to address:'
+      sendDestLabel.setAttribute('aria-hidden', false)
+      sendDestLabel.style.display='none'
 
       // Make a button for doing the send
       let sendButton = document.createElement('button')
@@ -183,8 +191,11 @@ class Wallet {
           })
           return goToButton
         })}
-        ${placeDomNode(sendDest)}
-        ${placeDomNode(destIconHolder)}
+        <span class="address-widget">
+          ${placeDomNode(sendDestLabel)}
+          ${placeDomNode(sendDest)}
+          ${placeDomNode(destIconHolder)}
+        </span>
         ${placeDomNode(sendButton)}
         ${placeDomNode(sendThrobber)}
         Deposit: ${placeDomNode(depositDisplay)}
@@ -317,13 +328,18 @@ class Wallet {
       <h2>Your MRV balance: ${placeDomNode(this.createMRVBalanceDisplay(feed))}</h2>
       <h3>Receive MRV</h3>
       <p>
-        Receiving address: ${Web3Utils.toChecksumAddress(eth.get_account())}
-        <span class="blocky-holder">${placeDomNode(blockies.create({seed: eth.get_account()}))}</span>
+        Receiving address:
+        <span class="address-widget">
+          <span class="address">${Web3Utils.toChecksumAddress(eth.get_account())}</span>
+          <span class="blocky-holder">${placeDomNode(blockies.create({seed: eth.get_account()}))}</span>
+        </span>
       </p>
       <h3>Send MRV</h3>
       <label for="mrv-destination">Destination:</label>
-      ${placeDomNode(sendDest)}
-      ${placeDomNode(destIconHolder)}
+      <span class="address-widget">
+        ${placeDomNode(sendDest)}
+        ${placeDomNode(destIconHolder)}
+      </span>   
       <label for="mrv-amount">MRV:</label>
       <input id="mrv-amount" placeholder="0.01"/>
       ${placeDomNode(sendButton)}

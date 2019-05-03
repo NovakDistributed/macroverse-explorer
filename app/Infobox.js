@@ -3,12 +3,17 @@
 
 const timers = require('timers')
 
+// Get the address avatar renderer
+const blockies = require('ethereum-blockies')
+
+const Web3Utils = require('web3-utils')
+
 const { parentOf, lastComponent } = require('./keypath.js')
 
 const mv = require('macroverse')
 
 // Load up our reactive web framework
-const { placeDomNode, formatNumber, formatWithUnits } = require('./halfact.js')
+const { placeDomNode, placeText, formatNumber, formatWithUnits } = require('./halfact.js')
 
 // Load up the web3 wrapper so we can get our own address
 const eth = require('./eth.js')
@@ -174,7 +179,7 @@ class Infobox {
 
       if (owner == 0 || owner == '0x0') {
         // TODO: does the zero address equal 0?
-        root.innerText = ''
+        root.innerHTML = ''
         let claimButton = document.createElement('button')
         claimButton.innerText = '⛳ Claim'
         root.appendChild(claimButton)
@@ -184,10 +189,17 @@ class Infobox {
         })
       } else if (owner == eth.get_account()) {
         // It is owned by us
-        root.innerText = 'You'
+        root.innerHTML = 'You'
       } else {
         // It is owned by an address
-        root.innerText = owner
+        root.innerHTML = `
+          <span class="address-widget">
+            <span class="address">${placeText(Web3Utils.toChecksumAddress(owner))}</span>
+            <span class="blocky-holder">${placeDomNode(blockies.create({seed: owner.toLowerCase()}))}</span>
+          </span>
+        `
+        // Format it like one.
+        root.classList.add('address')
       }
     })
 
