@@ -8,7 +8,7 @@
 const eth = require('./eth.js')
 
 // And the keypath manipulatioin code
-const { getKeypath, setKeypath, firstComponent, lastComponent, parentOf, splitKeypath } = require('./keypath.js')
+const { getKeypath, setKeypath, firstComponent, lastComponent, parentOf, allParentsOf, componentCount, splitKeypath } = require('./keypath.js')
 
 // And the event emitter which we use to structure our API
 const { EventEmitter2 } = require('eventemitter2')
@@ -257,7 +257,7 @@ class Registry extends EventEmitter2 {
       let token = mv.keypathToToken(parentOf(keypath))
 
       // Decide if it should have an owner right now
-      let owned = await this.reg.exists(token);
+      let owned = await this.reg.exists(token)
 
       if (owned) {
         // We think it is owned
@@ -285,6 +285,63 @@ class Registry extends EventEmitter2 {
         // It doesn't appear to have an owner. The answer is 0/falsey for all of them.
         return 0
       }
+    } else if (['ultimateOwner', 'lowestOwnedParent', 'claimable'].includes(lastComponent(keypath))) {
+      // We want to know who owns the lowest owned parent, or what it is, or if
+      // we can claim this thing because that parent is nonexistent, is ours,
+      // or has homesteading on.
+      
+      // Pack the token value
+      let token = mv.keypathToToken(parentOf(keypath))
+      let wanted = lastComponent(keypath)
+
+      // See if it exists
+      let owned = await this.reg.exists(token)
+
+      if (owned && wanted != 'lowestOwnedParent') {
+        if (wanted == 'ultimateOwner') {
+          // It's just the current owner
+          let token_owner = await this.reg.ownerOf(token).catch((err) => {
+            // Maybe it became unowned while we were looking at it
+            console.log('Error getting owner, assuming unowned', err)
+            return 0
+          })
+
+          return token_owner
+        } else if (wanted == 'claimable') {
+          // Can't be claimed if it is owned
+          return false
+        }
+      } else {
+        // Something else may control it
+        let controlling_token = await this.reg.lowestExistingParent(token)
+
+        if (wanted == 'lowestOwnedParent') {
+          // Just return that token or 0 if it doesn't exist
+          return controlling_token
+        } else if (wanted == 'ultimateOwner') {
+          if (controlling_token == 0) {
+            // Nobody owns any parent
+            return 0
+          }
+        
+          // Otherwise, look up who owns the parent
+          let controlling_token_owner = await this.reg.ownerOf(controlling_token).catch((err) => {
+            console.log('Error getting owner, assuming unowned', err)
+            return 0
+          })
+
+          return controlling_token_owner
+        } else if (wanted == 'claimable') {
+          if (controlling_token == 0) {
+            // Nobody owns any parent, so this must be claimable
+            return true
+          }
+
+          // Otherwise, look up if we can claim under the parent
+          return await this.reg.childrenClaimable(controlling_token, eth.get_account())
+        }
+      }
+      
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -470,7 +527,7 @@ class Registry extends EventEmitter2 {
           this.emit(keypath, deposit)
         } else if (wanted == 'homesteading') {
           // Maybe the token was destroyed or created. Check homesteading.
-          let homesteading = await this.reg.getDeposit(token)
+          let homesteading = await this.reg.getHomesteading(token)
 
           this.cache[keypath] = homesteading
           this.emit(keypath, homesteading)
@@ -502,7 +559,65 @@ class Registry extends EventEmitter2 {
         this.watchers[keypath].push(filter2)
 
       }
+    } else if (['ultimateOwner', 'lowestOwnedParent', 'claimable'].includes(lastComponent(keypath))) {
+      // We need to watch for:
+      // Claim of the token itself
+      // Transfer of the token itself
+      // Transfer of the lowest claimed parent
+      // Homesteading set on the lowest claimed parent
+      // Claim of anything *between* the token and the lowest claimed parent...
 
+      // We can't efficiently watch that last one alone, and if it happens we
+      // have to re-determine and re-watch the lowest claimed parent somehow,
+      // if we watch it specifically...
+
+      // So we just watch all possible parents.
+
+      // Pack the token value
+      let token = mv.keypathToToken(parentOf(keypath))
+      let wanted = lastComponent(keypath)
+
+      // When we get any relevant events, re-check the chain
+      let handle_watch = async (error, event_report) => {
+        console.log('Saw event: ', event_report)
+        if (event_report.type != 'mined') {
+          // This transaction hasn't confirmed, so ignore it
+          return
+        }
+        // Instead of recomputing, go re-get the value
+        let result = await this.retrieveFromChain(keypath)
+
+        this.cache[keypath] = result
+        this.emit(keypath, result)
+      }
+
+      // Watch for transfers on the token itself
+      let filter = this.reg.Transfer({'tokenId': token}, { fromBlock: 'latest', toBlock: 'latest'})
+      filter.watch(handle_watch)
+
+      this.watchers[keypath] = [filter]
+
+      // Make a list of all the parent tokens
+      let parent_tokens = []
+      for (let parent_keypath of allParentsOf(keypath)) {
+        if (componentCount(parent_keypath) > 3) {
+          // It's not a sector, so make it a token
+          parent_tokens.push(mv.keypathToToken(parent_keypath))
+        }
+      }
+
+      for (let parent_token of parent_tokens) {
+        // Watch for the transfer of any parent
+        let transfer_filter = this.reg.Transfer({'tokenId': parent_token}, { fromBlock: 'latest', toBlock: 'latest'})
+        transfer_filter.watch(handle_watch)
+        // TODO: we will end up with a lot of watches on the same parents to update a lot of children.
+        this.watchers[keypath].push(transfer_filter)
+
+        // Watch for a change in the homesteading status of any parent
+        let homesteading_filter = this.reg.Homesteading({'token': parent_token}, { fromBlock: 'latest', toBlock: 'latest'})
+        homesteading_filter.watch(handle_watch)
+        this.watchers[keypath].push(homesteading_filter)
+      }
     } else {
       throw new Error('Unsupported keypath ' + keypath)
     }
@@ -754,7 +869,7 @@ class Feed {
   /// Subscribe the given handler to the given list of keypaths.
   /// When any of them changes, the hander is called with an array of all of them.
   /// We wait for all of them to have values reported before making any handler calls.
-  subscribe_all(keypaths, handler) {
+  subscribeAll(keypaths, handler) {
     // This will hold the values as they come in.
     let values = []
     // This will hold flags for if the value has come in at all yet

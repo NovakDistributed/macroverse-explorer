@@ -569,7 +569,7 @@ class Wallet {
               ageNode.classList.add('status')
               ageNode.innerText = '???'
 
-              feed.subscribe_all(['block.timestamp', claimKeypath + '.creationTime', 'reg.commitmentMinWait'], ([timestamp, creationTime, minWait]) => {
+              feed.subscribeAll(['block.timestamp', claimKeypath + '.creationTime', 'reg.commitmentMinWait'], ([timestamp, creationTime, minWait]) => {
                 if (creationTime == 0) {
                   // The commitment does not exist. Probably it has been revealed or canceled.
                   ageNode.innerText = 'N/A'

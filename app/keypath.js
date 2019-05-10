@@ -5,6 +5,22 @@ function parentOf(keypath) {
   return keypath.substr(0, keypath.lastIndexOf('.'))
 }
 
+// And one that gets an array of all parents
+function allParentsOf(keypath) {
+  if (lastComponent(keypath) == keypath) {
+    // No parents exist
+    return []
+  } else {
+    // Get our parent
+    let our_parent = parentOf(keypath)
+    // And all its parents
+    let higher_parents = allParentsOf(our_parent)
+    // Add it in and return
+    higher_parents.push(our_parent)
+    return higher_parents
+  }
+}
+
 // And one that gets the last thing in the keypath
 function lastComponent(keypath) {
   return keypath.substr(keypath.lastIndexOf('.') + 1)
@@ -13,6 +29,11 @@ function lastComponent(keypath) {
 // And one that gets the first thing in the keypath
 function firstComponent(keypath) {
   return keypath.substr(0, keypath.indexOf('.'))
+}
+
+// And one that gets the number of components in a keypath
+function componentCount(keypath) {
+  return splitKeypath(keypath).length
 }
 
 // And one that just explodes a keypath
@@ -114,4 +135,4 @@ function keypathToId(keypath) {
     return 'kp' + keypath.replace(/\./g, '_')
 }
 
-module.exports = { parentOf, lastComponent, firstComponent, splitKeypath, getKeypath, setKeypath, keypathToId }
+module.exports = { parentOf, allParentsOf, lastComponent, firstComponent, componentCount, splitKeypath, getKeypath, setKeypath, keypathToId }

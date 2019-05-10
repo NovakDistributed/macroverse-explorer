@@ -167,19 +167,47 @@ class Infobox {
 
   
   // Return a live updating HTML element tracking the ownership of the token represented by the given keypath.
+  // Also keeps track of whether it is owned via a parent, and whether it is claimable by the current user.
   // Valid until we get another show event from the context.
   makeOwnershipWidget(keypath) {
     let root = document.createElement('span')
     root.innerText = 'Retrieving...'
 
     // Listen for owner updates, and remember that we're doing so
-    this.feed.subscribe(keypath + '.owner', (owner) => {
-      // When the owner updates, plug it in
-      console.log('Owner of ' + keypath + ' changed to ' + owner)
+    this.feed.subscribeAll([keypath + '.owner', keypath + '.ultimateOwner', keypath + '.lowestOwnedParent', keypath + '.claimable'],
+      ([owner, ultimate_owner, lowest_owned_parent, claimable]) => {
+      
+      if (ultimate_owner == eth.get_account()) {
+        // It is owned by us
+        root.innerHTML = 'You'
+      } else if (ultimate_owner != 0) {
+        root.innerHTML = `
+          <span class="address-widget">
+            <span class="address">${placeText(Web3Utils.toChecksumAddress(ultimate_owner))}</span>
+            <span class="blocky-holder">${placeDomNode(blockies.create({seed: ultimate_owner.toLowerCase()}))}</span>
+          </span>
+        `
 
-      if (owner == 0 || owner == '0x0') {
-        // TODO: does the zero address equal 0?
-        root.innerHTML = ''
+        // Root will need to wrap text aggressively
+        root.classList.add('address')
+      } else {
+        root.innerHTML = 'Unowned'
+      }
+
+      if (owner == 0 && ultimate_owner != 0) {
+        // Ownership came via lowest_owned_parent
+        // Add a button to go there
+        let via_keypath = mv.tokenToKeypath(lowest_owned_parent)
+        let via = document.createElement('button')
+        via.innerText = 'via ' + via_keypath
+        root.appendChild(via)
+
+        via.addEventListener('click', () => {
+          this.ctx.emit('show', via_keypath)
+        })
+      }
+
+      if (claimable) {
         let claimButton = document.createElement('button')
         claimButton.innerText = '⛳ Claim'
         root.appendChild(claimButton)
@@ -187,20 +215,7 @@ class Infobox {
         claimButton.addEventListener('click', async () => {
           ctx.wallet.showCommitDialog(keypath)
         })
-      } else if (owner == eth.get_account()) {
-        // It is owned by us
-        root.innerHTML = 'You'
-      } else {
-        // It is owned by an address
-        root.innerHTML = `
-          <span class="address-widget">
-            <span class="address">${placeText(Web3Utils.toChecksumAddress(owner))}</span>
-            <span class="blocky-holder">${placeDomNode(blockies.create({seed: owner.toLowerCase()}))}</span>
-          </span>
-        `
-        // Format it like one.
-        root.classList.add('address')
-      }
+      } 
     })
 
     return root
