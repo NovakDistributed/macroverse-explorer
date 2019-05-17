@@ -218,7 +218,7 @@ class Infobox {
 
       if (claimable) {
         let claimButton = document.createElement('button')
-        claimButton.innerText = '⛳ Claim'
+        claimButton.innerText = '🛒 Commit to Claim'
         root.appendChild(claimButton)
 
         claimButton.addEventListener('click', async () => {

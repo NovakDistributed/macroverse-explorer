@@ -36,15 +36,17 @@ function showDialog(title, text, on_close) {
         <span class="dailog-title">${title}</span>
         ${placeDomNode(createCloseButton())}
       </div>
-      <div class="dialog-body">
+      <div class="dialog-body" id="dialog-body">
         ${text}
       </div>
     </div>
   `
   dialogRoot.style.display = 'block'
 
+  let dialogBody = document.getElementById('dialog-body')
+
   // Scroll to top of dialog.
-  window.scrollTo(0,0)
+  dialogBody.scrollTo(0,0)
 }
 
 // This function creates the close button with attached event handler

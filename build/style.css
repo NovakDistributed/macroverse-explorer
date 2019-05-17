@@ -129,6 +129,7 @@ table, th, td {
 
 .dialog-body {
   padding: 5px;
+  margin-bottom: 5px;
   position: absolute;
   left: 0;
   top: var(--header-height);

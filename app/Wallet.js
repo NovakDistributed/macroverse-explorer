@@ -397,13 +397,30 @@ class Wallet {
       ${placeDomNode(sendMRVThrobber)}
       <h2>Your Virtual Real Estate</h2>
       ${placeDomNode(() => {
+        // Make a place to hold a list of tokens
+        let tokenListHolder = document.createElement('div')
+        // Here is the possibly empty list
         let tokenList = document.createElement('ul')
+        tokenListHolder.appendChild(tokenList)
+
+        // Here is some text explaining that it is empty if it is empty
+        let tokenListEmpty = document.createElement('p')
+        tokenListEmpty.innerText = 'You do not own any Macroverse virtual real estate.'
+        tokenListHolder.appendChild(tokenListEmpty)
 
         // Keep a list of individual token feeds
         let tokenFeeds = []
         
         // We make sure this list always has the right number of entries that fill themselves in
         feed.subscribe('reg.' + eth.get_account() + '.tokens', (tokenCount) => {
+          // Show the no tokens message only when there are no tokens
+          if (tokenCount > 0) {
+            tokenListEmpty.style.display = 'none'
+          } else {
+            tokenListEmpty.style.display = 'block'
+          }
+
+          // And keep the list populated with the right number of elements
           while (tokenList.children.length > tokenCount) {
             // Drop the last item until we are down
             tokenList.removeChild(tokenList.lastChild)
@@ -426,7 +443,17 @@ class Wallet {
           }
         })
 
-        return tokenList
+        return tokenListHolder
+      })}
+      ${placeDomNode(() => {
+        // Have a button to close the dialog
+        let doneButton = document.createElement('button')
+        doneButton.innerText = 'Finish'
+        doneButton.classList.add('done')
+        doneButton.addEventListener('click', () => {
+          dialog.closeDialog()
+        })
+        return doneButton
       })}
     `, () => {
       // Dialog is closed, close out the feed
@@ -439,9 +466,34 @@ class Wallet {
     // Prepare a feed to manage subscriptions for this dialog display
     let feed = this.ctx.reg.create_feed()
 
-    // Compute the minimum deposit for this item, in whole tokens.
-    // Assumes no decimal place adjustment
-    let minDeposit = Web3Utils.fromWei(mv.getMinimumDeposit(keypath))
+    // Create an input for getting the user's deposit
+    let depositInput = document.createElement('input')
+    depositInput.setAttribute('id', 'deposit')
+    depositInput.value = '???'
+
+    // Track the min deposit for this item in MRV-wei
+    let minDeposit = 0
+
+    // Make a separate display for it
+    let minDepositDisplay = document.createElement('span')
+    minDepositDisplay.innerText = '???'
+
+
+    // Go get it form the chain, since the scale is configurable
+    feed.subscribe(keypath + '.minDeposit', (newMinDeposit) => {
+      // When the min deposit finally arrives (or changes)
+      
+      // Remember the update for validation
+      minDeposit = newMinDeposit
+
+      // And for display to the user
+      minDepositDisplay.innerText = Web3Utils.fromWei(minDeposit.toString(10))
+      
+      // Plug it in to the input field IF we haven't done that already.
+      if (depositInput.value == '???') {
+        depositInput.value = Web3Utils.fromWei(minDeposit.toString(10))
+      }
+    })
 
     // Make a deposit approval throbber
     let approveThrobber = throbber.create()
@@ -449,37 +501,66 @@ class Wallet {
     // And a throbber for claim creation
     let claimThrobber = throbber.create()
 
+    // And a button to go right to the claims view
+    let extraClaimsButton = document.createElement('button')
+    extraClaimsButton.innerText = '⛳ Claims'
+    extraClaimsButton.addEventListener('click', () => {
+      ctx.wallet.showClaimsDialog()
+    })
+
     dialog.showDialog('Commit for ' + keypath, `
       <p>This wizard will guide you through the process of claiming ownership of ${keypath}</p>
       <h2>Step 1: Choose and Authorize Deposit</h2>
-      <p>In order to own Macroverse virtual real estate, you need to put up a <strong>deposit</strong> in MRV. That deposit is locked up when you commit for an ownership claim, and returned when you cancel the commitment, or when you release your ownership of the claimed real estate. The minimum deposit value in MRV for the object you are trying to claim is pre-filled below. You must authorize the Macroverse registry to take this MRV from your account.</p>
+      <p>In order to own Macroverse virtual real estate, you need to put up a <strong>deposit</strong> in MRV. That deposit is locked up when you commit for an ownership claim, and returned when you cancel the commitment, or when you release your ownership of the claimed real estate. The minimum deposit value for the object you are trying to claim is <b>${placeDomNode(minDepositDisplay)} MRV</b>, but you may make a larger deposit. You must authorize the Macroverse registry to take this MRV from your account.</p>
       <label for="deposit">Deposit in MRV:</label>
-      <input id="deposit" value="${minDeposit}"/>
+      ${placeDomNode(depositInput)}
       ${placeDomNode(() => {
         let approveButton = document.createElement('button')
         approveButton.innerText = 'Approve'
         approveButton.addEventListener('click', () => {
-          // TODO: validate entered deposit against minimum
-          
-          // Find the deposit field
-          let depositField = document.getElementById('deposit')
-
-          // Disable it and the button
-          depositField.disabled = true
-          approveButton.disabled = true
-
           // Start the throbber
           throbber.start(approveThrobber)
+
+          let approveDeposit = 0
+
+          // Parse the deposit
+          try {
+            approveDeposit = Web3Utils.toWei(depositInput.value, 'ether')
+      
+            // Make sure to do comparison using bignumber methods
+            if (minDeposit.gt(approveDeposit)) {
+              // Deposit is too small!
+              throbber.fail(approveThrobber)
+              // Fix it up
+              depositInput.value = Web3Utils.fromWei(minDeposit.toString(10))
+              return
+            }
+          } catch (e) {
+            console.error('Error processing deposit', e)
+            throbber.fail(approveThrobber)
+            return
+          }
+
+          console.log('Approve ', approveDeposit, ' vs ', minDeposit)
+
+          // Otherwise, actually send the transaction.
+          // Don't let the user fiddle while we do it.
+          depositInput.disabled = true
+          approveButton.disabled = true
+
           // Actually send the approval transaction. Metamask or other user agent should prompt to confirm.
-          this.ctx.reg.approveDeposit(Web3Utils.toWei(depositField.value, 'ether')).then(() => {
+          this.ctx.reg.approveDeposit(approveDeposit).then(() => {
             // Report success
             throbber.succeed(approveThrobber)
-            // TODO: Only enable claim button now
+            
+            // Commit back to text box in case user was editing it when they hit the button
+            depositInput.value = Web3Utils.fromWei(approveDeposit.toString(10))
+
           }).catch((err) => {
             // Report failure and let them change the deposit and try again
             console.error(err)
             throbber.fail(approveThrobber)
-            depositField.disabled = false
+            depositInput.disabled = false
             approveButton.disabled = false
           })
         })
@@ -499,11 +580,8 @@ class Wallet {
           // Start the throbber
           throbber.start(claimThrobber)
 
-          // Find the deposit field
-          let depositField = document.getElementById('deposit')
-      
           // Make the claim with the chain
-          this.ctx.reg.createClaim(keypath, Web3Utils.toWei(depositField.value, 'ether')).then((claimData) => {
+          this.ctx.reg.createClaim(keypath, Web3Utils.toWei(depositInput.value, 'ether')).then((claimData) => {
             // Save the claim info including nonce. TODO: would be good to do this first.
             FileSaver.saveAs(new Blob([JSON.stringify(claimData)], {type: 'application/json;charset=utf-8'}), 'claim.' + keypath + '.json')
 
@@ -524,11 +602,12 @@ class Wallet {
       <h2>Step 3: Wait</h2>
       <p>After broadcasting your claim, you must <strong>wait ${placeDomNode(this.createMaturationTimeDisplay(feed))} for your claim to mature</strong>, but <strong> no more than ${placeDomNode(this.createExpirationTimeDisplay(feed))} or your claim will expire</strong>. Maturation and expiration are required to prevent claim snipers from front-running your reveal transaction.</p>
       <h2>Step 4: Reveal</h2>
-      <p>After ${placeDomNode(this.createMaturationTimeDisplay(feed))}, you can use the file you got in Step 2 to reveal your claim and actually take ownership of your virtual real estate. Click on the <button>⛳ Claims</button> button in the toolbar at the lower right of the main Macroverse Explorer window, and provide the file in the resulting form.</p>
+      <p>After ${placeDomNode(this.createMaturationTimeDisplay(feed))}, you can use the file you got in Step 2 to reveal your claim and actually take ownership of your virtual real estate. Click on the ${placeDomNode(extraClaimsButton)} button here or in the toolbar at the lower right of the main Macroverse Explorer window, and provide the file in the resulting form.</p>
       ${placeDomNode(() => {
         // Have a button to close the dialog
         let doneButton = document.createElement('button')
-        doneButton.innerText = 'Close'
+        doneButton.innerText = 'Finish'
+        doneButton.classList.add('done')
         doneButton.addEventListener('click', () => {
           dialog.closeDialog()
         })
@@ -554,11 +633,17 @@ class Wallet {
     // And a cancel throbber
     let cancelThrobber = throbber.create()
 
+    // Make all the buttons and inputs that need to interact
+    let picker = document.createElement('input')
+    let revealButton = document.createElement('button')
+    let cancelButton = document.createElement('button')
+
     // This will hold the claim data when we load it
     let claimData = null
 
     // This will show info about the claim and update when it updates
     let claimDataView = document.createElement('div')
+    claimDataView.innerHTML = '<p>Provide a claim file to see claim data.</p>'
     // Give it its own feed
     let claimDataFeed = undefined
     // This will update the claim data view when the claim is changed
@@ -603,7 +688,7 @@ class Wallet {
               feed.subscribe(claimKeypath + '.creationTime', (creationTime) => {
                 if (creationTime == 0) {
                   // Claim does not exist
-                  timeNode.innerText = 'Never'
+                  timeNode.innerText = 'N/A'
                 } else {
                   // When the claim creation time of this person's claim for this thing with this nonce is available or updates, fill it in.
                   timeNode.innerText = creationTime
@@ -623,10 +708,17 @@ class Wallet {
               feed.subscribeAll(['block.timestamp', claimKeypath + '.creationTime', 'reg.commitmentMinWait'], ([timestamp, creationTime, minWait]) => {
                 if (creationTime == 0) {
                   // The commitment does not exist. Probably it has been revealed or canceled.
-                  ageNode.innerText = 'N/A'
+                  ageNode.innerText = 'Already revealed or not yet created. Does not need to be revealed or canceled.'
                   ageNode.classList.remove('valid')
                   ageNode.classList.add('invalid')
+
+                  // Don't let them reveal or cancel
+                  revealButton.disabled = true
+                  cancelButton.disabled = true
                 } else {
+                  // It exists, so it can be canceled
+                  cancelButton.disabled = false
+
                   // Keep track of the age as a difference
                   let age = timestamp - creationTime
                   // Work out the bounds
@@ -635,24 +727,36 @@ class Wallet {
                   if (age < minWait) {
                     // Say it is not mature yet
                     let maturesIn = minWait - age
-                    ageNode.innerText = 'Matures ' + moment.duration(maturesIn, 'seconds').humanize(true)
+                    ageNode.innerText = 'Matures ' + moment.duration(maturesIn, 'seconds').humanize(true) +
+                      '. Do not proceed until then!'
                     ageNode.classList.remove('valid')
                     ageNode.classList.remove('invalid')
                     ageNode.classList.add('pending')
+
+                    // Don't let the user reveal early
+                    revealButton.disabled = true
                   } else if (age > maxWait) {
                     // Say it has expired
                     let expiredFor = age - maxWait
-                    ageNode.innerText = 'Expired ' + moment.duration(-expiredFor, 'seconds').humanize(true)
+                    ageNode.innerText = 'Expired ' + moment.duration(-expiredFor, 'seconds').humanize(true) +
+                      '. Go to In Case of Emergency and cancel the claim!'
                     ageNode.classList.remove('valid')
                     ageNode.classList.add('invalid')
                     ageNode.classList.remove('pending')
+
+                    // Don't let the user reveal late
+                    revealButton.disabled = true
                   } else {
                     // Say it is currently mature but will expire
                     let expiresIn = maxWait - age
-                    ageNode.innerText = 'Mature; expires ' + moment.duration(expiresIn, 'seconds').humanize(true)
+                    ageNode.innerText = 'Mature; expires ' + moment.duration(expiresIn, 'seconds').humanize(true) +
+                      '. Go to Step 2 now!'
                     ageNode.classList.add('valid')
                     ageNode.classList.remove('invalid')
                     ageNode.classList.remove('pending')
+
+                    // Let the user reveal while valid
+                    revealButton.disabled = false
                   }
                 }
               })
@@ -663,11 +767,6 @@ class Wallet {
         </table>
       `
     }
-
-    // Make all the buttons and inputs that need to interact
-    let picker = document.createElement('input')
-    let revealButton = document.createElement('button')
-    let cancelButton = document.createElement('button')
 
     picker.setAttribute('type', 'file')
     picker.setAttribute('accept', 'application/json')
@@ -711,8 +810,8 @@ class Wallet {
             // Display the claim data
             updateClaimDataView()
 
-            // Enable the next step
-            revealButton.disabled = false
+            // Enable the cancel step now.
+            // But don't enable the reveal until it appears to be mature
             cancelButton.disabled = false
 
             // Let the user switch to a new file now that validation is done
@@ -723,7 +822,7 @@ class Wallet {
             // There's something wrong with the JSON
             console.error('Error parsing claim file', e)
 
-            // TODO: report an error in the UI
+            claimDataView.innerText = 'Claim file is invalid. Please select a .json file produced by the Macroverse Explorer.' 
 
             // Let the user try again
             revealButton.disabled = true
@@ -806,7 +905,7 @@ class Wallet {
   })
 
     dialog.showDialog('Manage Claims', `
-      <p>This dialog will walk you through revealing a claim on a piece of virtual real estate that you committed to earlier.</p>
+      <p>This dialog will walk you through revealing or canceling a claim on a piece of virtual real estate that you committed to earlier.</p>
       <p>If you do not yet have a claim file, close this dialog, and navigate to the object in the Macroverse world which you want to own (star, planet, or moon) using the main Macroverse Explorer interface. When you have found an unowned object you want, click on the "Claim" button in the "Owner" row of the infobox table on the right side of the screen.</p>
       <h2>Step 1: Provide Claim File</h2>
       <p>Select the claim file you received when you committed.</p>
@@ -824,6 +923,17 @@ class Wallet {
       <p><strong>You will no longer be able to use your claim to take ownership of the piece of virtual real estate in question</strong> after you cancel it. If you want the virtual real estate, you will have to start a new claim from scratch.</p>
       ${placeDomNode(cancelButton)}
       ${placeDomNode(cancelThrobber)}
+      <p>After successfully revealing or canceling your claim, you no longer need the claim file.</p>
+      ${placeDomNode(() => {
+        // Have a button to close the dialog
+        let doneButton = document.createElement('button')
+        doneButton.innerText = 'Finish'
+        doneButton.classList.add('done')
+        doneButton.addEventListener('click', () => {
+          dialog.closeDialog()
+        })
+        return doneButton
+      })}
     `, () => {
       // Dialog is closed, close out the feed
       feed.unsubscribe()

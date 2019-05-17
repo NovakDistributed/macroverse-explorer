@@ -251,39 +251,47 @@ class Registry extends EventEmitter2 {
       // They want to watch the current network time
       let latest_timestamp = (await eth.latest_block()).timestamp
       return latest_timestamp
-    } else if (['owner', 'deposit', 'homesteading'].includes(lastComponent(keypath))) {
+    } else if (['minDeposit', 'owner', 'deposit', 'homesteading'].includes(lastComponent(keypath))) {
       // We want the owner, deposit, or homesteading status of a token (not a claim)
       // Pack the token value
       let token = mv.keypathToToken(parentOf(keypath))
+      
+      let wanted = lastComponent(keypath)
 
-      // Decide if it should have an owner right now
-      let owned = await this.reg.exists(token)
-
-      if (owned) {
-        // We think it is owned
-
-        let wanted = lastComponent(keypath)
-
-        if (wanted == 'owner') {
-          let token_owner = await this.reg.ownerOf(token).catch((err) => {
-            // Maybe it became unowned while we were looking at it
-            console.log('Error getting owner, assuming unowned', err)
-            return 0
-          })
-
-          return token_owner
-        } else if (wanted == 'deposit') {
-          // This returns 0 for unowned tokens.
-          let deposit = await this.reg.getDeposit(token);
-          return deposit
-        } else if (wanted == 'homesteading') {
-          // This returns false for unowned tokens
-          let homesteading = await this.reg.getHomesteading(token);
-          return homesteading
-        }
+      if (wanted == 'minDeposit') {
+        // Checking the min deposit doesn't care about the owner
+        let min_deposit = await this.reg.getMinDepositToCreate(token)
+        return min_deposit
       } else {
-        // It doesn't appear to have an owner. The answer is 0/falsey for all of them.
-        return 0
+        // Everything else depends on the owner
+        
+        // Decide if it should have an owner right now
+        let owned = await this.reg.exists(token)
+
+        if (owned) {
+          // We think it is owned
+
+          if (wanted == 'owner') {
+            let token_owner = await this.reg.ownerOf(token).catch((err) => {
+              // Maybe it became unowned while we were looking at it
+              console.log('Error getting owner, assuming unowned', err)
+              return 0
+            })
+
+            return token_owner
+          } else if (wanted == 'deposit') {
+            // This returns 0 for unowned tokens.
+            let deposit = await this.reg.getDeposit(token)
+            return deposit
+          } else if (wanted == 'homesteading') {
+            // This returns false for unowned tokens
+            let homesteading = await this.reg.getHomesteading(token)
+            return homesteading
+          }
+        } else {
+          // It doesn't appear to have an owner. The answer is 0/falsey for all of them.
+          return 0
+        }
       }
     } else if (['ultimateOwner', 'lowestOwnedParent', 'claimable'].includes(lastComponent(keypath))) {
       // We want to know who owns the lowest owned parent, or what it is, or if
@@ -373,9 +381,9 @@ class Registry extends EventEmitter2 {
       let key_hash = mv.getClaimKey(hash, owner)
 
       // Determine the filters to watch to watch it
-      let commit_filter = this.reg.Commit({hash: hash, owner: owner}, { fromBlock: 'latest', toBlock: 'latest'})
-      let cancel_filter = this.reg.Cancel({hash: hash, owner: owner}, { fromBlock: 'latest', toBlock: 'latest'})
-      let reveal_filter = this.reg.Reveal({hash: hash, owner: owner}, { fromBlock: 'latest', toBlock: 'latest'})
+      let commit_filter = this.reg.Commit({hash: hash, owner: owner}, {fromBlock: 'latest', toBlock: 'latest'})
+      let cancel_filter = this.reg.Cancel({hash: hash, owner: owner}, {fromBlock: 'latest', toBlock: 'latest'})
+      let reveal_filter = this.reg.Reveal({hash: hash, owner: owner}, {fromBlock: 'latest', toBlock: 'latest'})
 
       // On any event, update
       let handle_event = async (error, event_report) => {
@@ -411,8 +419,8 @@ class Registry extends EventEmitter2 {
     } else if (keypath == 'mrv.balance') {
       // Watch the user's MRV balance.
       // We have to filter separately for in and out transactions
-      let in_filter = this.mrv.Transfer({to: eth.get_account()}, { fromBlock: 'latest', toBlock: 'latest'})
-      let out_filter = this.mrv.Transfer({from: eth.get_account()}, { fromBlock: 'latest', toBlock: 'latest'})
+      let in_filter = this.mrv.Transfer({to: eth.get_account()}, {fromBlock: 'latest', toBlock: 'latest'})
+      let out_filter = this.mrv.Transfer({from: eth.get_account()}, {fromBlock: 'latest', toBlock: 'latest'})
       
       // On either event, update the balance
       let handle_event = async (error, event_report) => {
@@ -444,8 +452,8 @@ class Registry extends EventEmitter2 {
         let owner = parts[1]
         // For any change to the virtual real estate tokens of an owner, we need to watch the transfer events in and out
 
-        let in_filter = this.reg.Transfer({to: owner}, { fromBlock: 'latest', toBlock: 'latest'})
-        let out_filter = this.reg.Transfer({from: owner}, { fromBlock: 'latest', toBlock: 'latest'})
+        let in_filter = this.reg.Transfer({to: owner}, {fromBlock: 'latest', toBlock: 'latest'})
+        let out_filter = this.reg.Transfer({from: owner}, {fromBlock: 'latest', toBlock: 'latest'})
         
         // On either event, update everything
         let handle_event = async (error, event_report) => {
@@ -496,68 +504,90 @@ class Registry extends EventEmitter2 {
       })
 
       this.watchers[keypath] = [block_filter]
-    } else if (['owner', 'deposit', 'homesteading'].includes(lastComponent(keypath))) {
+    } else if (['minDeposit', 'owner', 'deposit', 'homesteading'].includes(lastComponent(keypath))) {
       // We want the owner, deposit, or homesteading status of a token (not a claim)
       // Pack the token value
       let token = mv.keypathToToken(parentOf(keypath))
 
       let wanted = lastComponent(keypath)
 
-      // Set up a filter for the transfer of this token from here on out.
-      // Note: this also catches any events in the current top block when we make it
-      let filter = this.reg.Transfer({'tokenId': token}, { fromBlock: 'latest', toBlock: 'latest'})
-      filter.watch(async (error, event_report) => {
-        console.log('Saw event: ', event_report)
-        if (event_report.type != 'mined') {
-          // This transaction hasn't confirmed, so ignore it
-          return
-        }
-        let new_owner = event_report.args.to
-
-        if (wanted == 'owner') {
-          // Just spit out the owner
-          this.cache[keypath] = new_owner
-          this.emit(keypath, new_owner)
-        } else if (wanted == 'deposit') {
-          // We want the deposit, or 0 for unowned tokens.
-          // The contract already does that.
-          let deposit = await this.reg.getDeposit(token)
-
-          this.cache[keypath] = deposit
-          this.emit(keypath, deposit)
-        } else if (wanted == 'homesteading') {
-          // Maybe the token was destroyed or created. Check homesteading.
-          let homesteading = await this.reg.getHomesteading(token)
-
-          this.cache[keypath] = homesteading
-          this.emit(keypath, homesteading)
-        }
-      })
-
-      // Remember the filter so we can stop watching.
-      this.watchers[keypath] = [filter]
-      
-      if (wanted == 'homesteading') {
-        // Also watch the homesteading event
-
-        let filter2 = this.reg.Homesteading({'token': token}, { fromBlock: 'latest', toBlock: 'latest'})
-        filter2.watch((error, event_report) => {
+      if (wanted == 'minDeposit') {
+        // Checking the min deposit doesn't care about the owner.
+        // We only watch for deposit changed events on the whole system.
+        let filter = this.reg.DepositScaleChange({}, {fromBlock: 'latest', toBlock: 'latest'})
+        filter.watch(async (error, event_report) => {
           console.log('Saw event: ', event_report)
           if (event_report.type != 'mined') {
             // This transaction hasn't confirmed, so ignore it
             return
           }
+          
+          // Re-look-up the deposit
+          let deposit = await this.reg.getMinDepositToCreate(token)
 
-          // It says whether homesteading was turned on or off
-          let val = event_report.args.value
+          this.cache[keypath] = deposit
+          this.emit(keypath, deposit)
+        })
+        this.watchers[keypath] = [filter]
+      } else {
+        // We care about the owner
 
-          // Report it
-          this.cache[keypath] = val
-          this.emit(keypath, val)
+        // Set up a filter for the transfer of this token from here on out.
+        // Note: this also catches any events in the current top block when we make it
+        let filter = this.reg.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
+        filter.watch(async (error, event_report) => {
+          console.log('Saw event: ', event_report)
+          if (event_report.type != 'mined') {
+            // This transaction hasn't confirmed, so ignore it
+            return
+          }
+          let new_owner = event_report.args.to
+
+          if (wanted == 'owner') {
+            // Just spit out the owner
+            this.cache[keypath] = new_owner
+            this.emit(keypath, new_owner)
+          } else if (wanted == 'deposit') {
+            // We want the deposit, or 0 for unowned tokens.
+            // The contract already does that.
+            let deposit = await this.reg.getDeposit(token)
+
+            this.cache[keypath] = deposit
+            this.emit(keypath, deposit)
+          } else if (wanted == 'homesteading') {
+            // Maybe the token was destroyed or created. Check homesteading.
+            let homesteading = await this.reg.getHomesteading(token)
+
+            this.cache[keypath] = homesteading
+            this.emit(keypath, homesteading)
+          }
         })
 
-        this.watchers[keypath].push(filter2)
+        // Remember the filter so we can stop watching.
+        this.watchers[keypath] = [filter]
 
+        if (wanted == 'homesteading') {
+          // Also watch the homesteading event
+
+          let filter2 = this.reg.Homesteading({'token': token}, {fromBlock: 'latest', toBlock: 'latest'})
+          filter2.watch((error, event_report) => {
+            console.log('Saw event: ', event_report)
+            if (event_report.type != 'mined') {
+              // This transaction hasn't confirmed, so ignore it
+              return
+            }
+
+            // It says whether homesteading was turned on or off
+            let val = event_report.args.value
+
+            // Report it
+            this.cache[keypath] = val
+            this.emit(keypath, val)
+          })
+
+          this.watchers[keypath].push(filter2)
+
+        }
       }
     } else if (['ultimateOwner', 'lowestOwnedParent', 'claimable'].includes(lastComponent(keypath))) {
       // We need to watch for:
@@ -592,7 +622,7 @@ class Registry extends EventEmitter2 {
       }
 
       // Watch for transfers on the token itself
-      let filter = this.reg.Transfer({'tokenId': token}, { fromBlock: 'latest', toBlock: 'latest'})
+      let filter = this.reg.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
       filter.watch(handle_watch)
 
       this.watchers[keypath] = [filter]
@@ -608,13 +638,13 @@ class Registry extends EventEmitter2 {
 
       for (let parent_token of parent_tokens) {
         // Watch for the transfer of any parent
-        let transfer_filter = this.reg.Transfer({'tokenId': parent_token}, { fromBlock: 'latest', toBlock: 'latest'})
+        let transfer_filter = this.reg.Transfer({'tokenId': parent_token}, {fromBlock: 'latest', toBlock: 'latest'})
         transfer_filter.watch(handle_watch)
         // TODO: we will end up with a lot of watches on the same parents to update a lot of children.
         this.watchers[keypath].push(transfer_filter)
 
         // Watch for a change in the homesteading status of any parent
-        let homesteading_filter = this.reg.Homesteading({'token': parent_token}, { fromBlock: 'latest', toBlock: 'latest'})
+        let homesteading_filter = this.reg.Homesteading({'token': parent_token}, {fromBlock: 'latest', toBlock: 'latest'})
         homesteading_filter.watch(handle_watch)
         this.watchers[keypath].push(homesteading_filter)
       }
