@@ -109,6 +109,7 @@ class Wallet {
       // Make throbbers
       let releaseThrobber = throbber.create()
       let sendThrobber = throbber.create()
+      let homesteadingThrobber = throbber.create()
 
       // Make an input for entering an address to send to.
       // We make it manually to avoid having to give it an ID.
@@ -179,6 +180,55 @@ class Wallet {
         depositDisplay.innerText = Web3Utils.fromWei(deposit.toString(10)) + ' MRV'
       })
 
+      // Homesteading is only important for things above land
+      // We fill in this string with code for a homesteading control if we are not ourselves land.
+      let homesteadingUI = ''
+
+      if (!mv.keypathIsLand(keypath)) {
+
+        // Define a homesteading toggle
+        let homesteadingControl = document.createElement('select')
+        homesteadingControl.innerHTML = `
+          <option value="0">🚫 PROHIBIT homesteading by others</option>
+          <option value="1">👍🏾 ALLOW homesteading by others</option>
+        `
+        homesteadingControl.addEventListener('input', () => {
+          // We want to turn homesteading on or off.
+          let newState = homesteadingControl.value == 1
+
+          if (newState && !confirm('Are you sure you want to allow other people ' +
+            'to claim virtual real estate within ' + keypath + ' for themselves? ' +
+            'They, and not you, will own any real estate they claim.')) {
+            
+            // User aborted enabling homesteading
+            // Set the UI back
+            homesteadingControl.value = 0
+            // Don't go on to send the transaction
+            return
+          }
+
+          homesteadingControl.disabled = true
+          throbber.start(homesteadingThrobber)
+          this.ctx.reg.setHomesteading(keypath, newState).then(() => {
+            // Homesteading has been set
+            throbber.succeed(homesteadingThrobber)
+            homesteadingControl.disabled = false
+          }).catch((e) => {
+            console.error('Could not set homesteading to ' + newState + ' on ' + keypath, e)
+            throbber.fail(homesteadingThrobber)
+            homesteadingControl.disabled = false
+          })
+        })
+
+        tokenFeed.subscribe(keypath + '.homesteading', (homesteadingAllowed) => {
+          // Update the UI to reflect the chain state
+          homesteadingControl.value = homesteadingAllowed ? 1 : 0
+        })
+
+        // Fill in the string that goes into the final UI for the token
+        homesteadingUI = placeDomNode(homesteadingControl) + placeDomNode(homesteadingThrobber)
+      }
+
       tokenDisplay.innerHTML = `
         ${keypath} (${hex})
         ${placeDomNode(() => {
@@ -191,6 +241,7 @@ class Wallet {
           })
           return goToButton
         })}
+        ${homesteadingUI}
         <span class="address-widget">
           ${placeDomNode(sendDestLabel)}
           ${placeDomNode(sendDest)}
