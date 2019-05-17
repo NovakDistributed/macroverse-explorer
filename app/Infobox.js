@@ -180,6 +180,13 @@ class Infobox {
       if (ultimate_owner == eth.get_account()) {
         // It is owned by us
         root.innerHTML = 'You'
+        // Add a button to go to the wallet
+        let walletButton = document.createElement('button')
+        walletButton.innerText = '👛 Wallet'
+        walletButton.addEventListener('click', () => {
+          this.ctx.wallet.showWalletDialog()
+        })
+        root.appendChild(walletButton)
       } else if (ultimate_owner != 0) {
         root.innerHTML = `
           <span class="address-widget">
