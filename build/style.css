@@ -130,6 +130,7 @@ table, th, td {
 .dialog-body {
   padding: 5px;
   margin-bottom: 5px;
+  margin-left: 2em;
   position: absolute;
   left: 0;
   top: var(--header-height);
@@ -155,6 +156,11 @@ table, th, td {
   height: 21px;
 }
 
+.dialog p {
+  max-width: 40em;
+  font-size: 110%;
+}
+
 .status.valid {
    color: var(--good);
    background-color: var(--light);
@@ -168,4 +174,26 @@ table, th, td {
 .status.pending {
    color: var(--pending);
    background-color: var(--light);
+}
+
+/* Throbber needs inline-block display to be able to spin */
+.throbber {
+  display: inline-block;
+}
+
+.throbber.waiting {
+  transform-origin: 50% 50%;
+  animation: spin 2s linear infinite;
+  opacity: 1;
+}
+
+.throbber.success {
+  opacity: 0;
+  transition: opacity 5s ease-in-out;
+}
+
+@keyframes spin {
+  100% {
+    transform:rotate(360deg);
+  }
 }

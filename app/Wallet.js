@@ -377,6 +377,10 @@ class Wallet {
     dialog.showDialog('Wallet', `
       <p>This wallet allows you to send and receive MRV tokens and Macroverse virtual real estate, and to manage your real estate claim commitments.</p>
       <h2>Your MRV balance: ${placeDomNode(this.createMRVBalanceDisplay(feed))}</h2>
+      <p>
+        Remember that you need at least <b>100 MRV</b> to access Macroverse.
+        If you drop below that balance, <b>you will no longer be able to access the Macroverse world!</b>
+      </p>
       <h3>Receive MRV</h3>
       <p>
         Receiving address:
@@ -495,6 +499,12 @@ class Wallet {
       }
     })
 
+    // Track user's balance, for guessing if they will run out of money
+    let userBalance = 0
+    feed.subscribe('mrv.balance', (balance) => {
+      userBalance = balance
+    })
+
     // Make a deposit approval throbber
     let approveThrobber = throbber.create()
 
@@ -535,6 +545,23 @@ class Wallet {
               depositInput.value = Web3Utils.fromWei(minDeposit.toString(10))
               return
             }
+
+            if (userBalance != 0) {
+              // We know a user balance. See if this deposit would take the user below 100 MRV
+              // TODO: don't hardcode this.
+              let minBalanceThreshold = Web3Utils.toWei('100', 'ether')
+
+              let newBalance = userBalance.minus(approveDeposit)
+
+              if (newBalance.lt(minBalanceThreshold)) {
+                // They would not have enough MRV left to use this tool
+                // This also catches deposits larger than the money you have
+                alert('You should not make a deposit that would put your balance below 100 MRV, the minimum balance required to access Macroverse. ' +
+                  'The deposit you entered would leave you with only ' + Web3Utils.fromWei(newBalance.toString(10)) + ' MRV.')
+                throbber.fail(approveThrobber)
+                return
+              }
+            }
           } catch (e) {
             console.error('Error processing deposit', e)
             throbber.fail(approveThrobber)
@@ -569,7 +596,7 @@ class Wallet {
       ${placeDomNode(approveThrobber)}
       <h2>Step 2: Broadcast Claim</h2>
       <p>The next step in claiming your virtual real estate is to <strong>commit</strong> to your claim. Committing publishes a cryptographic hash value on the blockchain to establish that you are going to claim a piece of virtual real estate, without revealing what, specifically, you are intending to claim. The commitment will have to sit on the blockchain to "mature" for a period of time before you can actually claim the real estate. When you do reveal what you are claiming, the requirement to have a matured commitment will prevent other people from sniping your claims and stealing the real estate you were intending to claim by paying a higher gas price.</p>
-      <p>Press the button below to broadcast a claim for this piece of virtual real estate. <strong>This process will give you a secret value in a file to keep. Without this value, your claim will be worthless</strong> and <strong>your deposit <u>will not be recoverable</u> through this application</strong> If you lose this file, or do not save it, <strong>you will not get your virtual real estate</strong> and <strong>you will have to manually cancel the claim</strong> by interacting directly with the on-chain registry contract.</p>
+      <p>Press the button below to broadcast a claim for this piece of virtual real estate. <strong>This process will give you a secret value in a file to keep. Without this value, your claim will be worthless</strong> and <strong>your deposit <u>will not be recoverable</u> through this application</strong>. If you lose this file, or do not save it, <strong>you will not get your virtual real estate</strong> and <strong>you will have to manually cancel the claim</strong> by interacting directly with the on-chain registry contract.</p>
       ${placeDomNode(() => {
         let claimButton = document.createElement('button')
 

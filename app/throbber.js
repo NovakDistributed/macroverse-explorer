@@ -5,17 +5,19 @@
 function create() {
   let throbber = document.createElement('span')
   throbber.classList.add('throbber')
-  throbber.style.display = 'none'
+  throbber.style.visibility = 'hidden'
+  // Start out normal size
+  throbber.innerText = '⏳'
   return throbber
 }
 
 /// Start the given throbber throbbing
 function start(throbber) {
-  throbber.style.display = 'inline'
+  throbber.style.visibility = 'visible'
   throbber.classList.remove('success')
   throbber.classList.remove('failure')
   throbber.classList.add('waiting')
-  throbber.innerText = '...'
+  throbber.innerText = '⏳'
 }
 
 /// Change the given throbber to a success state
