@@ -261,13 +261,13 @@ class Infobox {
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
+            <td>Children</td>
+            <td>${this.when(keypath + '.objectCount', (x) => this.makeChildPicker(keypath, x, starDescriptionCallback))}</td>
+          </td> 
+          <tr>
             <td>Number of Systems</td>
             <td>${this.when(keypath + '.objectCount')}</td>
           </tr>
-          <tr>
-            <td>Children</td>
-            <td>${this.when(keypath + '.objectCount', (x) => this.makeChildPicker(keypath, x, starDescriptionCallback))}</td>
-          </td>
         </table>
       </div>
     `
@@ -294,6 +294,10 @@ class Infobox {
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
+            <td>Children</td>
+            <td>${this.when(keypath + '.planetCount', (x) => this.makeChildPicker(keypath, x, planetDescriptionCallback))}</td>
+          </td>
+          <tr>
             <td>Object Class</td>
             <td>${this.when(keypath + '.objClass', (x) => mv.objectClasses[x])}</td>
           </tr>
@@ -315,17 +319,9 @@ class Infobox {
             ${this.when(keypath + '.habitableZone.end', (x) => formatNumber(x / mv.AU))} AU</td>
           </tr>
           <tr>
-            <td>Planets</td>
-            <td>${this.when(keypath + '.planetCount')}</td>
-          </tr>
-          <tr>
             <td>Owner</td>
             <td>${placeDomNode(this.makeOwnershipWidget(keypath))}</td>
           </tr>
-          <tr>
-            <td>Children</td>
-            <td>${this.when(keypath + '.planetCount', (x) => this.makeChildPicker(keypath, x, planetDescriptionCallback))}</td>
-          </td>
         </table>
 
       </div>
@@ -357,6 +353,10 @@ class Infobox {
       </div>
       <div class="infobox-body">
         <table class="infobox-table">
+          <tr>
+            <td>Children</td>
+            <td colspan="2">${this.when(keypath + '.moonCount', (x) => this.makeChildPicker(keypath, x, moonDescriptionCallback))}</td>
+          </td>
           <tr>
             <td>Planet Class</td>
             <td colspan="2">${this.when(keypath + '.worldClass', (x) => mv.worldClasses[x])}</td>
@@ -409,10 +409,6 @@ class Infobox {
             <td>Owner</td>
             <td colspan="2">${placeDomNode(this.makeOwnershipWidget(keypath))}</td>
           </tr>
-          <tr>
-            <td>Children</td>
-            <td colspan="2">${this.when(keypath + '.moonCount', (x) => this.makeChildPicker(keypath, x, moonDescriptionCallback))}</td>
-          </td>
         </table>
       </div>
     `
