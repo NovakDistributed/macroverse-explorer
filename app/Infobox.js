@@ -322,6 +322,14 @@ class Infobox {
             <td>Owner</td>
             <td>${placeDomNode(this.makeOwnershipWidget(keypath))}</td>
           </tr>
+          <tr>
+            <td>Ecliptic Angle X</td>
+            <td>${this.when(keypath + '.spin.axisAngleX', (x) => formatAngle(x))}&deg;</td>
+          </tr>
+          <tr>
+            <td>Ecliptic Angle Y</td>
+            <td>${this.when(keypath + '.spin.axisAngleY', (x) => formatAngle(x))}&deg;</td>
+          </tr>
         </table>
 
       </div>

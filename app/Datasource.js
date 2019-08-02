@@ -364,13 +364,15 @@ class Datasource extends EventEmitter2 {
     }
 
     // Star properties
-    // seed, x, y, z, objClass, objType, realMass, objMass, realLuminosity, luminosity, hasPlanets, planetCount, habitableZone (which has start, end, realStart, realEnd)
+    // seed, x, y, z, objClass, objType, realMass, objMass, realLuminosity,
+    // luminosity, hasPlanets, planetCount, habitableZone (which has start,
+    // end, realStart, realEnd), spin (which has axisAngleX and axisAngleY)
     switch(keypath) {
     case '':
       {
         let value = {}
         for (let key of ['seed', 'x', 'y', 'z', 'objClass', 'objType', 'realMass', 'objMass',
-          'realLuminosity', 'luminosity', 'hasPlanets', 'planetCount', 'habitableZone']) {
+          'realLuminosity', 'luminosity', 'hasPlanets', 'planetCount', 'habitableZone', 'spin']) {
           // Go get and fill in all the properties
           value[key] = await get(key)
         }
@@ -481,6 +483,30 @@ class Datasource extends EventEmitter2 {
           value[key] = await get('habitableZone.' + key)
         }
         await save(keypath, value)
+      }
+      break
+    case 'spin':
+      {
+        let value = {}
+        for (let key of ['axisAngleX', 'axisAngleY']) {
+          // Go get and fill in all the properties
+          value[key] = await get('spin.' + key)
+        }
+        await save(keypath, value)
+      }
+      break
+    case 'spin.axisAngleY':
+    case 'spin.axisAngleX':
+      {
+        let seed = await get('seed')
+        let axisAngleY
+        let axisAngleX
+        let [realAxisAngleY, realAxisAngleX] = await this.star_patch.getObjectYXAxisAngles(seed)
+        axisAngleY = mv.fromReal(realAxisAngleY)
+        axisAngleX = mv.fromReal(realAxisAngleX)
+        
+        await save('spin.axisAngleY', axisAngleY)
+        await save('spin.axisAngleX', axisAngleX)
       }
       break
     default:
