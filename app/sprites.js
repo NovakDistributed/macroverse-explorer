@@ -166,7 +166,8 @@ class ScaleManager extends EventEmitter2 {
 
 // Given a keypath to a planet or moon, return a DOM node for a sprite to represent the planet or moon.
 // The sprite has a root element that moves with the planet but does not rotate.
-function makePlanetSprite(ctx, keypath, scaleManager) {
+// Keeps orbit information in the given orbit object to be shared with the orbit line sprite
+function makePlanetSprite(ctx, keypath, scaleManager, orbit) {
 
   // Define an easy function to get a promise for a property of the star
   let get = (prop) => {
@@ -181,16 +182,23 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
   // Work out what planet this is
   let planetNumber = parseInt(lastComponent(keypath))
 
-  // We will set up a default orbit based on the planet number
-  let orbit = {
-    periapsis: planetNumber * mv.AU,
-    apoapsis: planetNumber * mv.AU,
-    lan: 0,
-    inclination: 0,
-    aop: 0,
-    meanAnomalyAtEpoch: 0
-  }
+  if (Object.keys(orbit).length === 0) {
+    // It is empty
+    // We will set up a default orbit based on the planet number
+    let defaultOrbit = {
+      periapsis: planetNumber * mv.AU,
+      apoapsis: planetNumber * mv.AU,
+      lan: 0,
+      inclination: 0,
+      aop: 0,
+      meanAnomalyAtEpoch: 0
+    }
 
+    for (let key of Object.keys(defaultOrbit)) {
+      orbit[key] = defaultOrbit[key]
+    }
+  }
+  
   // And similarly for the parent star or planet, which we assume has a mass of 1 sol until proven otherwise
   // We adopt the convention used for stars, and fake the mass if the parent is a planet
   let parentObj = {
@@ -212,12 +220,13 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
     scaleManager.report(apoapsis / mv.AU)
   })
 
-  for(let key in orbit) {
-    // Kick off requests to update the orbit in place with all the real data when available
-    get('orbit.' + key).then((val) => {
-      orbit[key] = val
-    })
-  }
+  // Get the whole orbit at once so the planet updates both all at once and
+  // also consistently with the orbit line
+  get('orbit').then((newOrbit) => {
+    for (let key of Object.keys(newOrbit)) {
+      orbit[key] = newOrbit[key]
+    }
+  })
 
   // Go get the parent mass
   if (keypath.split('.').length == 5) {
@@ -233,6 +242,8 @@ function makePlanetSprite(ctx, keypath, scaleManager) {
       parentObj.objMass = parentWorldMass / mv.EARTH_MASSES_PER_SOLAR_MASS
     })
   }
+
+  // TODO: get parent mass in sequence with orbit so we jump only once
   
   // Make a non-spinning root element that defines the equatorial plane
   let root = document.createElement('a-entity')
@@ -440,7 +451,8 @@ function makeUpdater(node, updateAssumingLoaded) {
 // Make a sprite to represent an orbit.
 // Scales with the given ScaleManager.
 // Takes a keypath representing either a planet or a moon.
-function makeOrbitSprite(ctx, keypath, scaleManager) {
+// Keeps orbit information in an externally provided object to be shared with the planet sprite.
+function makeOrbitSprite(ctx, keypath, scaleManager, orbit) {
 
   // Define an easy function to get a promise for a property of the planet
   let get = (prop) => {
@@ -456,16 +468,21 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
   // Compute a default orbit radius in meters until we get a real one
   let defaultRadius = (worldNumber + 1) *  (isMoon ? mv.LD : mv.AU)
 
-  // We use the same default-and-refine half-reactive system that the planets use
-  let orbit = {
-    periapsis: defaultRadius - 0.001, // Subtract to make rings not look silly initially
-    apoapsis: defaultRadius,
-    semimajor: defaultRadius,
-    semiminor: defaultRadius,
-    lan: 0,
-    inclination: 0,
-    aop: 0,
-    meanAnomalyAtEpoch: 0
+  if (Object.keys(orbit).length === 0) {
+    // It is empty
+    // We will set up a default orbit based on the planet number
+    let defaultOrbit = {
+      periapsis: planetNumber * mv.AU,
+      apoapsis: planetNumber * mv.AU,
+      lan: 0,
+      inclination: 0,
+      aop: 0,
+      meanAnomalyAtEpoch: 0
+    }
+
+    for (let key of Object.keys(defaultOrbit)) {
+      orbit[key] = defaultOrbit[key]
+    }
   }
 
   // We also have the world class, which lets us know whether we have a
@@ -553,18 +570,17 @@ function makeOrbitSprite(ctx, keypath, scaleManager) {
     applyTranslateRotate(mounted3, 0, 0, 0, 0, mv.degrees(orbit.lan))
   })
 
-  // When we change the orbit, update the sprite
-  for(let key in orbit) {
-    // Kick off requests to update the orbit in place with all the real data when available
-    get('orbit.' + key).then((val) => {
-      orbit[key] = val
+  // Update the orbit all at once, so we don't have some elements still default while others are real
+  get('orbit').then((newOrbit) => {
+    for (let key of Object.keys(newOrbit)) {
+      orbit[key] = newOrbit[key]
+    }
 
-      updateCircle()
-      updateMount1()
-      updateMount2()
-      updateMount3()
-    })
-  }
+    updateCircle()
+    updateMount1()
+    updateMount2()
+    updateMount3()
+  })
 
   // Also go looking to see if we are a ring or something
   get('worldClass').then((wc) => {

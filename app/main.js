@@ -130,11 +130,14 @@ async function showPlanet(ctx, keypath) {
   for (let i = moonCount - 1; i >= 0; i--) {
     // Queue moons in reverse because later queries get answered first
 
+    // Make a single orbit object so both sprites have a consistent view of the current orbit
+    let orbit = {}
+
     // Make a moon sprite that moves with the orbit
     // This is also responsible for reporting in to the ScaleManager about the orbit
-    let moonSprite = sprites.makePlanetSprite(ctx, keypath + '.' + i, scaleManager)
+    let moonSprite = sprites.makePlanetSprite(ctx, keypath + '.' + i, scaleManager, orbit)
     // Make an orbit line sprite
-    let orbitSprite = sprites.makeOrbitSprite(ctx, keypath + '.' + i, scaleManager)
+    let orbitSprite = sprites.makeOrbitSprite(ctx, keypath + '.' + i, scaleManager, orbit)
 
     root.appendChild(moonSprite)
     root.appendChild(orbitSprite)
@@ -237,12 +240,15 @@ async function showSystem(ctx, keypath) {
     scaleManager.expect(planetCount * 2 + (planetCount > 0 ? 2 : 0), 1, planetCount + 1)
 
     for (let i = planetCount - 1; i >= 0; i--) {
-      // Queue planets in reverse because later queries get answered frist
+      // Queue planets in reverse because later queries get answered first
+
+      // Make a single orbit object so both sprites have a consistent view of the current orbit
+      let orbit = {}
 
       // Make a planet sprite that moves with the orbit
-      let planetSprite = sprites.makePlanetSprite(ctx, keypath + '.' + i, scaleManager)
+      let planetSprite = sprites.makePlanetSprite(ctx, keypath + '.' + i, scaleManager, orbit)
       // Make an orbit line sprite
-      let orbitSprite = sprites.makeOrbitSprite(ctx, keypath + '.' + i, scaleManager)
+      let orbitSprite = sprites.makeOrbitSprite(ctx, keypath + '.' + i, scaleManager, orbit)
       
       root.appendChild(planetSprite)
       root.appendChild(orbitSprite)
