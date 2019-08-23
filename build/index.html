@@ -35,7 +35,12 @@
       <!-- Add a system view -->
       <a-entity id="system" position="0 30 0"></a-entity>
       <!-- And a loading throbber for it too -->
-      <a-entity id="system-loading" position="0 30 0" visible="false">
+      <a-entity id="system-loading" position="0 30 0" scale="3 3 3" visible="false">
+        <a-cylinder color="green" shader="flat" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
+        <a-sphere color="green" shader="flat" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
+        <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>
+      </a-entity>
+      <a-entity id="moon-loading" position="0 30 0" scale = "3 3 3" visible="false">
         <a-cylinder color="green" shader="flat" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
         <a-sphere color="green" shader="flat" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
         <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>

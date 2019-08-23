@@ -33,6 +33,8 @@ function sleep(time) {
 
 // Nonce for remembering which system was most recenty requested
 let systemNonce = 0
+// And for the moons of which planet
+let moonNonce = 0
 
 let nextCameraTargetId = 0
 
@@ -86,8 +88,16 @@ async function showMoon(ctx, keypath) {
 /// Assumes the system has been shown already
 async function showPlanet(ctx, keypath) {
 
+  moonNonce++
+  let ourNonce = moonNonce
+  let ourSystemNonce = systemNonce
+
   // Find the node we are going to parent the lunar system to
   let planetSprite = document.getElementById(keypathToId(keypath))
+
+  // Find the loader
+  let loader = document.getElementById('system-loading')
+  loader.setAttribute('visible', true)
 
   // Chase the planet with the camera
   moveCameraFocus(planetSprite)
@@ -123,12 +133,33 @@ async function showPlanet(ctx, keypath) {
   // Count up the moons
   let moonCount = await ctx.ds.request(keypath + '.moonCount')
 
+  // Track how many have been fully created
+  let completedMoons = 0
+  // And have a function to call when a moon is complete.
+  let completeMoon = function() {
+    completedMoons++
+    if (completedMoons == moonCount && ourNonce == moonNonce && ourSystemNonce == systemNonce) {
+      // We are the current system and we are done!
+      loader.setAttribute('visible', false)
+    }
+  }
+  if (completedMoons == moonCount && ourNonce == moonNonce && ourSystemNonce == systemNonce) {
+    // We are the current system and we are done already!
+      loader.setAttribute('visible', false)
+  }
+
   // Each moon should report a min and max orbit param.
   // Until then scale so we can see the temp orbits, which will be on the order of 1 LD in AU probably.
   scaleManager.expect(moonCount * 2, mv.LD / mv.AU, (moonCount + 1) * mv.LD / mv.AU)
 
   for (let i = moonCount - 1; i >= 0; i--) {
     // Queue moons in reverse because later queries get answered first
+
+    // Ask for the whole moon. When we get it, we know we have everything for the moon.
+    // When enough of these come in, loading is done.
+    ctx.ds.request(keypath + '.' + i).then((wholeMoon) => {
+      completeMoon()
+    })
 
     // Make a single orbit object so both sprites have a consistent view of the current orbit
     let orbit = {}
@@ -239,6 +270,10 @@ async function showSystem(ctx, keypath) {
         // We are the current system and we are done!
         loader.setAttribute('visible', false)
       }
+    }
+    if (completedPlanets == planetCount && ourNonce == systemNonce) {
+      // We are the current system and we are done already
+      loader.setAttribute('visible', false)
     }
 
     // Make a ScaleManager to let the planets tell each other how big the view scale should be
