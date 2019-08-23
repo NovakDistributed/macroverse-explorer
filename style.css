@@ -30,6 +30,28 @@ body {
   width: calc(100% - var(--sidebar-width));
 }
 
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: calc(100% - var(--sidebar-width));
+  z-index: 9000;
+  color: var(--dark);
+  background-color: var(--light);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-overlay[visible="true"] {
+  display: flex;
+}
+
+.loading-text {
+}
+
 #sidebar {
   position: absolute;
   width: var(--sidebar-width);
