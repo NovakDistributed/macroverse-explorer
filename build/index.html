@@ -25,26 +25,9 @@
       <a-cone id="y-minus" color="green" shader="flat" position="0 -20 0" radius-bottom="2" radius-top="0" height="4" rotation="180 0 0"></a-cone>
       <a-cone id="z-plus" color="blue" shader="flat" position="0 0 20" radius-bottom="2" radius-top="0" height="4" rotation="90 0 0"></a-cone>
       <a-cone id="z-minus" color="blue" shader="flat" position="0 0 -20" radius-bottom="2" radius-top="0" height="4" rotation="-90 0 0"></a-cone>
-      <!-- Add a loading throbber for the sector view -->
-      <a-entity id="sector-loading">
-        <a-cylinder color="green" shader="flat" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
-        <a-sphere color="green" shader="flat" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
-        <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>
-      </a-entity>
 
       <!-- Add a system view -->
       <a-entity id="system" position="0 30 0"></a-entity>
-      <!-- And a loading throbber for it too -->
-      <a-entity id="system-loading" position="0 30 0" scale="3 3 3" visible="false">
-        <a-cylinder color="green" shader="flat" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
-        <a-sphere color="green" shader="flat" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
-        <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>
-      </a-entity>
-      <a-entity id="moon-loading" position="0 30 0" scale = "3 3 3" visible="false">
-        <a-cylinder color="green" shader="flat" wireframe="true" wireframe-linewidth="1" height="0.080" radius="6.800" position="0 0 0"></a-cylinder>
-        <a-sphere color="green" shader="flat" wireframe="true" wireframe-linewidth="1" radius="1.000" position="0 0 0"></a-sphere>
-        <a-animation attribute="rotation" dur="10000" fill="forwards" from="0 0 0" to="0 360 0" easing="linear" repeat="indefinite"></a-animation>
-      </a-entity>
       <!-- Put a light at the origin of the system view to light the planets appropriately.
            It's close enough to above to work on the stars too.
            TODO: Match the star color! -->
@@ -60,5 +43,14 @@
       </div>
     </div>
     <div id="dialog"></div>
+    <div id="sector-loading" class="loading-overlay" visible="false">
+        <h1 class="loading-text">Loading Sector</h1>
+    </div>
+    <div id="system-loading" class="loading-overlay" visible="false">
+        <h1 class="loading-text">Loading System</h1>
+    </div>
+    <div id="moon-loading" class="loading-overlay" visible="false">
+        <h1 class="loading-text">Loading Moons</h1>
+    </div>
   </body>
 </html>

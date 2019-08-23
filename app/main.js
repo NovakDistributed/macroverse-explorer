@@ -96,7 +96,7 @@ async function showPlanet(ctx, keypath) {
   let planetSprite = document.getElementById(keypathToId(keypath))
 
   // Find the loader
-  let loader = document.getElementById('system-loading')
+  let loader = document.getElementById('moon-loading')
   loader.setAttribute('visible', true)
 
   // Chase the planet with the camera
