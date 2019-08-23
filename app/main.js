@@ -230,6 +230,17 @@ async function showSystem(ctx, keypath) {
 
     console.log('Queue up ' + planetCount + ' planets')
 
+    // Track how many have been fully created
+    let completedPlanets = 0
+    // And have a function to call when a planet is complete.
+    let completePlanet = function() {
+      completedPlanets++
+      if (completedPlanets == planetCount && ourNonce == systemNonce) {
+        // We are the current system and we are done!
+        loader.setAttribute('visible', false)
+      }
+    }
+
     // Make a ScaleManager to let the planets tell each other how big the view scale should be
     // We want the output between 1 and 100 units
     let scaleManager = new sprites.ScaleManager(1, 100)
@@ -241,6 +252,12 @@ async function showSystem(ctx, keypath) {
 
     for (let i = planetCount - 1; i >= 0; i--) {
       // Queue planets in reverse because later queries get answered first
+
+      // Ask for the whole planet. When we get it, we know we have everything for the planet.
+      // When enough of these come in, loading is done.
+      ctx.ds.request(keypath + '.' + i).then((wholePlanet) => {
+        completePlanet()
+      })
 
       // Make a single orbit object so both sprites have a consistent view of the current orbit
       let orbit = {}
@@ -272,10 +289,6 @@ async function showSystem(ctx, keypath) {
     }
 
     console.log('Made ' + planetCount + ' planets')
-
-    // Hide the loader because we have initial sprites out
-    loader.setAttribute('visible', false)
-
   })
   
   // Put in our child we made.
