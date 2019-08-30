@@ -23,6 +23,7 @@ const sprites = require('./sprites.js')
 const Infobox = require('./Infobox.js')
 const {parentOf, keypathToId} = require('./keypath.js')
 const dialog = require('./dialog.js')
+const LoadingScreen = require('./LoadingScreen.js')
 
 /// Make a promise that waits for the given number of ms and then resolves
 function sleep(time) {
@@ -95,9 +96,8 @@ async function showPlanet(ctx, keypath) {
   // Find the node we are going to parent the lunar system to
   let planetSprite = document.getElementById(keypathToId(keypath))
 
-  // Find the loader
-  let loader = document.getElementById('moon-loading')
-  loader.setAttribute('visible', true)
+  // Start loading
+  ctx.emit('load-start', 2, ourNonce, 999)
 
   // Chase the planet with the camera
   moveCameraFocus(planetSprite)
@@ -133,19 +133,11 @@ async function showPlanet(ctx, keypath) {
   // Count up the moons
   let moonCount = await ctx.ds.request(keypath + '.moonCount')
 
-  // Track how many have been fully created
-  let completedMoons = 0
+  ctx.emit('load-start', 2, ourNonce, moonCount)
+
   // And have a function to call when a moon is complete.
   let completeMoon = function() {
-    completedMoons++
-    if (completedMoons == moonCount && ourNonce == moonNonce && ourSystemNonce == systemNonce) {
-      // We are the current system and we are done!
-      loader.setAttribute('visible', false)
-    }
-  }
-  if (completedMoons == moonCount && ourNonce == moonNonce && ourSystemNonce == systemNonce) {
-    // We are the current system and we are done already!
-      loader.setAttribute('visible', false)
+    ctx.emit('load-item', 2, ourNonce)
   }
 
   // Each moon should report a min and max orbit param.
@@ -203,9 +195,9 @@ async function showSystem(ctx, keypath) {
     system.removeChild(system.firstChild)
   }
 
-  // Start up the system loading throbber
-  let loader = document.getElementById('system-loading')
-  loader.setAttribute('visible', true)
+  // Start up the system loading
+  // TODO: don't fake the items; allow them to come in later
+  ctx.emit('load-start', 1, ourNonce, 999)
 
   // Focus the system view
   moveCameraFocus(system.getAttribute('position'))
@@ -261,19 +253,11 @@ async function showSystem(ctx, keypath) {
 
     console.log('Queue up ' + planetCount + ' planets')
 
-    // Track how many have been fully created
-    let completedPlanets = 0
+    ctx.emit('load-start', 1, ourNonce, planetCount)
+
     // And have a function to call when a planet is complete.
     let completePlanet = function() {
-      completedPlanets++
-      if (completedPlanets == planetCount && ourNonce == systemNonce) {
-        // We are the current system and we are done!
-        loader.setAttribute('visible', false)
-      }
-    }
-    if (completedPlanets == planetCount && ourNonce == systemNonce) {
-      // We are the current system and we are done already
-      loader.setAttribute('visible', false)
+      ctx.emit('load-item', 1, ourNonce)
     }
 
     // Make a ScaleManager to let the planets tell each other how big the view scale should be
@@ -356,9 +340,8 @@ async function showSector(ctx, x, y, z) {
   // Find where we want to put things
   let sector = document.getElementById('sector')
 
-  // Find the loading throbber
-  let loader = document.getElementById('sector-loading')
-  loader.setAttribute('visible', true)
+  // Start loading.
+  ctx.emit('load-start', 0, ourNonce, 999)
 
   // Clear out the sector
   while (sector.hasChildNodes()) {
@@ -380,6 +363,8 @@ async function showSector(ctx, x, y, z) {
     // Don't queue stars up on top of sector data requests for later sectors.
     return
   }
+
+  ctx.emit('load-start', 2, ourNonce, starCount)
 
   // We fill this with promises for making all the stars, which are running in parallel.
   let starPromises = []
@@ -420,8 +405,7 @@ async function showSector(ctx, x, y, z) {
   await Promise.all(starPromises)
   if (ourNonce == sectorNonce) {
     console.log('All stars loading for sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
-    // Hide the loader
-    loader.setAttribute('visible', false)
+    ctx.emit('load-item', 0, ourNonce)
   } else {
     console.log('Stale sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce + ' is done')
   }
@@ -581,6 +565,9 @@ async function main() {
   document.getElementById('y-minus').addEventListener('click', make_pan_handler(ctx, 0, -1, 0))
   document.getElementById('z-plus').addEventListener('click', make_pan_handler(ctx, 0, 0, 1))
   document.getElementById('z-minus').addEventListener('click', make_pan_handler(ctx, 0, 0, -1))
+
+  // Hook up loading screen
+  let loading = new LoadingScreen(ctx, 'loading-overlay')
 
   if (location.hash) {
     // On load we asked for a thing
