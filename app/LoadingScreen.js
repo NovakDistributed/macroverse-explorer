@@ -56,8 +56,8 @@ class LoadingScreen {
 
       this.in_progress[level] = {nonce: nonce, total: items, done: 0}
 
-      // Cancel loading at higher levels.
       for (let i = level + 1; i < 3; i++) {
+        // Cancel loading at higher levels.
         this.in_progress[i] = undefined
         console.log('Hide loading screen for level ' + i + ' because lower-level load has started')
         this.hide(i)
@@ -83,6 +83,22 @@ class LoadingScreen {
     // We can't listen to show events in a timely fashion because the load
     // events that result from other people handling the show event may arrive
     // before we see the show event.
+
+    // So we need to drop show events only for strictly lower-level things
+
+    this.bus.on('show', (keypath) => {
+      // Catch when a new item is going to be shown.
+      // Cancel loading at higher levels.
+
+      let parts = keypath.split('.')
+      let level = parts.length - 3
+
+      for (let i = level + 1; i < 3; i++) {
+        this.in_progress[i] = undefined
+        console.log('Hide loading screen for level ' + i + ' because lower-level keypath ' + keypath + ' at level ' + level + ' is being shown')
+        this.hide(i)
+      }
+    })
   }
 
   hide(level) {
