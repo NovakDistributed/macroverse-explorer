@@ -364,7 +364,7 @@ async function showSector(ctx, x, y, z) {
     return
   }
 
-  ctx.emit('load-start', 2, ourNonce, starCount)
+  ctx.emit('load-start', 0, ourNonce, starCount)
 
   // We fill this with promises for making all the stars, which are running in parallel.
   let starPromises = []
@@ -380,6 +380,8 @@ async function showSector(ctx, x, y, z) {
       sprite.addEventListener('loaded', () => {
         // When the star sprite is out, say it is ready.
         // The sprite may still update with more info later
+
+        ctx.emit('load-item', 0, ourNonce)
         resolve()
       })
 
@@ -405,7 +407,6 @@ async function showSector(ctx, x, y, z) {
   await Promise.all(starPromises)
   if (ourNonce == sectorNonce) {
     console.log('All stars loading for sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce)
-    ctx.emit('load-item', 0, ourNonce)
   } else {
     console.log('Stale sector ' + x + ' ' + y + ' ' + z + ' nonce ' + ourNonce + ' is done')
   }

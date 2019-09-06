@@ -52,7 +52,16 @@ class LoadingScreen {
       // Start loading the given number of things at the given level, using the given nonce
       // Level 0 = sector, 1 = system, 2 = moon system
 
+      console.log('Start load at level ' + level + ' with ' + items + ' items')
+
       this.in_progress[level] = {nonce: nonce, total: items, done: 0}
+
+      // Cancel loading at higher levels.
+      for (let i = level + 1; i < 3; i++) {
+        this.in_progress[i] = undefined
+        console.log('Hide loading screen for level ' + i + ' because lower-level load has started')
+        this.hide(i)
+      }
     
       // Show the screen
       this.update(level)
@@ -61,38 +70,23 @@ class LoadingScreen {
     this.bus.on('load-item', (level, nonce) => {
       // Mark an item at the given level, with the given nonce, as loaded
 
+      console.log('Loaded item at level ' + level)
+
       if (this.in_progress[level] && this.in_progress[level].nonce == nonce) {
         this.in_progress[level].done++
-
         // Re-render the loading screen
         this.update(level)
-
-        if (this.in_progress[level].done >= this.in_progress[level].total) {
-          // Loading is done for this level!
-          this.hide(level)
-        }
       }
 
     })
 
-    this.bus.on('show', (keypath) => {
-      // Catch when a new item is going to be shown.
-      // Cancel loading at higher levels.
-
-      let parts = keypath.split('.')
-
-      for (let i = 2; i >= 0; i--) {
-        if (parts.length <= 3 + i) {
-          // We're moving to a new thing at this level or lower.
-          // Stop the load at this level.
-          this.in_progress[i] = undefined
-          this.hide(i)
-        }
-      }
-    })
+    // We can't listen to show events in a timely fashion because the load
+    // events that result from other people handling the show event may arrive
+    // before we see the show event.
   }
 
   hide(level) {
+    
     // Hide the loading unit
     this.units[level].style.display = 'none'
 
@@ -100,6 +94,7 @@ class LoadingScreen {
     let anythingLoading = false
     for (let i = 0; i < 3; i++) {
       if (this.in_progress[i]) {
+        console.log('Level ' + i + ' is still loading: ', this.in_progress[i])
         anythingLoading = true
       }
     }
@@ -109,7 +104,19 @@ class LoadingScreen {
     }
   }
 
+  // Show the loading unit with the current numbers, or hide it if loading is done
   update(level) {
+
+    console.log('Update loading screen for level ' + level)
+
+    if (this.in_progress[level].done >= this.in_progress[level].total) {
+      // Loading is done for this level!
+      console.log('Hide loading screen for level ' + level + ' because ' + this.in_progress[level].total + '/' + this.in_progress[level].done + ' items are loaded')
+      this.in_progress[level] = undefined
+      this.hide(level)
+      return
+    }
+
     // Show the loading div
     this.units[level].style.display = 'block'
 
