@@ -18,7 +18,7 @@ class LoadingScreen {
 
     // Add something to distract the user in the middle
     this.element.innerHTML = `
-      <div class="loading-distraction"></div>
+      <div class="loading-distraction">👩‍🚀</div>
     `
 
     // Make progress bars
@@ -28,16 +28,18 @@ class LoadingScreen {
     // And the units that hold them and are shown/hidden
     this.units = []
     for (let i = 0; i < 3; i++) {
+      // Build the loading unit
       let barHolder = document.createElement('div')
       barHolder.classList.add('loading-level')
       let bar = document.createElement('progress')
       bar.classList.add('loading-bar')
       let caption = document.createElement('p')
       caption.classList.add('loading-caption')
+      
       this.bars.push(bar)
       this.captions.push(caption)
       this.units.push(barHolder)
-
+     
       barHolder.appendChild(caption)
       barHolder.appendChild(bar)
 
