@@ -55,7 +55,7 @@ body {
 .loading-distraction {
   transform-origin: 50% 50%;
   animation: spin 3s linear infinite;
-  font-size: 30px;
+  font-size: 70px;
 }
 
 progress {
