@@ -6,18 +6,21 @@ var MacroverseNFTUtils = artifacts.require("MacroverseNFTUtils")
 var MacroverseStarGenerator = artifacts.require("MacroverseStarGenerator")
 var MacroverseStarGeneratorPatch1 = artifacts.require("MacroverseStarGeneratorPatch1")
 var MacroverseUniversalRegistry = artifacts.require("MacroverseUniversalRegistry")
+var MacroverseRealEstate = artifacts.require("MacroverseRealEstate")
 var MacroverseSystemGenerator = artifacts.require("MacroverseSystemGenerator")
+var MacroverseSystemGeneratorPart1 = artifacts.require("MacroverseSystemGeneratorPart1")
+var MacroverseSystemGeneratorPart2 = artifacts.require("MacroverseSystemGeneratorPart2")
 var MacroverseExistenceChecker = artifacts.require("MacroverseExistenceChecker")
 var MacroverseMoonGenerator = artifacts.require("MacroverseMoonGenerator")
 var MinimumBalanceAccessControl = artifacts.require("MinimumBalanceAccessControl")
-var MRVToken = artifacts.require("MRVToken")
+var TestnetMRVToken = artifacts.require("TestnetMRVToken")
 
 module.exports = function(deployer, network, accounts) {
   
   if (network != "live") {
     // We are on a testnet. Deploy a new Macroverse
     
-    console.log("On alternative network '" + network + "'; deploying test Macroverse with test universe seed")
+    console.log("On alternative network '" + network + "'; deploying test Macroverse")
     
     deployer.deploy(RealMath).then(function() {
       deployer.link(RealMath, RNG)
@@ -25,9 +28,9 @@ module.exports = function(deployer, network, accounts) {
     }).then(function() {
       return deployer.deploy(MacroverseNFTUtils)
     }).then(function() {
-      return deployer.deploy(MRVToken, accounts[0], accounts[0])
+      return deployer.deploy(TestnetMRVToken, accounts[0], accounts[0])
     }).then(function() {
-      return deployer.deploy(MinimumBalanceAccessControl, MRVToken.address, web3.toWei(100, "ether"))
+      return deployer.deploy(MinimumBalanceAccessControl, TestnetMRVToken.address, web3.toWei(100, "ether"))
     }).then(function() {
       deployer.link(RNG, MacroverseStarGenerator)
       deployer.link(RealMath, MacroverseStarGenerator)
@@ -37,8 +40,16 @@ module.exports = function(deployer, network, accounts) {
       deployer.link(RealMath, MacroverseStarGeneratorPatch1)
       return deployer.deploy(MacroverseStarGeneratorPatch1, MinimumBalanceAccessControl.address)
     }).then(function() {
-      deployer.link(RNG, MacroverseSystemGenerator)
-      deployer.link(RealMath, MacroverseSystemGenerator)
+      deployer.link(RNG, MacroverseSystemGeneratorPart1)
+      deployer.link(RealMath, MacroverseSystemGeneratorPart1)
+      return deployer.deploy(MacroverseSystemGeneratorPart1)
+    }).then(function() {
+      deployer.link(RNG, MacroverseSystemGeneratorPart2)
+      deployer.link(RealMath, MacroverseSystemGeneratorPart2)
+      return deployer.deploy(MacroverseSystemGeneratorPart2)
+    }).then(function() {
+      deployer.link(MacroverseSystemGeneratorPart1, MacroverseSystemGenerator)
+      deployer.link(MacroverseSystemGeneratorPart2, MacroverseSystemGenerator)
       return deployer.deploy(MacroverseSystemGenerator, MinimumBalanceAccessControl.address)
     }).then(function() {
       deployer.link(RNG, MacroverseMoonGenerator)
@@ -49,8 +60,16 @@ module.exports = function(deployer, network, accounts) {
       return deployer.deploy(MacroverseExistenceChecker, MacroverseStarGenerator.address,
         MacroverseStarGeneratorPatch1.address, MacroverseSystemGenerator.address, MacroverseMoonGenerator.address)
     }).then(function() {
+      return deployer.deploy(MacroverseRealEstate)
+    }).then(function() {
       deployer.link(MacroverseNFTUtils, MacroverseUniversalRegistry)
-      return deployer.deploy(MacroverseUniversalRegistry, MRVToken.address, MacroverseExistenceChecker.address, web3.toWei(1000, "ether"), 60)
+      return deployer.deploy(MacroverseUniversalRegistry, MacroverseRealEstate.address, TestnetMRVToken.address,
+        MacroverseExistenceChecker.address, web3.toWei(1000, "ether"), 60)
+    }).then(function() {
+      return MacroverseRealEstate.deployed() 
+    }).then(function(backend) {
+      // Give the backend to the frontend
+      return backend.transferOwnership(MacroverseUniversalRegistry.address)
     }).then(function() {
       console.log("Macroverse deployed!")
     })
