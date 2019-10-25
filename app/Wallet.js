@@ -452,7 +452,7 @@ class Wallet {
       ${placeDomNode(() => {
         // Have a button to close the dialog
         let doneButton = document.createElement('button')
-        doneButton.innerText = 'Finish'
+        doneButton.innerText = 'Close'
         doneButton.classList.add('done')
         doneButton.addEventListener('click', () => {
           dialog.closeDialog()

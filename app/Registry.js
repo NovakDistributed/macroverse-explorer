@@ -65,9 +65,14 @@ class Registry extends EventEmitter2 {
       this.initPromise = (async () => {
         // Do the actual init work here.
 
-        // Find the registry instance
-        [this.reg, this.mrv] = await Promise.all([eth.get_instance(this.getContractPath('MacroverseUniversalRegistry')),
-          eth.get_instance(this.getContractPath('MRVToken'))])
+        // Find the contract instances
+        [this.reg, this.real, this.mrv] = await Promise.all([
+          eth.get_instance(this.getContractPath('MacroverseUniversalRegistry')),
+          eth.get_instance(this.getContractPath('MacroverseRealEstate')), 
+          eth.get_instance(this.getContractPath('MRVToken')).catch(() => {
+            // If no real MRVToken is available, use the test version
+            return eth.get_instance(this.getContractPath('TestnetMRVToken'))
+          })])
       })()
     }
     return this.initPromise
@@ -219,13 +224,15 @@ class Registry extends EventEmitter2 {
       return wait_seconds
     } else if (firstComponent(keypath) == 'reg') {
       // Match reg.{address}.tokens, reg.{address}.tokens.{number}
+      // TODO: This is actually fulfilled by the real estate contract now, so
+      // should it be real.*?
       let parts = splitKeypath(keypath)
 
       if (parts.length == 3 && parts[2] == 'tokens') {
         // We want the token count
         let owner = parts[1]
 
-        let val = await this.reg.balanceOf(owner)
+        let val = await this.real.balanceOf(owner)
         this.cache[keypath] = val
         this.emit(keypath, val)
       } else if (parts.length == 4 && parts[2] == 'tokens') {
@@ -235,7 +242,7 @@ class Registry extends EventEmitter2 {
 
         let val = undefined
         try {
-          val = await this.reg.tokenOfOwnerByIndex(owner, index)
+          val = await this.real.tokenOfOwnerByIndex(owner, index)
         } catch(e) {
           // Maybe they no longer have this many tokens
           console.error('Error getting token ' + index + ' of owner ' + owner + ', assuming 0', e)
@@ -266,13 +273,13 @@ class Registry extends EventEmitter2 {
         // Everything else depends on the owner
         
         // Decide if it should have an owner right now
-        let owned = await this.reg.exists(token)
+        let owned = await this.real.exists(token)
 
         if (owned) {
           // We think it is owned
 
           if (wanted == 'owner') {
-            let token_owner = await this.reg.ownerOf(token).catch((err) => {
+            let token_owner = await this.real.ownerOf(token).catch((err) => {
               // Maybe it became unowned while we were looking at it
               console.log('Error getting owner, assuming unowned', err)
               return 0
@@ -303,12 +310,12 @@ class Registry extends EventEmitter2 {
       let wanted = lastComponent(keypath)
 
       // See if it exists
-      let owned = await this.reg.exists(token)
+      let owned = await this.real.exists(token)
 
       if (owned && wanted != 'lowestOwnedParent') {
         if (wanted == 'ultimateOwner') {
           // It's just the current owner
-          let token_owner = await this.reg.ownerOf(token).catch((err) => {
+          let token_owner = await this.real.ownerOf(token).catch((err) => {
             // Maybe it became unowned while we were looking at it
             console.log('Error getting owner, assuming unowned', err)
             return 0
@@ -333,7 +340,7 @@ class Registry extends EventEmitter2 {
           }
         
           // Otherwise, look up who owns the parent
-          let controlling_token_owner = await this.reg.ownerOf(controlling_token).catch((err) => {
+          let controlling_token_owner = await this.real.ownerOf(controlling_token).catch((err) => {
             console.log('Error getting owner, assuming unowned', err)
             return 0
           })
@@ -452,8 +459,8 @@ class Registry extends EventEmitter2 {
         let owner = parts[1]
         // For any change to the virtual real estate tokens of an owner, we need to watch the transfer events in and out
 
-        let in_filter = this.reg.Transfer({to: owner}, {fromBlock: 'latest', toBlock: 'latest'})
-        let out_filter = this.reg.Transfer({from: owner}, {fromBlock: 'latest', toBlock: 'latest'})
+        let in_filter = this.real.Transfer({to: owner}, {fromBlock: 'latest', toBlock: 'latest'})
+        let out_filter = this.real.Transfer({from: owner}, {fromBlock: 'latest', toBlock: 'latest'})
         
         // On either event, update everything
         let handle_event = async (error, event_report) => {
@@ -466,7 +473,7 @@ class Registry extends EventEmitter2 {
           if (parts.length == 3) {
             // We just want the total NFT count for this owner
             // Just query the balance again to update instead of doing real tracking.
-            let val = await this.reg.balanceOf(owner)
+            let val = await this.real.balanceOf(owner)
             this.cache[keypath] = val
             this.emit(keypath, val)
           } else {
@@ -474,7 +481,7 @@ class Registry extends EventEmitter2 {
             let index = parts[3]
             let val = undefined
             try {
-              val = await this.reg.tokenOfOwnerByIndex(owner, index)
+              val = await this.real.tokenOfOwnerByIndex(owner, index)
             } catch(e) {
               // Maybe they no longer have this many tokens
               console.error('Error getting token ' + index + ' of owner ' + owner + ', assuming 0', e)
@@ -534,7 +541,7 @@ class Registry extends EventEmitter2 {
 
         // Set up a filter for the transfer of this token from here on out.
         // Note: this also catches any events in the current top block when we make it
-        let filter = this.reg.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
+        let filter = this.real.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
         filter.watch(async (error, event_report) => {
           console.log('Saw event: ', event_report)
           if (event_report.type != 'mined') {
@@ -622,7 +629,7 @@ class Registry extends EventEmitter2 {
       }
 
       // Watch for transfers on the token itself
-      let filter = this.reg.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
+      let filter = this.real.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
       filter.watch(handle_watch)
 
       this.watchers[keypath] = [filter]
@@ -638,7 +645,7 @@ class Registry extends EventEmitter2 {
 
       for (let parent_token of parent_tokens) {
         // Watch for the transfer of any parent
-        let transfer_filter = this.reg.Transfer({'tokenId': parent_token}, {fromBlock: 'latest', toBlock: 'latest'})
+        let transfer_filter = this.real.Transfer({'tokenId': parent_token}, {fromBlock: 'latest', toBlock: 'latest'})
         transfer_filter.watch(handle_watch)
         // TODO: we will end up with a lot of watches on the same parents to update a lot of children.
         this.watchers[keypath].push(transfer_filter)
@@ -802,11 +809,11 @@ class Registry extends EventEmitter2 {
     // Compute the actual token number
     let token = mv.keypathToToken(keypath)
 
-    let gas = await this.reg.transferFrom.estimateGas(account, destination, token, {from: account}) * 2
+    let gas = await this.real.transferFrom.estimateGas(account, destination, token, {from: account}) * 2
 
     console.log('Send will probably take ' + gas + ' gas')
 
-    let receipt = await this.reg.transferFrom(account, destination, token, {from: account, gas: gas})
+    let receipt = await this.real.transferFrom(account, destination, token, {from: account, gas: gas})
 
     console.log('Transfer receipt: ', receipt)
   }

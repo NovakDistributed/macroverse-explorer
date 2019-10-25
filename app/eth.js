@@ -23,7 +23,7 @@ const fetch = window.fetch
 function create_provider() {
   const TRUFFLE_DEVELOP_URL='http://localhost:9545'
   const GANACHE_DEVELOP_URL='http://localhost:7545'
-  let use = GANACHE_DEVELOP_URL
+  let use = TRUFFLE_DEVELOP_URL
   // TODO: sometimes use real in-browser web3
   // TODO: Tell the difference between Truffle and Ganache
   console.log('Creating provider for url ' + use)
@@ -49,7 +49,7 @@ function get_account() {
 async function fetch_json(url) {
   let response = await fetch(url)
   if (!response.ok) {
-    throw new Error("Negative response from server: " + JSON.stringify(response))
+    throw new Error("Negative response from server for " + url + ": " + JSON.stringify(response))
   }
   return await response.json()
 }

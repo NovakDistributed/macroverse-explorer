@@ -15,6 +15,9 @@ var MacroverseMoonGenerator = artifacts.require("MacroverseMoonGenerator")
 var MinimumBalanceAccessControl = artifacts.require("MinimumBalanceAccessControl")
 var TestnetMRVToken = artifacts.require("TestnetMRVToken")
 
+// new Truffle doesn't give us free toWei
+const Web3Utils = require('web3-utils')
+
 module.exports = function(deployer, network, accounts) {
   
   if (network != "live") {
@@ -30,11 +33,12 @@ module.exports = function(deployer, network, accounts) {
     }).then(function() {
       return deployer.deploy(TestnetMRVToken, accounts[0], accounts[0])
     }).then(function() {
-      return deployer.deploy(MinimumBalanceAccessControl, TestnetMRVToken.address, web3.toWei(100, "ether"))
+      return deployer.deploy(MinimumBalanceAccessControl, TestnetMRVToken.address, Web3Utils.toWei("100", "ether"))
     }).then(function() {
       deployer.link(RNG, MacroverseStarGenerator)
       deployer.link(RealMath, MacroverseStarGenerator)
-      return deployer.deploy(MacroverseStarGenerator, "FiatBlocks", MinimumBalanceAccessControl.address)
+      // New Truffle won't just coerce strings to bytes32
+      return deployer.deploy(MacroverseStarGenerator, "0x46696174426c6f636b73", MinimumBalanceAccessControl.address)
     }).then(function() {
       deployer.link(RNG, MacroverseStarGeneratorPatch1)
       deployer.link(RealMath, MacroverseStarGeneratorPatch1)
@@ -64,7 +68,7 @@ module.exports = function(deployer, network, accounts) {
     }).then(function() {
       deployer.link(MacroverseNFTUtils, MacroverseUniversalRegistry)
       return deployer.deploy(MacroverseUniversalRegistry, MacroverseRealEstate.address, TestnetMRVToken.address,
-        MacroverseExistenceChecker.address, web3.toWei(1000, "ether"), 60)
+        MacroverseExistenceChecker.address, Web3Utils.toWei("1000", "ether"), 60)
     }).then(function() {
       return MacroverseRealEstate.deployed() 
     }).then(function(backend) {
