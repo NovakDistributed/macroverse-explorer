@@ -330,7 +330,7 @@ class Registry extends EventEmitter2 {
 
         // Something else may control it.
         // Get its token as a string.
-        let controlling_token = await this.reg.lowestExistingParent(token).toString()
+        let controlling_token = (await this.reg.lowestExistingParent(token)).toString()
 
         if (wanted == 'lowestOwnedParent') {
           // Just return that token or 0 if it doesn't exist
