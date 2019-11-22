@@ -242,11 +242,12 @@ class Registry extends EventEmitter2 {
 
         let val = undefined
         try {
-          val = await this.real.tokenOfOwnerByIndex(owner, index)
+          // Find the token and get it as a string
+          val = (await this.real.tokenOfOwnerByIndex(owner, index)).toString()
         } catch(e) {
           // Maybe they no longer have this many tokens
           console.error('Error getting token ' + index + ' of owner ' + owner + ', assuming 0', e)
-          val = 0
+          val = '0'
         }
         this.cache[keypath] = val
         this.emit(keypath, val)
@@ -304,7 +305,7 @@ class Registry extends EventEmitter2 {
       // We want to know who owns the lowest owned parent, or what it is, or if
       // we can claim this thing because that parent is nonexistent, is ours,
       // or has homesteading on.
-      
+
       // Pack the token value
       let token = mv.keypathToToken(parentOf(keypath))
       let wanted = lastComponent(keypath)
@@ -317,7 +318,6 @@ class Registry extends EventEmitter2 {
           // It's just the current owner
           let token_owner = await this.real.ownerOf(token).catch((err) => {
             // Maybe it became unowned while we were looking at it
-            console.log('Error getting owner, assuming unowned', err)
             return 0
           })
 
@@ -327,8 +327,10 @@ class Registry extends EventEmitter2 {
           return false
         }
       } else {
-        // Something else may control it
-        let controlling_token = await this.reg.lowestExistingParent(token)
+
+        // Something else may control it.
+        // Get its token as a string.
+        let controlling_token = await this.reg.lowestExistingParent(token).toString()
 
         if (wanted == 'lowestOwnedParent') {
           // Just return that token or 0 if it doesn't exist
@@ -481,11 +483,12 @@ class Registry extends EventEmitter2 {
             let index = parts[3]
             let val = undefined
             try {
-              val = await this.real.tokenOfOwnerByIndex(owner, index)
+              // Find the token and get it as a string
+              val = (await this.real.tokenOfOwnerByIndex(owner, index)).toString()
             } catch(e) {
               // Maybe they no longer have this many tokens
               console.error('Error getting token ' + index + ' of owner ' + owner + ', assuming 0', e)
-              val = 0
+              val = '0'
             }
             this.cache[keypath] = val
             this.emit(keypath, val)

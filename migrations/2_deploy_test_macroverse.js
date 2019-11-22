@@ -33,7 +33,7 @@ module.exports = function(deployer, network, accounts) {
     }).then(function() {
       return deployer.deploy(TestnetMRVToken, accounts[0], accounts[0])
     }).then(function() {
-      return deployer.deploy(MinimumBalanceAccessControl, TestnetMRVToken.address, Web3Utils.toWei("100", "ether"))
+      return deployer.deploy(MinimumBalanceAccessControl, TestnetMRVToken.address, Web3Utils.toWei("100", "ether").toString())
     }).then(function() {
       deployer.link(RNG, MacroverseStarGenerator)
       deployer.link(RealMath, MacroverseStarGenerator)
@@ -67,8 +67,8 @@ module.exports = function(deployer, network, accounts) {
       return deployer.deploy(MacroverseRealEstate)
     }).then(function() {
       deployer.link(MacroverseNFTUtils, MacroverseUniversalRegistry)
-      return deployer.deploy(MacroverseUniversalRegistry, MacroverseRealEstate.address, TestnetMRVToken.address,
-        MacroverseExistenceChecker.address, Web3Utils.toWei("1000", "ether"), 60)
+      return deployer.deploy(MacroverseUniversalRegistry, MacroverseRealEstate.address,
+        MacroverseExistenceChecker.address, TestnetMRVToken.address, Web3Utils.toWei("1000", "ether").toString(), '60')
     }).then(function() {
       return MacroverseRealEstate.deployed() 
     }).then(function(backend) {

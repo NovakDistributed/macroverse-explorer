@@ -568,7 +568,7 @@ class Wallet {
             return
           }
 
-          console.log('Approve ', approveDeposit, ' vs ', minDeposit)
+          console.log('Approve ', approveDeposit, ' vs ', minDeposit.toString())
 
           // Otherwise, actually send the transaction.
           // Don't let the user fiddle while we do it.

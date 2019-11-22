@@ -72,8 +72,6 @@ class LoadingScreen {
     this.bus.on('load-item', (level, nonce) => {
       // Mark an item at the given level, with the given nonce, as loaded
 
-      console.log('Loaded item at level ' + level)
-
       if (this.in_progress[level] && this.in_progress[level].nonce == nonce) {
         this.in_progress[level].done++
         // Re-render the loading screen
@@ -112,7 +110,6 @@ class LoadingScreen {
     let anythingLoading = false
     for (let i = 0; i < 3; i++) {
       if (this.in_progress[i]) {
-        console.log('Level ' + i + ' is still loading: ', this.in_progress[i])
         anythingLoading = true
       }
     }
@@ -124,8 +121,6 @@ class LoadingScreen {
 
   // Show the loading unit with the current numbers, or hide it if loading is done
   update(level) {
-
-    console.log('Update loading screen for level ' + level)
 
     if (this.in_progress[level].done >= this.in_progress[level].total) {
       // Loading is done for this level!
