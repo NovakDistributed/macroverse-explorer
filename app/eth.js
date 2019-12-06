@@ -21,6 +21,9 @@ const fetch = window.fetch
 // in extra special debug mode, in which case it will be something that points
 // at localhost for Truffle Develop.
 function create_provider() {
+  
+  return window.ethereum
+
   const TRUFFLE_DEVELOP_URL='http://localhost:9545'
   const GANACHE_DEVELOP_URL='http://localhost:7545'
   let use = TRUFFLE_DEVELOP_URL
@@ -33,6 +36,44 @@ function create_provider() {
 // Get the proivider in use
 function get_provider() {
   return web3.currentProvider
+}
+
+// Returns a promise which resolves when the Etherum provider is enabled, if it
+// needs enabling like Metamask does.
+async function ensure_enabled() {
+  
+  // Find the provider
+  let provider = get_provider()
+  
+  if (typeof provider.enable == 'undefined') {
+    // Provider does not need enabling
+    return
+  }
+  
+  while(true) {
+    // Otherwise, until enabled successfully
+    try {
+      console.log('Attempting to enable Ethereum provider...')
+      let result = await provider.enable()
+      console.log('Response to enable request: ' + result)
+
+      // This can return before web3.eth.accounts is ready.
+      // So we spin wait on it
+      while (typeof get_account() == 'undefined') {
+        console.log('Account is not available yet!')
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100)
+        })
+      }
+
+      return
+    } catch (e) {
+      // User rejected login. Tell them we need the permission to do anything.
+      // TODO: make this pretty and not a dialog spam loop.
+      console.log('Could not enable provider. Retrying...')
+      alert("Unfortunately, the Macroverese Explorer requires access to your browser's Ethereum provider to work.")
+    }
+  }
 }
 
 // Get the network ID
@@ -120,4 +161,4 @@ function watch_block(listener) {
 }
 
 // Nobody should really have to use web3; we have this stuff.
-module.exports = { get_instance, get_account, get_network_id, get_provider, latest_block, watch_block }
+module.exports = { ensure_enabled, get_instance, get_account, get_network_id, get_provider, latest_block, watch_block }

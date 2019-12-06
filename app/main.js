@@ -450,6 +450,9 @@ async function main() {
   // But we want to wait for the DOM to actually exist before we start tinkering about with the page itself.
   await waitForDom()
 
+  // Make sure that Etheruem is ready (user signed into Metamask, etc.)
+  await eth.ensure_enabled()
+
   console.log('Starting on Ethereum network ' + eth.get_network_id())
   console.log('Using account ' + eth.get_account())
 

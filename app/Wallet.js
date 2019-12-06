@@ -286,7 +286,7 @@ class Wallet {
     // Prepare a feed to manage subscriptions for this dialog display
     let feed = this.ctx.reg.create_feed()
     
-    // Preapre throbbers for the form
+    // Preapre throbber for sending MRV
     let sendMRVThrobber = throbber.create()
 
     // Prepare a place for the destination icon
@@ -374,6 +374,68 @@ class Wallet {
     })
     // TODO: Unify with checksum and icon logic for NFT token transfer
 
+    // Now allow for minting
+    let mintForm = undefined
+    if (this.ctx.reg.canMintMRV) {
+      // We can mint MRV.
+      // TODO: Hope people don;t open the wallet before we figure this out.
+
+      // Prepare UI for minting MRV on testnet
+      let mintMRVThrobber = throbber.create()
+      let mintAmountField = document.createElement('input')
+      mintAmountField.setAttribute('placeholder', '100.0')
+      let mintButton = document.createElement('button')
+      mintButton.innerText = 'Mint'
+      mintButton.addEventListener('click', () => {
+        // Disable the form
+        mintAmountField.disabled = true
+        mintButton.disabled = true
+
+        // Start the throbber
+        throbber.start(mintMRVThrobber)
+
+        let wholeMRV = mintAmountField.value
+        if (isNaN(wholeMRV) || wholeMRV == '') {
+          // Fail early
+          throbber.fail(mintMRVThrobber)
+          mintAmountField.disabled = false
+          mintButton.disabled = false
+          return
+        }
+        
+        try {
+          // Actually send the transaction. Metamask or other user agent should prompt to confirm.
+          this.ctx.reg.mintMRV(Web3Utils.toWei(mintAmountField.value, 'ether')).then(() => {
+            // Report success
+            throbber.succeed(mintMRVThrobber)
+            // Re-enable form
+            mintAmountField.disabled = false
+            mintButton.disabled = false
+          }).catch((err) => {
+            // Re-enable form
+            console.error(err)
+            throbber.fail(mintMRVThrobber)
+            mintAmountField.disabled = false
+            mintButton.disabled = false
+          })
+        } catch (err) {
+          // Collect errors from e.g. toWei
+          console.error('Could not mint MRV', err)
+          throbber.fail(mintMRVThrobber)
+          mintAmountField.disabled = false
+          mintButton.disabled = false
+        }
+      })
+
+      mintForm = document.createElement('div')
+      mintForm.innerHTML = `
+        <p>Since you are on a testnet, if you do not have enough MRV, you can mint some for yourself.</p>
+      `
+      // Can't placeDomNode recursively sadly.
+      mintForm.appendChild(mintAmountField)
+      mintForm.appendChild(mintButton)
+    }
+
     dialog.showDialog('Wallet', `
       <p>This wallet allows you to send and receive MRV tokens and Macroverse virtual real estate, and to manage your real estate claim commitments.</p>
       <h2>Your MRV balance: ${placeDomNode(this.createMRVBalanceDisplay(feed))}</h2>
@@ -381,6 +443,7 @@ class Wallet {
         Remember that you need at least <b>100 MRV</b> to access Macroverse.
         If you drop below that balance, <b>you will no longer be able to access the Macroverse world!</b>
       </p>
+      ${mintForm ? placeDomNode(mintForm) : ''}
       <h3>Receive MRV</h3>
       <p>
         Receiving address:

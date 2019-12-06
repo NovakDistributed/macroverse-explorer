@@ -38,6 +38,10 @@ class Registry extends EventEmitter2 {
     // And the MRV token contract for approvals
     this.mrv = undefined
 
+    // If we end up using the testnet MRV token, we have minting support for
+    // test purposes. This flag will reflect that.
+    this.canMintMRV = false
+
     // Make a cache from keypath to last known value.
     // We only do in memory cacheing; we get everything from the chain on every run since it's not much data.
     this.cache = {}
@@ -70,7 +74,8 @@ class Registry extends EventEmitter2 {
           eth.get_instance(this.getContractPath('MacroverseUniversalRegistry')),
           eth.get_instance(this.getContractPath('MacroverseRealEstate')), 
           eth.get_instance(this.getContractPath('MRVToken')).catch(() => {
-            // If no real MRVToken is available, use the test version
+            // If no real MRVToken is available, use the test version, and remember that.
+            this.canMintMRV = true
             return eth.get_instance(this.getContractPath('TestnetMRVToken'))
           })])
       })()
@@ -682,6 +687,15 @@ class Registry extends EventEmitter2 {
   // We locally store (in local storage) the keypath and nonce for every claim, by hash.
   // We also collect the commitment ID for the hash when we get a chance, by querying the events.
   // For now we don't implement recovery/searching for claims we don't have in local storage
+
+  // Mint MRV using the mint functions available on testnet
+  async mintMRV(wei) {
+    let account = await eth.get_account()
+    console.log('Minting ' + wei + ' wei for ' + account)
+    // This will fail if we aren't actually on testnet, probably because the
+    // contract lacks the method
+    await this.mrv.mint(wei, {from: account})
+  }
 
   // Send a certain number of MRV (in MRV-wei) to an arbitrary address
   async sendMRV(destination, wei) {
