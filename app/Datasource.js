@@ -338,6 +338,9 @@ class Datasource extends EventEmitter2 {
 
   // Save and dispatch events for the given property of the given sector
   async saveSectorProperty(x, y, z, keypath, value) {
+    if (x == 0 && y == 0 && z == 0 && keypath == 'objectCount' && value == 0) {
+      throw new Error("Publishing wrong keypath value!") 
+    }
     await this.publishKeypath(x + '.' + y + '.' + z + '.' + keypath, value)
   }
 

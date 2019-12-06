@@ -281,6 +281,74 @@ class Wallet {
     return tokenDisplay
   }
 
+  /// Return a DOMNode element containing a form that can be used to mint MRV,
+  //or undefined if MRV cannot be minted
+  createMintForm() {
+    let mintForm = undefined
+    if (this.ctx.reg.canMintMRV) {
+      // We can mint MRV.
+      // TODO: Hope people don;t open the wallet before we figure this out.
+
+      // Prepare UI for minting MRV on testnet
+      let mintMRVThrobber = throbber.create()
+      let mintAmountField = document.createElement('input')
+      mintAmountField.setAttribute('placeholder', '100.0')
+      let mintButton = document.createElement('button')
+      mintButton.innerText = 'Mint'
+      mintButton.addEventListener('click', () => {
+        // Disable the form
+        mintAmountField.disabled = true
+        mintButton.disabled = true
+
+        // Start the throbber
+        throbber.start(mintMRVThrobber)
+
+        let wholeMRV = mintAmountField.value
+        if (isNaN(wholeMRV) || wholeMRV == '') {
+          // Fail early
+          throbber.fail(mintMRVThrobber)
+          mintAmountField.disabled = false
+          mintButton.disabled = false
+          return
+        }
+        
+        try {
+          // Actually send the transaction. Metamask or other user agent should prompt to confirm.
+          this.ctx.reg.mintMRV(Web3Utils.toWei(mintAmountField.value, 'ether')).then(() => {
+            // Report success
+            throbber.succeed(mintMRVThrobber)
+            // Re-enable form
+            mintAmountField.disabled = false
+            mintButton.disabled = false
+          }).catch((err) => {
+            // Re-enable form
+            console.error(err)
+            throbber.fail(mintMRVThrobber)
+            mintAmountField.disabled = false
+            mintButton.disabled = false
+          })
+        } catch (err) {
+          // Collect errors from e.g. toWei
+          console.error('Could not mint MRV', err)
+          throbber.fail(mintMRVThrobber)
+          mintAmountField.disabled = false
+          mintButton.disabled = false
+        }
+      })
+
+      mintForm = document.createElement('div')
+      mintForm.innerHTML = `
+        <p>Since you are on a testnet, if you do not have enough MRV, you can mint some for yourself.</p>
+      `
+      // Can't placeDomNode recursively sadly.
+      mintForm.appendChild(mintAmountField)
+      mintForm.appendChild(mintButton)
+      mintForm.appendChild(mintMRVThrobber)
+    }
+
+    return mintForm
+  }
+
   /// Display a general wallet dialog to allow sending tokens and canceling commitments
   showWalletDialog() {
     // Prepare a feed to manage subscriptions for this dialog display
@@ -374,67 +442,8 @@ class Wallet {
     })
     // TODO: Unify with checksum and icon logic for NFT token transfer
 
-    // Now allow for minting
-    let mintForm = undefined
-    if (this.ctx.reg.canMintMRV) {
-      // We can mint MRV.
-      // TODO: Hope people don;t open the wallet before we figure this out.
-
-      // Prepare UI for minting MRV on testnet
-      let mintMRVThrobber = throbber.create()
-      let mintAmountField = document.createElement('input')
-      mintAmountField.setAttribute('placeholder', '100.0')
-      let mintButton = document.createElement('button')
-      mintButton.innerText = 'Mint'
-      mintButton.addEventListener('click', () => {
-        // Disable the form
-        mintAmountField.disabled = true
-        mintButton.disabled = true
-
-        // Start the throbber
-        throbber.start(mintMRVThrobber)
-
-        let wholeMRV = mintAmountField.value
-        if (isNaN(wholeMRV) || wholeMRV == '') {
-          // Fail early
-          throbber.fail(mintMRVThrobber)
-          mintAmountField.disabled = false
-          mintButton.disabled = false
-          return
-        }
-        
-        try {
-          // Actually send the transaction. Metamask or other user agent should prompt to confirm.
-          this.ctx.reg.mintMRV(Web3Utils.toWei(mintAmountField.value, 'ether')).then(() => {
-            // Report success
-            throbber.succeed(mintMRVThrobber)
-            // Re-enable form
-            mintAmountField.disabled = false
-            mintButton.disabled = false
-          }).catch((err) => {
-            // Re-enable form
-            console.error(err)
-            throbber.fail(mintMRVThrobber)
-            mintAmountField.disabled = false
-            mintButton.disabled = false
-          })
-        } catch (err) {
-          // Collect errors from e.g. toWei
-          console.error('Could not mint MRV', err)
-          throbber.fail(mintMRVThrobber)
-          mintAmountField.disabled = false
-          mintButton.disabled = false
-        }
-      })
-
-      mintForm = document.createElement('div')
-      mintForm.innerHTML = `
-        <p>Since you are on a testnet, if you do not have enough MRV, you can mint some for yourself.</p>
-      `
-      // Can't placeDomNode recursively sadly.
-      mintForm.appendChild(mintAmountField)
-      mintForm.appendChild(mintButton)
-    }
+    // Get a form for minting, or undefined if we can't mint
+    let mintForm = this.createMintForm() 
 
     dialog.showDialog('Wallet', `
       <p>This wallet allows you to send and receive MRV tokens and Macroverse virtual real estate, and to manage your real estate claim commitments.</p>
@@ -526,6 +535,66 @@ class Wallet {
       // Dialog is closed, close out the feed
       feed.unsubscribe()
     });
+  }
+
+  /// Display a setup dialog that the user can't close until they have 100 MRV, from receiving or minting.
+  showModalSetupDialog() {
+    // Prepare a feed to manage subscriptions for this dialog display
+    let feed = this.ctx.reg.create_feed()
+    
+    // Get a form for minting, or undefined if we can't mint
+    let mintForm = this.createMintForm() 
+
+    dialog.showDialog('You Need MRV', `
+      <h1>Welcome to Macroverse</h1>
+      <p>Macroverse is an entire universe on the Ethereum blockchain, made possible by the power of procedural generation.</p>
+      <p>To use Macroverse, you need to own <a target="_blank" href="https://macroverse.io/#token">MRV, the Macroverse token</a>. You need at least <b>100 MRV</b> to use Macroverse.</p>
+      <p>When you achieve a balance of 100 MRV or more, you will be taken to the <b>Macroverse Explorer</b>, a tool which will help you navigate the stars, planets, and moons of Macroverse.</p>
+      <h2>Your MRV balance: ${placeDomNode(this.createMRVBalanceDisplay(feed))}</h2>
+      ${mintForm ? placeDomNode(mintForm) : ''}
+      <p>The easiest way to get MRV is to have someone send it to you. Your MRV receiving address is displayed below.</p>
+      <p>
+        Receiving address:
+        <span class="address-widget">
+          <span class="address">${Web3Utils.toChecksumAddress(eth.get_account())}</span>
+          <span class="blocky-holder">${placeDomNode(blockies.create({seed: eth.get_account()}))}</span>
+        </span>
+      </p>
+    `, () => {
+      // Dialog is closed, close out the feed
+      feed.unsubscribe()
+    }, true)
+  }
+
+  // Resolve when we have at least the minimum amount of MRV to use Macroverse.
+  // If we have too little MRV, shows the setup dialog to help get some.
+  ensureFunded() {
+    return new Promise((resolve, reject) => {
+      // Track if we have showed the wallet yet to let people mint or receive
+      let showed_dialog = false
+      // Make a feed to watch the balance
+      let initial_balance_feed = ctx.reg.create_feed()
+      
+      initial_balance_feed.subscribe('mrv.balance', (balance) => {
+        let whole_mrv = parseFloat(Web3Utils.fromWei(Web3Utils.toBN(balance)).toString(10))
+        if (whole_mrv < 100) {
+          // Not enough! Make the user do some initial setup (maybe just a mint).
+          if (!showed_dialog) {
+            // Say we showed the dialog, because showing the dialog will
+            // subscribe to the balance which can recursively call us.
+            showed_dialog = true
+            this.showModalSetupDialog()
+          }
+        } else {
+          // Enough! Let the loading continue!
+          initial_balance_feed.unsubscribe()
+          if (showed_dialog) {
+            dialog.closeDialog()
+          }
+          resolve()
+        }
+      })
+    })
   }
 
   /// Display a commit dialog/wizard to help people commit

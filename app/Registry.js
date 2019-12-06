@@ -402,7 +402,7 @@ class Registry extends EventEmitter2 {
       // On any event, update
       let handle_event = async (error, event_report) => {
         console.log('Saw event: ', event_report)
-        if (event_report.type != 'mined') {
+        if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
           // This transaction hasn't confirmed, so ignore it
           return
         }
@@ -439,7 +439,7 @@ class Registry extends EventEmitter2 {
       // On either event, update the balance
       let handle_event = async (error, event_report) => {
         console.log('Saw event: ', event_report)
-        if (event_report.type != 'mined') {
+        if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
           // This transaction hasn't confirmed, so ignore it
           return
         }
@@ -472,7 +472,7 @@ class Registry extends EventEmitter2 {
         // On either event, update everything
         let handle_event = async (error, event_report) => {
           console.log('Saw event: ', event_report)
-          if (event_report.type != 'mined') {
+          if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
             // This transaction hasn't confirmed, so ignore it
             return
           }
@@ -532,7 +532,7 @@ class Registry extends EventEmitter2 {
         let filter = this.reg.DepositScaleChange({}, {fromBlock: 'latest', toBlock: 'latest'})
         filter.watch(async (error, event_report) => {
           console.log('Saw event: ', event_report)
-          if (event_report.type != 'mined') {
+          if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
             // This transaction hasn't confirmed, so ignore it
             return
           }
@@ -552,7 +552,7 @@ class Registry extends EventEmitter2 {
         let filter = this.real.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
         filter.watch(async (error, event_report) => {
           console.log('Saw event: ', event_report)
-          if (event_report.type != 'mined') {
+          if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
             // This transaction hasn't confirmed, so ignore it
             return
           }
@@ -587,7 +587,7 @@ class Registry extends EventEmitter2 {
           let filter2 = this.reg.Homesteading({'token': token}, {fromBlock: 'latest', toBlock: 'latest'})
           filter2.watch((error, event_report) => {
             console.log('Saw event: ', event_report)
-            if (event_report.type != 'mined') {
+            if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
               // This transaction hasn't confirmed, so ignore it
               return
             }
@@ -625,7 +625,7 @@ class Registry extends EventEmitter2 {
       // When we get any relevant events, re-check the chain
       let handle_watch = async (error, event_report) => {
         console.log('Saw event: ', event_report)
-        if (event_report.type != 'mined') {
+        if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
           // This transaction hasn't confirmed, so ignore it
           return
         }

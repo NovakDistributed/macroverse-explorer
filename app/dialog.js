@@ -14,7 +14,8 @@ let current_close_handler = undefined
 // The user should use a template literal and fill in the actual contents.
 // Title is optional.
 // on_close is optional also, but will be called when the dialog is dismissed.
-function showDialog(title, text, on_close) {
+// If modal is truthy, the close button will not be displayed.
+function showDialog(title, text, on_close, modal) {
     
   if (!text) {
     // Make the title a default; what we did get is the text.
@@ -34,7 +35,7 @@ function showDialog(title, text, on_close) {
     <div class="dialog">
       <div class="dialog-header">
         <span class="dailog-title">${title}</span>
-        ${placeDomNode(createCloseButton())}
+        ${modal ? '' : placeDomNode(createCloseButton())}
       </div>
       <div class="dialog-body" id="dialog-body">
         ${text}

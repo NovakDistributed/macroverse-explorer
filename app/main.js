@@ -451,7 +451,12 @@ async function main() {
   await waitForDom()
 
   // Make sure that Etheruem is ready (user signed into Metamask, etc.)
+  dialog.showDialog('Connecting to Ethereum', `
+    <p>The Macroverse Explorer is connecting to your Ethereum provider. If prompted, please grant the
+    requested permissions, which are required for the Macroverse Explorer to operate.</p>
+  `, () => {}, true)
   await eth.ensure_enabled()
+  dialog.closeDialog()
 
   console.log('Starting on Ethereum network ' + eth.get_network_id())
   console.log('Using account ' + eth.get_account())
@@ -463,6 +468,15 @@ async function main() {
   console.log("Using system generator: " + ctx.ds.sys.address)
   console.log("Using registry: " + ctx.reg.reg.address)
 
+  // Expose context for debugging
+  window.ctx = ctx
+
+  // Block here until the user actually appears to have enough MRV to ride.
+  // This is at least some protection against bad data ending up in the cache
+  // from providers like Metamask that return zeroes instead of an error when a
+  // view function throws.
+  await ctx.wallet.ensureFunded() 
+  
   // Make an infobox object with access to the data source
   // It will look up values for whatever we tell it to display
   let infoboxElement = document.getElementById('infobox')
@@ -561,6 +575,15 @@ async function main() {
     lastShownKeypath = keypath
   })
 
+  // Hook up the wallet open handler
+  document.getElementById('wallet-tool').addEventListener('click', () => {
+    ctx.wallet.showWalletDialog()
+  })
+
+  // Hook up the claim manager open handler
+  document.getElementById('claims-tool').addEventListener('click', () => {
+    ctx.wallet.showClaimsDialog()
+  })
 
   // Hook up pan handlers
   document.getElementById('x-plus').addEventListener('click', make_pan_handler(ctx, 1, 0, 0))
@@ -584,19 +607,6 @@ async function main() {
   window.onhashchange = () => {
     ctx.emit('show', location.hash.substr(1))
   }
-
-  // Hook up the wallet open handler
-  document.getElementById('wallet-tool').addEventListener('click', () => {
-    ctx.wallet.showWalletDialog()
-  })
-
-  // Hook up the claim manager open handler
-  document.getElementById('claims-tool').addEventListener('click', () => {
-    ctx.wallet.showClaimsDialog()
-  })
-  
-  // Expose context for debugging
-  window.ctx = ctx
 }
 
 // Actually run the entry point

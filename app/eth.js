@@ -49,7 +49,7 @@ async function ensure_enabled() {
     // Provider does not need enabling
     return
   }
-  
+
   while(true) {
     // Otherwise, until enabled successfully
     try {
