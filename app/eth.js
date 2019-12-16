@@ -22,7 +22,7 @@ const fetch = window.fetch
 // at localhost for Truffle Develop.
 function create_provider() {
   
-  return window.ethereum
+  //return window.ethereum
 
   const TRUFFLE_DEVELOP_URL='http://localhost:9545'
   const GANACHE_DEVELOP_URL='http://localhost:7545'

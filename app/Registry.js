@@ -247,8 +247,8 @@ class Registry extends EventEmitter2 {
 
         let val = undefined
         try {
-          // Find the token and get it as a string
-          val = (await this.real.tokenOfOwnerByIndex(owner, index)).toString()
+          // Find the token and get it as a string in base 10 with all digits intact
+          val = (await this.real.tokenOfOwnerByIndex(owner, index)).toString(10)
         } catch(e) {
           // Maybe they no longer have this many tokens
           console.error('Error getting token ' + index + ' of owner ' + owner + ', assuming 0', e)
@@ -488,8 +488,8 @@ class Registry extends EventEmitter2 {
             let index = parts[3]
             let val = undefined
             try {
-              // Find the token and get it as a string
-              val = (await this.real.tokenOfOwnerByIndex(owner, index)).toString()
+              // Find the token and get it as a string in base 10 with all digits intact
+              val = (await this.real.tokenOfOwnerByIndex(owner, index)).toString(10)
             } catch(e) {
               // Maybe they no longer have this many tokens
               console.error('Error getting token ' + index + ' of owner ' + owner + ', assuming 0', e)
