@@ -892,8 +892,17 @@ class Wallet {
                     ageNode.classList.remove('invalid')
                     ageNode.classList.add('pending')
 
-                    // Don't let the user reveal early
-                    revealButton.disabled = true
+                    // We may be on a testnet where blocks are mined on demand.
+                    // See if the last block is weirdly old.
+                    let now = (new Date()).getTime() / 1000
+                    if (now - timestamp > 60 && now - creationTime > minWait) {
+                      // Second-guess the blockchain and allow the user to do whatever they want.
+                      // TODO: make this happen dynamically by baking it into the block.timestamp feed?
+                      revealButton.disabled = false
+                    } else {
+                      // Don't let the user reveal early.
+                      revealButton.disabled = true
+                    }
                   } else if (age > maxWait) {
                     // Say it has expired
                     let expiredFor = age - maxWait

@@ -410,6 +410,14 @@ class Registry extends EventEmitter2 {
           // This transaction hasn't confirmed, so ignore it
           return
         }
+
+        if (event_report.args.hash.toString(16) != hash || event_report.args.owner != owner) {
+          // Wrong subject!
+          // TODO: This is probably due to web3 0.20 over a newer provider
+          console.log('Wrong subject: ' + event_report.args.hash.toString(16) + ', ' + event_report.args.owner)
+          return
+        }
+
         let val
         if (event_report.event == 'Cancel' || event_report.event == 'Reveal') {
           // Everything is now 0.
@@ -560,6 +568,12 @@ class Registry extends EventEmitter2 {
             // This transaction hasn't confirmed, so ignore it
             return
           }
+
+          if (event_report.args.tokenId.toString(10) != token.toString(10)) {
+            console.log('Wrong token: ' + event_report.args.tokenId.toString(10))
+            return
+          }
+
           let new_owner = event_report.args.to
 
           if (wanted == 'owner') {
@@ -596,8 +610,16 @@ class Registry extends EventEmitter2 {
               return
             }
 
+            if (event_report.args.token.toString(10) != token.toString(10)) {
+              // Wrong subject!
+              // TODO: This can happen because we're still using Web3 0.20 on newer providers.
+              return
+            }
+
             // It says whether homesteading was turned on or off
             let val = event_report.args.value
+
+            console.log('Homesteading on ' + token.toString(10) + ' should now be ' + val + ' which is ' + (val ? 'true' : 'false'))
 
             // Report it
             this.cache[keypath] = val
@@ -633,6 +655,14 @@ class Registry extends EventEmitter2 {
           // This transaction hasn't confirmed, so ignore it
           return
         }
+
+        if ((typeof event_report.args.tokenId != 'undefined' && event_report.args.tokenId.toString(10) == '0') ||
+          (typeof event_report.args.token != 'undefined' && event_report.args.token.toString(10) == '0')) {
+          // Wrong/broken subject!
+          // TODO: This can happen because we're still using Web3 0.20 on newer providers.
+          return
+        }
+
         // Instead of recomputing, go re-get the value
         let result = await this.retrieveFromChain(keypath)
 
@@ -862,6 +892,9 @@ class Registry extends EventEmitter2 {
 
   // Set homesteading under a token to on or off.
   async setHomesteading(keypath, is_enabled) {
+
+    
+
     console.log('Setting homesteading on keypath ' + keypath + ' to ' + is_enabled)
 
     // Work out our account
