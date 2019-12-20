@@ -75,6 +75,15 @@ module.exports = function(deployer, network, accounts) {
       // Give the backend to the frontend
       return backend.transferOwnership(MacroverseUniversalRegistry.address)
     }).then(function() {
+      // Send some ETH to a test account to test with Metamask
+      const TEST_ADDRESS='0x73f31013259D4934F3B5481e7FD2009E08b2C6B8'
+      console.log('Sending some money to ' + TEST_ADDRESS + ' for testing')
+      return web3.eth.sendTransaction({
+        from: accounts[0],
+        to: TEST_ADDRESS,
+        value: Web3Utils.toWei("1", "ether").toString()
+      })
+    }).then(function() {
       console.log("Macroverse deployed!")
     })
   } else {

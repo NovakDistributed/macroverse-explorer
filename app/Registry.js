@@ -39,8 +39,8 @@ class Registry extends EventEmitter2 {
     this.mrv = undefined
 
     // If we end up using the testnet MRV token, we have minting support for
-    // test purposes. This flag will reflect that.
-    this.canMintMRV = false
+    // test purposes. Otherwise not. This flag will reflect that.
+    this.canMintMRV = undefined
 
     // Make a cache from keypath to last known value.
     // We only do in memory cacheing; we get everything from the chain on every run since it's not much data.
@@ -73,10 +73,14 @@ class Registry extends EventEmitter2 {
         [this.reg, this.real, this.mrv] = await Promise.all([
           eth.get_instance(this.getContractPath('MacroverseUniversalRegistry')),
           eth.get_instance(this.getContractPath('MacroverseRealEstate')), 
-          eth.get_instance(this.getContractPath('MRVToken')).catch(() => {
-            // If no real MRVToken is available, use the test version, and remember that.
+          eth.get_instance(this.getContractPath('TestnetMRVToken')).then((x) => {
+            // If it works, remember that
             this.canMintMRV = true
-            return eth.get_instance(this.getContractPath('TestnetMRVToken'))
+            return x
+          }).catch(() => {
+            // If no TestnetMRVToken is available, use the normal version, and remember that.
+            this.canMintMRV = false
+            return eth.get_instance(this.getContractPath('MRVToken'))
           })])
       })()
     }
