@@ -401,8 +401,9 @@ class Datasource extends EventEmitter2 {
         // We need the seed for this.
         // So recursively resolve it if needed.
         let seed = await get('seed')
-        let [ obj_x, obj_y, obj_z] = await this.star.getObjectPosition.call(seed, this.opts)
-        let position = {x: mv.fromReal(obj_x), y: mv.fromReal(obj_y), z: mv.fromReal(obj_z)}
+        
+        let pos = await this.star.getObjectPosition.call(seed, this.opts)
+        let position = {x: mv.fromReal(pos[0]), y: mv.fromReal(pos[1]), z: mv.fromReal(pos[2])}
         for (let prop in position) {
             await save(prop, position[prop])
         }
@@ -476,11 +477,11 @@ class Datasource extends EventEmitter2 {
     case 'habitableZone.end':
       {
         let realLuminosity = await get('realLuminosity')
-        let [realHabStart, realHabEnd] = await this.star_patch.getObjectHabitableZone.call(realLuminosity, this.opts)
-        let start = mv.fromReal(realHabStart)
-        let end = mv.fromReal(realHabEnd)
-        await save('habitableZone.realStart', realHabStart)
-        await save('habitableZone.realEnd', realHabEnd)
+        let realBounds = await this.star_patch.getObjectHabitableZone.call(realLuminosity, this.opts)
+        let start = mv.fromReal(realBounds[0])
+        let end = mv.fromReal(realBounds[1])
+        await save('habitableZone.realStart', realBounds[0])
+        await save('habitableZone.realEnd', realBounds[1])
         await save('habitableZone.start', start)
         await save('habitableZone.end', end)
       }
@@ -508,11 +509,9 @@ class Datasource extends EventEmitter2 {
     case 'spin.axisAngleX':
       {
         let seed = await get('seed')
-        let axisAngleY
-        let axisAngleX
-        let [realAxisAngleY, realAxisAngleX] = await this.star_patch.getObjectYXAxisAngles(seed)
-        axisAngleY = mv.fromReal(realAxisAngleY)
-        axisAngleX = mv.fromReal(realAxisAngleX)
+        let realAngles = await this.star_patch.getObjectYXAxisAngles.call(seed, this.opts)
+        let axisAngleY = mv.fromReal(realAngles[0])
+        let axisAngleX = mv.fromReal(realAngles[1])
         
         await save('spin.axisAngleY', axisAngleY)
         await save('spin.axisAngleX', axisAngleX)
@@ -785,9 +784,9 @@ class Datasource extends EventEmitter2 {
             axisAngleY = 0
             axisAngleX = 0
           } else {
-            let [realAxisAngleY, realAxisAngleX] = await this.sys.getWorldYXAxisAngles(seed)
-            axisAngleY = mv.fromReal(realAxisAngleY)
-            axisAngleX = mv.fromReal(realAxisAngleX)
+            let realAngles = await this.sys.getWorldYXAxisAngles.call(seed, this.opts)
+            axisAngleY = mv.fromReal(realAngles[0])
+            axisAngleX = mv.fromReal(realAngles[1])
           }
           await save('spin.axisAngleY', axisAngleY)
           await save('spin.axisAngleX', axisAngleX)
@@ -811,7 +810,7 @@ class Datasource extends EventEmitter2 {
           } else {
             let seed = await get('seed')
             // Pull out and convert to rad/sec
-            spinRate = mv.fromReal(await this.sys.getWorldSpinRate(seed)) / mv.JULIAN_YEAR
+            spinRate = mv.fromReal(await this.sys.getWorldSpinRate.call(seed, this.opts)) / mv.JULIAN_YEAR
           }
           await save('spin.rate', spinRate)
           await save('spin.period', 2 * Math.PI / spinRate)
@@ -1079,9 +1078,9 @@ class Datasource extends EventEmitter2 {
             axisAngleY = 0
             axisAngleX = 0
           } else {
-            let [realAxisAngleY, realAxisAngleX] = await this.sys.getWorldYXAxisAngles(seed)
-            axisAngleY = mv.fromReal(realAxisAngleY)
-            axisAngleX = mv.fromReal(realAxisAngleX)
+            let realAngles = await this.sys.getWorldYXAxisAngles.call(seed, this.opts)
+            axisAngleY = mv.fromReal(realAngles[0])
+            axisAngleX = mv.fromReal(realAngles[1])
           }
           await save('spin.axisAngleY', axisAngleY)
           await save('spin.axisAngleX', axisAngleX)
@@ -1105,7 +1104,7 @@ class Datasource extends EventEmitter2 {
           } else {
             let seed = await get('seed')
             // Pull out and convert to rad/sec
-            spinRate = mv.fromReal(await this.sys.getWorldSpinRate(seed)) / mv.JULIAN_YEAR
+            spinRate = mv.fromReal(await this.sys.getWorldSpinRate.call(seed, this.opts)) / mv.JULIAN_YEAR
           }
           await save('spin.rate', spinRate)
           await save('spin.period', 2 * Math.PI / spinRate)
