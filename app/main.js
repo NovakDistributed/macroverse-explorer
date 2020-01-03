@@ -468,8 +468,9 @@ async function main() {
   console.log("Using system generator: " + ctx.ds.sys.address)
   console.log("Using registry: " + ctx.reg.reg.address)
 
-  // Expose context for debugging
+  // Expose things for debugging
   window.ctx = ctx
+  window.mv = mv
 
   // Block here until the user actually appears to have enough MRV to ride.
   // This is at least some protection against bad data ending up in the cache
