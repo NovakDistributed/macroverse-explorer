@@ -44,14 +44,14 @@ class Context extends EventEmitter2 {
       this.initPromise = (async () => {
         // Do the actual init work here.
 
-        // Make a Datasource
-        this.ds = await Datasource(this.basePath)
+        // Make a Datasource that makes queries from the specified address
+        this.ds = await Datasource(this.basePath, await eth.get_account())
 
         // And a Registry
         this.reg = await Registry(this.basePath)
 
-        // Add a Wallet UI
-        this.wallet = new Wallet(this)
+        // Add a Wallet UI that knows about the account
+        this.wallet = new Wallet(this, await eth.get_account())
 
       })()
     }

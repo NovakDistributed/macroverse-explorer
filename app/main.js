@@ -459,7 +459,7 @@ async function main() {
   dialog.closeDialog()
 
   console.log('Starting on Ethereum network ' + eth.get_network_id())
-  console.log('Using account ' + eth.get_account())
+  console.log('Using account ' + await eth.get_account())
 
   // Get ahold of a global Macroverse context.
   let ctx = await Context('contracts')

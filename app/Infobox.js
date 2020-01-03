@@ -177,7 +177,7 @@ class Infobox {
     this.feed.subscribeAll([keypath + '.owner', keypath + '.ultimateOwner', keypath + '.lowestOwnedParent', keypath + '.claimable'],
       ([owner, ultimate_owner, lowest_owned_parent, claimable]) => {
       
-      if (ultimate_owner == eth.get_account()) {
+      if (ultimate_owner == this.ctx.wallet.account) {
         // It is owned by us
         root.innerHTML = 'You'
       } else if (ultimate_owner != 0) {
@@ -205,7 +205,7 @@ class Infobox {
         via.addEventListener('click', () => {
           this.ctx.emit('show', via_keypath)
         })
-      } else if (owner == eth.get_account()) {
+      } else if (owner == this.ctx.wallet.account) {
         // We own this thing directly.
         // Add a button to go to the wallet where we can see it.
         let walletButton = document.createElement('button')

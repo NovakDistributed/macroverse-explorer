@@ -25,17 +25,19 @@ const mv = require('macroverse')
 /// Main interface to wallet functionality.
 /// TODO: Should we receive events on a bus instead of waiting for people to look us up in the context and call our methods???
 class Wallet {
-  /// Create a new Wallet object
-  constructor(context) {
+  /// Create a new Wallet object for the given account
+  constructor(context, account) {
     // Keep ahold of the context object, which lets us get at the Registry, which is our backend
     this.ctx = context
+    // Remember the account so we can synchronously set up things like subscriptions
+    this.account = account
   }
 
   /// Return a DOM node which dynamically updates when the user's MRV balance changes, using the given feed to manage the subscription
-  createMRVBalanceDisplay(feed) {
+  async createMRVBalanceDisplay(feed) {
     let node = document.createElement('span')
     node.innerText = '??? MRV'
-    feed.subscribe('mrv.balance', (balance) => {
+    feed.subscribe('mrv.' + this.account + '.balance', (balance) => {
       console.log('Got MRV balance: ', balance)
       // TODO: We need to toBN the balance because Web3Utils refuses BigNumber.
       // See https://github.com/ethereum/web3.js/blob/1f98597a60cefce0e560cce33b0fff7f7957b52e/packages/web3-utils/src/index.js#L196
@@ -89,7 +91,7 @@ class Wallet {
 
     // Render it
     tokenDisplay.innerText = '???'
-    feed.subscribe('reg.' + eth.get_account() + '.tokens.' + index, (token) => {
+    feed.subscribe('reg.' + this.account + '.tokens.' + index, (token) => {
       // Unsubscribe the old token feed
       tokenFeed.unsubscribe()
 
@@ -457,8 +459,8 @@ class Wallet {
       <p>
         Receiving address:
         <span class="address-widget">
-          <span class="address">${Web3Utils.toChecksumAddress(eth.get_account())}</span>
-          <span class="blocky-holder">${placeDomNode(blockies.create({seed: eth.get_account()}))}</span>
+          <span class="address">${Web3Utils.toChecksumAddress(this.account)}</span>
+          <span class="blocky-holder">${placeDomNode(blockies.create({seed: this.account}))}</span>
         </span>
       </p>
       <h3>Send MRV</h3>
@@ -488,7 +490,7 @@ class Wallet {
         let tokenFeeds = []
         
         // We make sure this list always has the right number of entries that fill themselves in
-        feed.subscribe('reg.' + eth.get_account() + '.tokens', (tokenCount) => {
+        feed.subscribe('reg.' + this.account + '.tokens', (tokenCount) => {
           // Show the no tokens message only when there are no tokens
           if (tokenCount > 0) {
             tokenListEmpty.style.display = 'none'
@@ -556,8 +558,8 @@ class Wallet {
       <p>
         Receiving address:
         <span class="address-widget">
-          <span class="address">${Web3Utils.toChecksumAddress(eth.get_account())}</span>
-          <span class="blocky-holder">${placeDomNode(blockies.create({seed: eth.get_account()}))}</span>
+          <span class="address">${Web3Utils.toChecksumAddress(this.account)}</span>
+          <span class="blocky-holder">${placeDomNode(blockies.create({seed: this.account}))}</span>
         </span>
       </p>
     `, () => {
@@ -575,7 +577,7 @@ class Wallet {
       // Make a feed to watch the balance
       let initial_balance_feed = ctx.reg.create_feed()
       
-      initial_balance_feed.subscribe('mrv.balance', (balance) => {
+      initial_balance_feed.subscribe('mrv.' + this.account + '.balance', (balance) => {
         let whole_mrv = parseFloat(Web3Utils.fromWei(Web3Utils.toBN(balance)).toString(10))
         if (whole_mrv < 100) {
           // Not enough! Make the user do some initial setup (maybe just a mint).
@@ -633,7 +635,7 @@ class Wallet {
 
     // Track user's balance, for guessing if they will run out of money
     let userBalance = 0
-    feed.subscribe('mrv.balance', (balance) => {
+    feed.subscribe('mrv.' + this.account + '.balance', (balance) => {
       userBalance = balance
     })
 

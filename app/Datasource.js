@@ -20,7 +20,7 @@ const mv = require('macroverse')
 // The actual Datasource class. External interface.
 class Datasource extends EventEmitter2 {
   // Construct a Datasource using the specified base path for fetching contracts. 
-  constructor(basePath) {
+  constructor(basePath, fromAddress) {
     super()
 
     // EventEmitter has Strong Opinions on how many clients we ought to have.
@@ -46,6 +46,12 @@ class Datasource extends EventEmitter2 {
 
     // Set up an in-memory cache of the expanded objects for the keypaths
     this.memCache = {}
+
+    // Remember our address to query from, as an options object to pass to every call
+    if (typeof fromAddress == 'undefined') {
+      throw new Error("Cannot create a Datasource that makes requests from an undefined address")
+    }
+    this.opts = {from: fromAddress}
 
     // Say we aren't initializing yet
     this.initPromise = undefined
@@ -328,7 +334,7 @@ class Datasource extends EventEmitter2 {
   async resolveSectorProperty(x, y, z, keypath) {
     switch(keypath) {
     case 'objectCount':
-      let value = (await this.star.getSectorObjectCount.call(x, y, z)).toNumber()
+      let value = (await this.star.getSectorObjectCount.call(x, y, z, this.opts)).toNumber()
       await this.saveSectorProperty(x, y, z, keypath, value)
       break
     default:
@@ -384,7 +390,7 @@ class Datasource extends EventEmitter2 {
       break
     case 'seed':
       {
-        let value = await this.star.getSectorObjectSeed.call(x, y, z, starNumber)
+        let value = await this.star.getSectorObjectSeed.call(x, y, z, starNumber, this.opts)
         await save(keypath, value)
       }
       break
@@ -395,7 +401,7 @@ class Datasource extends EventEmitter2 {
         // We need the seed for this.
         // So recursively resolve it if needed.
         let seed = await get('seed')
-        let [ obj_x, obj_y, obj_z] = await this.star.getObjectPosition.call(seed)
+        let [ obj_x, obj_y, obj_z] = await this.star.getObjectPosition.call(seed, this.opts)
         let position = {x: mv.fromReal(obj_x), y: mv.fromReal(obj_y), z: mv.fromReal(obj_z)}
         for (let prop in position) {
             await save(prop, position[prop])
@@ -405,7 +411,7 @@ class Datasource extends EventEmitter2 {
     case 'objClass':
       {
         let seed = await get('seed')
-        let value = (await this.star.getObjectClass.call(seed)).toNumber()
+        let value = (await this.star.getObjectClass.call(seed, this.opts)).toNumber()
         await save(keypath, value)
       }
       break
@@ -413,7 +419,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let objClass = await get('objClass')
-        let value = (await this.star.getObjectSpectralType.call(seed, objClass)).toNumber()
+        let value = (await this.star.getObjectSpectralType.call(seed, objClass, this.opts)).toNumber()
         await save(keypath, value)
       }
       break
@@ -422,7 +428,7 @@ class Datasource extends EventEmitter2 {
         let seed = await get('seed')
         let objClass = await get('objClass')
         let objType = await get('objType')
-        let value = await this.star.getObjectHasPlanets.call(seed, objClass, objType)
+        let value = await this.star.getObjectHasPlanets.call(seed, objClass, objType, this.opts)
         await save(keypath, value)
       }
       break
@@ -433,7 +439,7 @@ class Datasource extends EventEmitter2 {
           let seed = await get('seed')
           let objClass = await get('objClass')
           let objType = await get('objType')
-          value = (await this.star_patch.getObjectPlanetCount.call(seed, objClass, objType)).toNumber()
+          value = (await this.star_patch.getObjectPlanetCount.call(seed, objClass, objType, this.opts)).toNumber()
         } else {
           value = 0
         }
@@ -446,7 +452,7 @@ class Datasource extends EventEmitter2 {
         let seed = await get('seed')
         let objClass = await get('objClass')
         let objType = await get('objType')
-        let realMass = await this.star.getObjectMass.call(seed, objClass, objType)
+        let realMass = await this.star.getObjectMass.call(seed, objClass, objType, this.opts)
         let objMass = mv.fromReal(realMass)
         await save('realMass', realMass)
         await save('objMass', objMass)
@@ -458,7 +464,7 @@ class Datasource extends EventEmitter2 {
         let seed = await get('seed')
         let objClass = await get('objClass')
         let realMass = await get('realMass')
-        let realLuminosity = await this.star_patch.getObjectLuminosity.call(seed, objClass, realMass)
+        let realLuminosity = await this.star_patch.getObjectLuminosity.call(seed, objClass, realMass, this.opts)
         let luminosity = mv.fromReal(realLuminosity)
         await save('realLuminosity', realLuminosity)
         await save('luminosity', luminosity)
@@ -470,7 +476,7 @@ class Datasource extends EventEmitter2 {
     case 'habitableZone.end':
       {
         let realLuminosity = await get('realLuminosity')
-        let [realHabStart, realHabEnd] = await this.star_patch.getObjectHabitableZone.call(realLuminosity)
+        let [realHabStart, realHabEnd] = await this.star_patch.getObjectHabitableZone.call(realLuminosity, this.opts)
         let start = mv.fromReal(realHabStart)
         let end = mv.fromReal(realHabEnd)
         await save('habitableZone.realStart', realHabStart)
@@ -585,7 +591,7 @@ class Datasource extends EventEmitter2 {
     case 'seed':
       {
         let starSeed = await getStar('seed')
-        let value = await this.sys.getWorldSeed.call(starSeed, planetNumber)
+        let value = await this.sys.getWorldSeed.call(starSeed, planetNumber, this.opts)
         await save(keypath, value)
       }
       break
@@ -593,7 +599,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let totalPlanets = await getStar('planetCount')
-        let value = (await this.sys.getPlanetClass.call(seed, planetNumber, totalPlanets)).toNumber()
+        let value = (await this.sys.getPlanetClass.call(seed, planetNumber, totalPlanets, this.opts)).toNumber()
         await save(keypath, value)
       }
       break
@@ -602,7 +608,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let worldClass = await get('worldClass')
-        let realWorldMass = await this.sys.getWorldMass.call(seed, worldClass)
+        let realWorldMass = await this.sys.getWorldMass.call(seed, worldClass, this.opts)
         let worldMass = mv.fromReal(realWorldMass)
         await save('realWorldMass', realWorldMass)
         await save('worldMass', worldMass)
@@ -634,7 +640,7 @@ class Datasource extends EventEmitter2 {
         // And the habitable zone of the star
         let habStart = await getStar('habitableZone.realStart')
         let habEnd = await getStar('habitableZone.realEnd')
-        let parts = await this.sys.getPlanetOrbitDimensions.call(habStart, habEnd, seed, worldClass, prevClearance)
+        let parts = await this.sys.getPlanetOrbitDimensions.call(habStart, habEnd, seed, worldClass, prevClearance, this.opts)
         let partialOrbit = {'realPeriapsis': parts[0], 'realApoapsis': parts[1], 'realClearance': parts[2],
           'periapsis': mv.fromReal(parts[0]), 'apoapsis': mv.fromReal(parts[1]), 'clearance': mv.fromReal(parts[2])}
         for (let prop in partialOrbit) {
@@ -646,7 +652,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.lan':
       {
         let seed = await get('seed')
-        let realLan = await this.sys.getWorldLan.call(seed)
+        let realLan = await this.sys.getWorldLan.call(seed, this.opts)
         let lan = mv.fromReal(realLan)
         await save('orbit.realLan', realLan)
         await save('orbit.lan', lan)
@@ -657,7 +663,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let worldClass = await get('worldClass')
-        let realInclination = await this.sys.getPlanetInclination.call(seed, worldClass)
+        let realInclination = await this.sys.getPlanetInclination.call(seed, worldClass, this.opts)
         let inclination = mv.fromReal(realInclination)
         await save('orbit.realInclination', realInclination)
         await save('orbit.inclination', inclination)
@@ -667,7 +673,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.aop':
       {
         let seed = await get('seed')
-        let realAop = await this.sys.getWorldAop.call(seed)
+        let realAop = await this.sys.getWorldAop.call(seed, this.opts)
         let aop = mv.fromReal(realAop)
         await save('orbit.realAop', realAop)
         await save('orbit.aop', aop)
@@ -677,7 +683,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.meanAnomalyAtEpoch':
       {
         let seed = await get('seed')
-        let realMeanAnomalyAtEpoch = await this.sys.getWorldMeanAnomalyAtEpoch.call(seed)
+        let realMeanAnomalyAtEpoch = await this.sys.getWorldMeanAnomalyAtEpoch.call(seed, this.opts)
         let meanAnomalyAtEpoch = mv.fromReal(realMeanAnomalyAtEpoch)
         await save('orbit.realMeanAnomalyAtEpoch', realMeanAnomalyAtEpoch)
         await save('orbit.meanAnomalyAtEpoch', meanAnomalyAtEpoch)
@@ -728,7 +734,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let worldClass = await get('worldClass')
-        let value = (await this.moon.getPlanetMoonCount.call(seed, worldClass)).toNumber()
+        let value = (await this.moon.getPlanetMoonCount.call(seed, worldClass, this.opts)).toNumber()
         await save(keypath, value)
       }
       break
@@ -737,7 +743,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let realWorldMass = await get('realWorldMass')
-        let realMoonScale = await this.moon.getPlanetMoonScale.call(seed, realWorldMass)
+        let realMoonScale = await this.moon.getPlanetMoonScale.call(seed, realWorldMass, this.opts)
         let moonScale = mv.fromReal(realMoonScale)
         await save('realMoonScale', realMoonScale)
         await save('moonScale', moonScale)
@@ -758,7 +764,7 @@ class Datasource extends EventEmitter2 {
         let worldClass = await get('worldClass')
         if (mv.hasBody(worldClass)) {
           let seed = await get('seed')
-          let value = await this.sys.isTidallyLocked.call(seed, planetNumber)
+          let value = await this.sys.isTidallyLocked.call(seed, planetNumber, this.opts)
           await save(keypath, value)
         } else {
           await save(keypath, null)
@@ -895,7 +901,7 @@ class Datasource extends EventEmitter2 {
     case 'seed':
       {
         let planetSeed = await getPlanet('seed')
-        let value = await this.sys.getWorldSeed.call(planetSeed, moonNumber)
+        let value = await this.sys.getWorldSeed.call(planetSeed, moonNumber, this.opts)
         await save(keypath, value)
       }
       break
@@ -903,7 +909,7 @@ class Datasource extends EventEmitter2 {
       {
         let parentClass = await getPlanet('worldClass')
         let seed = await get('seed')
-        let value = (await this.moon.getMoonClass.call(parentClass, seed, moonNumber)).toNumber()
+        let value = (await this.moon.getMoonClass.call(parentClass, seed, moonNumber, this.opts)).toNumber()
         await save(keypath, value)
       }
       break
@@ -912,7 +918,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let worldClass = await get('worldClass')
-        let realWorldMass = await this.sys.getWorldMass.call(seed, worldClass)
+        let realWorldMass = await this.sys.getWorldMass.call(seed, worldClass, this.opts)
         let worldMass = mv.fromReal(realWorldMass)
         await save('realWorldMass', realWorldMass)
         await save('worldMass', worldMass)
@@ -944,7 +950,7 @@ class Datasource extends EventEmitter2 {
         // We need the moon scale for the paret planet
         let realMoonScale = await getPlanet('realMoonScale')
         
-        let parts = await this.moon.getMoonOrbitDimensions.call(realMoonScale, seed, worldClass, prevClearance)
+        let parts = await this.moon.getMoonOrbitDimensions.call(realMoonScale, seed, worldClass, prevClearance, this.opts)
         let partialOrbit = {'realPeriapsis': parts[0], 'realApoapsis': parts[1], 'realClearance': parts[2],
           'periapsis': mv.fromReal(parts[0]), 'apoapsis': mv.fromReal(parts[1]), 'clearance': mv.fromReal(parts[2])}
         for (let prop in partialOrbit) {
@@ -956,7 +962,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.lan':
       {
         let seed = await get('seed')
-        let realLan = await this.sys.getWorldLan.call(seed)
+        let realLan = await this.sys.getWorldLan.call(seed, this.opts)
         let lan = mv.fromReal(realLan)
         await save('orbit.realLan', realLan)
         await save('orbit.lan', lan)
@@ -967,7 +973,7 @@ class Datasource extends EventEmitter2 {
       {
         let seed = await get('seed')
         let worldClass = await get('worldClass')
-        let realInclination = await this.moon.getMoonInclination.call(seed, worldClass)
+        let realInclination = await this.moon.getMoonInclination.call(seed, worldClass, this.opts)
         let inclination = mv.fromReal(realInclination)
         await save('orbit.realInclination', realInclination)
         await save('orbit.inclination', inclination)
@@ -977,7 +983,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.aop':
       {
         let seed = await get('seed')
-        let realAop = await this.sys.getWorldAop.call(seed)
+        let realAop = await this.sys.getWorldAop.call(seed, this.opts)
         let aop = mv.fromReal(realAop)
         await save('orbit.realAop', realAop)
         await save('orbit.aop', aop)
@@ -987,7 +993,7 @@ class Datasource extends EventEmitter2 {
     case 'orbit.meanAnomalyAtEpoch':
       {
         let seed = await get('seed')
-        let realMeanAnomalyAtEpoch = await this.sys.getWorldMeanAnomalyAtEpoch.call(seed)
+        let realMeanAnomalyAtEpoch = await this.sys.getWorldMeanAnomalyAtEpoch.call(seed, this.opts)
         let meanAnomalyAtEpoch = mv.fromReal(realMeanAnomalyAtEpoch)
         await save('orbit.realMeanAnomalyAtEpoch', realMeanAnomalyAtEpoch)
         await save('orbit.meanAnomalyAtEpoch', meanAnomalyAtEpoch)
@@ -1052,7 +1058,7 @@ class Datasource extends EventEmitter2 {
         let worldClass = await get('worldClass')
         if (mv.hasBody(worldClass)) {
           let seed = await get('seed')
-          let value = await this.sys.isTidallyLocked.call(seed, moonNumber)
+          let value = await this.sys.isTidallyLocked.call(seed, moonNumber, this.opts)
           await save(keypath, value)
         } else {
           await save(keypath, null)
@@ -1128,9 +1134,9 @@ class Datasource extends EventEmitter2 {
 }
 
 // Async factory method for users to get a Datasource. Actually exported.
-// Needs to know where to find the smart contracts.
-async function get_datasource(basePath) {
-  let source = new Datasource(basePath)
+// Needs to know where to find the smart contracts, and what account to make requests from.
+async function get_datasource(basePath, fromAddress) {
+  let source = new Datasource(basePath, fromAddress)
   await source.init()
   return source
 }

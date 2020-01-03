@@ -82,9 +82,20 @@ function get_network_id() {
   return web3.version.network
 }
 
-// Get the account to use
+// Get the account to use.
+// Asynchronous because I can't get web3 1.x to do it synchronously and I want to be ready for it.
 function get_account() {
-  return web3.eth.accounts[0]
+  return new Promise((resolve, reject) => {
+    web3.eth.getAccounts((err, accounts) => {
+      if (err) {
+        reject(err)
+      } else if (!accounts.length) {
+        reject(new Error("No accounts available."))
+      } else {
+        resolve(accounts[0])
+      }
+    })
+  })
 }
 
 // Download data with fetch and parse as JSON

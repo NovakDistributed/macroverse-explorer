@@ -223,9 +223,9 @@ class Registry extends EventEmitter2 {
         // Must be the creation time
         return creation_time
       }
-    } else if (keypath == 'mrv.balance') {
-      // TODO: change this to balance of an address
-      let balance = await this.mrv.balanceOf(eth.get_account())
+    } else if (firstComponent(keypath) == 'mrv' && lastComponent(keypath) == 'balance' && lastComponent(parentOf(keypath)) != 'mrv') {
+      let address = lastComponent(parentOf(keypath))
+      let balance = await this.mrv.balanceOf(address)
       return balance
     } else if (keypath == 'reg.commitmentMinWait') {
       // They want the min wait time of a commitment to mature.
@@ -364,7 +364,7 @@ class Registry extends EventEmitter2 {
           }
 
           // Otherwise, look up if we can claim under the parent
-          return await this.reg.childrenClaimable(controlling_token, eth.get_account())
+          return await this.reg.childrenClaimable(controlling_token, await eth.get_account())
         }
       }
       
@@ -442,11 +442,15 @@ class Registry extends EventEmitter2 {
 
       // Register filters for deactivation
       this.watchers[keypath] = [commit_filter, cancel_filter, reveal_filter]
-    } else if (keypath == 'mrv.balance') {
+    } else if (firstComponent(keypath) == 'mrv' && lastComponent(keypath) == 'balance' && lastComponent(parentOf(keypath)) != 'mrv') {
+      // Format: mrv.{address}.balance
+
+      let address = lastComponent(parentOf(keypath))
+      
       // Watch the user's MRV balance.
       // We have to filter separately for in and out transactions
-      let in_filter = this.mrv.Transfer({to: eth.get_account()}, {fromBlock: 'latest', toBlock: 'latest'})
-      let out_filter = this.mrv.Transfer({from: eth.get_account()}, {fromBlock: 'latest', toBlock: 'latest'})
+      let in_filter = this.mrv.Transfer({to: address}, {fromBlock: 'latest', toBlock: 'latest'})
+      let out_filter = this.mrv.Transfer({from: address}, {fromBlock: 'latest', toBlock: 'latest'})
       
       // On either event, update the balance
       let handle_event = async (error, event_report) => {
@@ -456,7 +460,7 @@ class Registry extends EventEmitter2 {
           return
         }
         // Just query the balance again to update instead of doing real tracking.
-        let val = await this.mrv.balanceOf(eth.get_account())
+        let val = await this.mrv.balanceOf(address)
         this.cache[keypath] = val
         this.emit(keypath, val)
       }
