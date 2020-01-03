@@ -34,7 +34,7 @@ class Wallet {
   }
 
   /// Return a DOM node which dynamically updates when the user's MRV balance changes, using the given feed to manage the subscription
-  async createMRVBalanceDisplay(feed) {
+  createMRVBalanceDisplay(feed) {
     let node = document.createElement('span')
     node.innerText = '??? MRV'
     feed.subscribe('mrv.' + this.account + '.balance', (balance) => {
