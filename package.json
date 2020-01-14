@@ -23,7 +23,8 @@
         "install": "node scripts/install.js",
         "build": "browserify app/main.js > build/bundle.js",
         "watch": "watchify app/main.js -o build/bundle.js",
-        "dev": "budo app/main.js:bundle.js --dir build --live"
+        "dev": "budo app/main.js:bundle.js --dir build --live",
+        "deploy": "git subtree push --prefix build origin gh-pages"
     },
     "devDependencies": {
         "browserify": "^16.1.1",
