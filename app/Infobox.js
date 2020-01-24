@@ -179,13 +179,13 @@ class Infobox {
       
       if (ultimate_owner == this.ctx.wallet.account) {
         // It is owned by us
-        root.innerHTML = 'You'
+        root.innerHTML = 'You '
       } else if (ultimate_owner != 0) {
         root.innerHTML = `
           <span class="address-widget">
             <span class="address">${placeText(Web3Utils.toChecksumAddress(ultimate_owner))}</span>
             <span class="blocky-holder">${placeDomNode(blockies.create({seed: ultimate_owner.toLowerCase()}))}</span>
-          </span>
+          </span> 
         `
 
         // Root will need to wrap text aggressively
