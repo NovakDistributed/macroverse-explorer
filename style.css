@@ -2,9 +2,9 @@
   /* How wide is our sidebar next to the 3d view? */
   --sidebar-width: 300px;
   /* How tall is the toolbar at the bottom of the sidebar? */
-  --toolbar-height: 25px;
+  --toolbar-height: 35px;
   /* How tall are the infobox and dialog headers? */
-  --header-height: 25px;
+  --header-height: 35px;
   /* What is our color scheme? */
   --dark: #333;
   --light: #fff;
@@ -126,7 +126,7 @@ progress::-moz-progress-bar {
   background-color: var(--dark);
   font-family: 'Voltaire', sans-serif;
   text-align: center;
-  font-size: calc(var(--header-height) - 8px);
+  font-size: calc(var(--header-height) - 10px);
   height: var(--header-height);
 }
 
@@ -148,10 +148,15 @@ progress::-moz-progress-bar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
 }
 
 .infobox-table {
+  left: 0;
+  right: 0;
+}
+
+.infobox-child-list {
+  max-width: calc(var(--sidebar-width) / 2);
 }
 
 .address {
@@ -198,7 +203,7 @@ table, th, td {
   background-color: var(--dark);
   font-family: 'Voltaire', sans-serif;
   text-align: center;
-  font-size: calc(var(--header-height) - 8px);
+  font-size: calc(var(--header-height) - 10px);
   height: var(--header-height);
   width: 100%;
 }
@@ -207,7 +212,7 @@ table, th, td {
   position: absolute;
   right: 2px;
   top: 2px;
-  height: 21px;
+  height: calc(var(--header-height) - 4px);
 }
 
 .dialog p {
