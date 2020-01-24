@@ -30,6 +30,11 @@ body {
   width: calc(100% - var(--sidebar-width));
 }
 
+/* Don't show the A-Frame VR button; it doesn't work well. */
+.a-enter-vr {
+  display: none;
+}
+
 .loading-overlay {
   position: absolute;
   top: 0;
