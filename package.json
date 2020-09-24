@@ -11,13 +11,11 @@
         "eventemitter2": "^5.0.1",
         "file-saver": "^2.0.1",
         "limiter": "^1.1.3",
-        "macroverse": "2.0.0-beta.1",
+        "macroverse": "^2.0.0",
         "moment": "^2.24.0",
         "orbjs": "^0.2.2",
         "shelljs": "^0.8.1",
-        "truffle-contract": "^3.0.4",
-        "web3": "^0.20.6",
-        "web3-utils": "^1.0.0-beta.48"
+        "@truffle/contract": "4.2.9"
     },
     "scripts": {
         "install": "node scripts/install.js",
@@ -27,8 +25,8 @@
         "deploy": "git subtree push --prefix build origin gh-pages"
     },
     "devDependencies": {
-        "browserify": "^16.1.1",
-        "budo": "^11.2.0",
-        "watchify": "^3.11.0"
+        "browserify": "^16.5.2",
+        "budo": "^11.6.4",
+        "watchify": "^3.11.1"
     }
 }
