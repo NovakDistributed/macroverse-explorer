@@ -145,31 +145,10 @@ async function latest_block() {
   })
 }
 
-// Watch for blocks and call the given callback when new ones come in.
-// Returns a filter on which the user must call stopWatching() when done.
-function watch_block(listener) {
-  // Create a filter and start watching
-  let block_filter = web3.eth.filter('latest')
-  block_filter.watch((err, block_hash) => {
-    if (err) {
-      return console.error('Error watching blocks: ', err)
-    }
-    console.log('New block: ', block_hash)
-    // Go get the block
-    web3.eth.getBlock(block_hash, (err, block) => {
-      if (err) {
-        return console.error('Error getting block: ', err)
-      }
-      
-      try {
-        listener(block)
-      } catch (err) {
-        return console.error('Error running block listener: ', err)
-      }
-    })
-  })
-
-  return block_filter
+// Watch for blocks.
+// Returns an EventEmitter that emits 'data' for each new block, and must have unsubscribe() called on it when no longer needed.
+function watch_block() {
+  return web3.eth.subscribe('newBlockHeaders')
 }
 
 // Nobody should really have to use web3; we have this stuff.

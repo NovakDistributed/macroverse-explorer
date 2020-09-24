@@ -50,8 +50,10 @@ class Registry extends EventEmitter2 {
     // can know when to create/destroy Ethereum listeners.
     this.subscriberCount = {}
 
-    // This holds outstanding Ethereum watch filters by the keypath they back.
-    // Each entry is an array because more than one filter may be necessary to support a keypath.
+    // This holds outstanding Ethereum EventEmitters (which may or may not be
+    // real web3 "subscriptions"), event names, and event handlers (in an array
+    // of tuples) by the keypath they back. Each entry is an array because more
+    // than one subscription may be necessary to support a keypath.
     this.watchers = {}
 
     // Say we aren't initializing yet
@@ -373,18 +375,23 @@ class Registry extends EventEmitter2 {
     }
   }
 
-  // Start listening to an event on an EventEmitter representing a watch of the
-  // Ethereum chain, with provision to unsubscribe later.
-  addWatcher(keypath, event_emitter, event, handler) {
+  // Start listening to Ethereum events via the given EventEmitter from an
+  // event method on a Truffle contract, with provision to unsubscribe later.
+  addWatcher(keypath, event_emitter, handler) {
     if (this.watchers[keypath] === undefined) {
       this.watchers[keypath] = []
     }
+    // Hook up the 'data' event (which is emitted when a new Ethereum event happens).
+    // TODO: handle events un-happening in reorgs
+    event_emitter.on('data', handler)
+    // Remember we did that so we can un-listen and drop the emitter when we're
+    // done with it.
     this.watchers[keypath].push([event_emitter, event, handler])
   }
 
   // Start listening for Ethereum events that back the given keypath. When they
   // arrive, fire the keypath's event with the appropriate value.
-  watchChain(keypath) {
+  async watchChain(keypath) {
     console.log('Watching chain for changes to ' + keypath)
 
     if (this.watchers[keypath] !== undefined) {
@@ -407,13 +414,13 @@ class Registry extends EventEmitter2 {
       // Work out what struct to check if we need to read the actual data
       let key_hash = mv.getClaimKey(hash, owner)
 
-      // Determine the filters to watch to watch it
-      let commit_filter = this.reg.Commit({hash: hash, owner: owner}, {fromBlock: 'latest', toBlock: 'latest'})
-      let cancel_filter = this.reg.Cancel({hash: hash, owner: owner}, {fromBlock: 'latest', toBlock: 'latest'})
-      let reveal_filter = this.reg.Reveal({hash: hash, owner: owner}, {fromBlock: 'latest', toBlock: 'latest'})
+      // Determine the events to watch to watch it
+      let commit_events = await this.reg.Commit({hash: hash, owner: owner})
+      let cancel_events = await this.reg.Cancel({hash: hash, owner: owner})
+      let reveal_events = await this.reg.Reveal({hash: hash, owner: owner})
 
       // On any event, update
-      let handle_event = async (error, event_report) => {
+      let handle_event = async (event_report) => {
         console.log('Saw event: ', event_report)
         if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
           // This transaction hasn't confirmed, so ignore it
@@ -445,12 +452,11 @@ class Registry extends EventEmitter2 {
         this.cache[keypath] = val
         this.emit(keypath, val)
       }
-      commit_filter.watch(handle_event)
-      cancel_filter.watch(handle_event)
-      reveal_filter.watch(handle_event)
-
-      // Register filters for deactivation
-      this.watchers[keypath] = [commit_filter, cancel_filter, reveal_filter]
+      
+      // Set up watches
+      this.addWatcher(keypath, commit_events, handle_event)
+      this.addWatcher(keypath, cancel_events, handle_event)
+      this.addWatcher(keypath, reveal_events, handle_event)
     } else if (firstComponent(keypath) == 'mrv' && lastComponent(keypath) == 'balance' && lastComponent(parentOf(keypath)) != 'mrv') {
       // Format: mrv.{address}.balance
 
@@ -458,8 +464,8 @@ class Registry extends EventEmitter2 {
       
       // Watch the user's MRV balance.
       // We have to filter separately for in and out transactions
-      let in_events = this.mrv.Transfer({to: address})
-      let out_events = this.mrv.Transfer({from: address})
+      let in_events = await this.mrv.Transfer({to: address})
+      let out_events = await this.mrv.Transfer({from: address})
       
       // On either event, update the balance
       let handle_event = async (event_report) => {
@@ -475,8 +481,8 @@ class Registry extends EventEmitter2 {
       }
       
       // Remember the watchers for unregistration later.
-      this.addWatcher(keypath, in_events, 'data', handle_event)
-      this.addWatcher(keypath, out_events, 'data', handle_event)
+      this.addWatcher(keypath, in_events, handle_event)
+      this.addWatcher(keypath, out_events, handle_event)
     } else if (keypath == 'reg.commitmentMinWait') {
       // They want the min wait time of a commitment to mature.
       // This does not change.
@@ -490,11 +496,11 @@ class Registry extends EventEmitter2 {
         let owner = parts[1]
         // For any change to the virtual real estate tokens of an owner, we need to watch the transfer events in and out
 
-        let in_filter = this.real.Transfer({to: owner}, {fromBlock: 'latest', toBlock: 'latest'})
-        let out_filter = this.real.Transfer({from: owner}, {fromBlock: 'latest', toBlock: 'latest'})
+        let in_events = await this.real.Transfer({to: owner})
+        let out_events = await this.real.Transfer({from: owner})
         
         // On either event, update everything
-        let handle_event = async (error, event_report) => {
+        let handle_event = async (event_report) => {
           console.log('Saw event: ', event_report)
           if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
             // This transaction hasn't confirmed, so ignore it
@@ -523,11 +529,8 @@ class Registry extends EventEmitter2 {
             this.emit(keypath, val)
           }
         }
-        in_filter.watch(handle_event)
-        out_filter.watch(handle_event)
-
-        // Register filters for deactivation
-        this.watchers[keypath] = [in_filter, out_filter]
+        this.addWatcher(keypath, in_events, handle_event)
+        this.addWatcher(keypath, out_events, handle_event)
       } else {
         throw new Error('Unsupported keypath ' + keypath)
       }
@@ -536,13 +539,15 @@ class Registry extends EventEmitter2 {
       let owner = lastComponent(parentOf(parentOf(keypath)))
     } else if (keypath == 'block.timestamp') {
       // They want to watch the current network time
-      let block_filter = eth.watch_block((block) => {
+      let block_events = eth.watch_block()
+      
+      let handle_event = (block) => {
         let val = block.timestamp
         this.cache[keypath] = val
         this.emit(keypath, val)
-      })
-
-      this.watchers[keypath] = [block_filter]
+      }
+      
+      this.addWatcher(keypath, block_events, handle_event)
     } else if (['minDeposit', 'owner', 'deposit', 'homesteading'].includes(lastComponent(keypath))) {
       // We want the owner, deposit, or homesteading status of a token (not a claim)
       // Pack the token value
@@ -553,8 +558,8 @@ class Registry extends EventEmitter2 {
       if (wanted == 'minDeposit') {
         // Checking the min deposit doesn't care about the owner.
         // We only watch for deposit changed events on the whole system.
-        let filter = this.reg.DepositScaleChange({}, {fromBlock: 'latest', toBlock: 'latest'})
-        filter.watch(async (error, event_report) => {
+        let events = await this.reg.DepositScaleChange({})
+        let handle_event = async (event_report) => {
           console.log('Saw event: ', event_report)
           if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
             // This transaction hasn't confirmed, so ignore it
@@ -566,15 +571,15 @@ class Registry extends EventEmitter2 {
 
           this.cache[keypath] = deposit
           this.emit(keypath, deposit)
-        })
-        this.watchers[keypath] = [filter]
+        }
+        this.addWatcher(keypath, events, handle_event)
       } else {
         // We care about the owner
 
-        // Set up a filter for the transfer of this token from here on out.
+        // Set up a subscription for the transfer of this token from here on out.
         // Note: this also catches any events in the current top block when we make it
-        let filter = this.real.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
-        filter.watch(async (error, event_report) => {
+        let events = await this.real.Transfer({'tokenId': token})
+        let handle_event = async (event_report) => {
           console.log('Saw event: ', event_report)
           if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
             // This transaction hasn't confirmed, so ignore it
@@ -606,16 +611,16 @@ class Registry extends EventEmitter2 {
             this.cache[keypath] = homesteading
             this.emit(keypath, homesteading)
           }
-        })
+        }
 
-        // Remember the filter so we can stop watching.
-        this.watchers[keypath] = [filter]
+        
+        this.addWatcher(keypath, events, handle_event)
 
         if (wanted == 'homesteading') {
           // Also watch the homesteading event
 
-          let filter2 = this.reg.Homesteading({'token': token}, {fromBlock: 'latest', toBlock: 'latest'})
-          filter2.watch((error, event_report) => {
+          let events2 = await this.reg.Homesteading({'token': token})
+          let handle_event2 = (event_report) => {
             console.log('Saw event: ', event_report)
             if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
               // This transaction hasn't confirmed, so ignore it
@@ -636,9 +641,9 @@ class Registry extends EventEmitter2 {
             // Report it
             this.cache[keypath] = val
             this.emit(keypath, val)
-          })
+          }
 
-          this.watchers[keypath].push(filter2)
+          this.addWatcher(keypath, events2, handle_event2)
 
         }
       }
@@ -661,7 +666,7 @@ class Registry extends EventEmitter2 {
       let wanted = lastComponent(keypath)
 
       // When we get any relevant events, re-check the chain
-      let handle_watch = async (error, event_report) => {
+      let handle_event = async (event_report) => {
         console.log('Saw event: ', event_report)
         if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
           // This transaction hasn't confirmed, so ignore it
@@ -683,10 +688,8 @@ class Registry extends EventEmitter2 {
       }
 
       // Watch for transfers on the token itself
-      let filter = this.real.Transfer({'tokenId': token}, {fromBlock: 'latest', toBlock: 'latest'})
-      filter.watch(handle_watch)
-
-      this.watchers[keypath] = [filter]
+      let token_events = await this.real.Transfer({'tokenId': token})
+      this.addWatcher(keypath, token_events, handle_event)
 
       // Make a list of all the parent tokens
       let parent_tokens = []
@@ -699,15 +702,13 @@ class Registry extends EventEmitter2 {
 
       for (let parent_token of parent_tokens) {
         // Watch for the transfer of any parent
-        let transfer_filter = this.real.Transfer({'tokenId': parent_token}, {fromBlock: 'latest', toBlock: 'latest'})
-        transfer_filter.watch(handle_watch)
+        let transfer_events = await this.real.Transfer({'tokenId': parent_token})
         // TODO: we will end up with a lot of watches on the same parents to update a lot of children.
-        this.watchers[keypath].push(transfer_filter)
+        this.addWatcher(keypath, transfer_events, handle_event)
 
         // Watch for a change in the homesteading status of any parent
-        let homesteading_filter = this.reg.Homesteading({'token': parent_token}, {fromBlock: 'latest', toBlock: 'latest'})
-        homesteading_filter.watch(handle_watch)
-        this.watchers[keypath].push(homesteading_filter)
+        let homesteading_events = await this.reg.Homesteading({'token': parent_token})
+        this.addWatcher(keypath, homesteading_events, handle_event)
       }
     } else {
       throw new Error('Unsupported keypath ' + keypath)
@@ -725,13 +726,18 @@ class Registry extends EventEmitter2 {
       if (watcher.length == 3) {
         // Should be eventemitter, event, event listener tuple
         watcher[0].removeListener(watcher[1], watcher[2])
+        if (watcher[0].unsubscribe) {
+          // Also just unsubscribe it overall if it's a real subscription.
+          // See https://web3js.readthedocs.io/en/v1.3.0/web3-eth-subscribe.html#returns
+          watcher[0].unsubscribe()
+        }
       } else {
         // Old web3 <1
         watcher.stopWatching()
       }
     }
 
-    // Claer them out
+    // Clear them out
     this.watchers[keypath] = undefined
   }
 
