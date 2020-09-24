@@ -373,6 +373,15 @@ class Registry extends EventEmitter2 {
     }
   }
 
+  // Start listening to an event on an EventEmitter representing a watch of the
+  // Ethereum chain, with provision to unsubscribe later.
+  addWatcher(keypath, event_emitter, event, handler) {
+    if (this.watchers[keypath] === undefined) {
+      this.watchers[keypath] = []
+    }
+    this.watchers[keypath].push([event_emitter, event, handler])
+  }
+
   // Start listening for Ethereum events that back the given keypath. When they
   // arrive, fire the keypath's event with the appropriate value.
   watchChain(keypath) {
@@ -449,11 +458,11 @@ class Registry extends EventEmitter2 {
       
       // Watch the user's MRV balance.
       // We have to filter separately for in and out transactions
-      let in_filter = this.mrv.Transfer({to: address}, {fromBlock: 'latest', toBlock: 'latest'})
-      let out_filter = this.mrv.Transfer({from: address}, {fromBlock: 'latest', toBlock: 'latest'})
+      let in_events = this.mrv.Transfer({to: address})
+      let out_events = this.mrv.Transfer({from: address})
       
       // On either event, update the balance
-      let handle_event = async (error, event_report) => {
+      let handle_event = async (event_report) => {
         console.log('Saw event: ', event_report)
         if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
           // This transaction hasn't confirmed, so ignore it
@@ -464,11 +473,10 @@ class Registry extends EventEmitter2 {
         this.cache[keypath] = val
         this.emit(keypath, val)
       }
-      in_filter.watch(handle_event)
-      out_filter.watch(handle_event)
-
-      // Register filters for deactivation
-      this.watchers[keypath] = [in_filter, out_filter]
+      
+      // Remember the watchers for unregistration later.
+      this.addWatcher(keypath, in_events, 'data', handle_event)
+      this.addWatcher(keypath, out_events, 'data', handle_event)
     } else if (keypath == 'reg.commitmentMinWait') {
       // They want the min wait time of a commitment to mature.
       // This does not change.
@@ -714,7 +722,13 @@ class Registry extends EventEmitter2 {
 
     for (let watcher of this.watchers[keypath]) {
       // Stop all the watchers
-      watcher.stopWatching()
+      if (watcher.length == 3) {
+        // Should be eventemitter, event, event listener tuple
+        watcher[0].removeListener(watcher[1], watcher[2])
+      } else {
+        // Old web3 <1
+        watcher.stopWatching()
+      }
     }
 
     // Claer them out

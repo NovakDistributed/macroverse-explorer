@@ -458,7 +458,7 @@ async function main() {
   await eth.ensure_enabled()
   dialog.closeDialog()
 
-  console.log('Starting on Ethereum network ' + eth.get_network_id())
+  console.log('Starting on Ethereum network ' + await eth.get_network_id())
   console.log('Using account ' + await eth.get_account())
 
   // Get ahold of a global Macroverse context.

@@ -10,7 +10,7 @@ let web3 = new Web3(create_provider())
 window.web3 = web3
 
 // We will use Truffle Contract for loading up deployed contract pointers
-const contract = require('truffle-contract')
+const contract = require('@truffle/contract')
 
 // We need Cool Browser Stuff like Fetch
 const fetch = window.fetch
@@ -78,8 +78,8 @@ async function ensure_enabled() {
 }
 
 // Get the network ID
-function get_network_id() {
-  return web3.version.network
+async function get_network_id() {
+  return await web3.eth.net.getId()
 }
 
 // Get the account to use.
@@ -118,7 +118,7 @@ async function get_instance(url) {
   truffle_contract.setProvider(get_provider())
 
   // Find out the network we are on
-  let current_network = get_network_id()
+  let current_network = await get_network_id()
   if (!truffle_contract.networks.hasOwnProperty(current_network)) {
     // Complain if the contract is not there
     throw new Error('Contract ' + url + ' unavailable on network ' + current_network)
