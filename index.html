@@ -12,7 +12,7 @@
       <a-entity id="dolly" position="0 0 0">
         <!-- Make the camera inside of it -->
         <!-- Define orbit controls for the camera -->
-        <a-entity id="camera" position="-10 20 50" camera="active: true; near: 0.0005; fov: 70;" orbit-controls="target: #focusCenter; minDistance: 0.5; maxDistance: 150; enablePan: false;"></a-entity>
+        <a-entity id="camera" position="-10 20 50" camera="active: true; near: 0.0005; fov: 70;" orbit-controls="target: #focusCenter; minDistance: 0.5; maxDistance: 500; enablePan: false;"></a-entity>
         <!-- And an actual focal point so we aren't parented to our focal point which confuses us -->
         <a-entity id="focusCenter" position="0 0 0"></a-entity>
       </a-entity>
