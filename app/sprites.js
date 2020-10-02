@@ -511,6 +511,8 @@ function makeOrbitSprite(ctx, keypath, scaleManager, orbit) {
       // Give it its basic shape
       circleNode.setAttribute('geometry', {
         primitive: 'ring',
+        segmentsTheta: 240,
+        segmentsPhi: 2,
         radiusInner: orbit.semiminor / mv.AU * scaleManager.get() - 0.001,
         radiusOuter: orbit.semiminor / mv.AU * scaleManager.get()
       })
