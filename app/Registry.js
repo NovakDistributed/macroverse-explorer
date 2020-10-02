@@ -133,7 +133,9 @@ class Registry extends EventEmitter2 {
     } else {
       // This is the first subscriber to this keypath.
       // Begin listening for updates to the item from the chain
+      console.log('Registry setting up watch for ' + keypath)
       this.watchChain(keypath)
+      console.log('Registry started watch for ' + keypath)
       this.subscriberCount[keypath] = 1
     }
 

@@ -46,6 +46,9 @@ class Datasource extends EventEmitter2 {
 
     // Set up an in-memory cache of the expanded objects for the keypaths
     this.memCache = {}
+    
+    // For debugging/profiling, we want to track how many times eack keypath is resolved
+    this.resolutionCounts = {}
 
     // Remember our address to query from, as an options object to pass to every call
     if (typeof fromAddress == 'undefined') {
@@ -56,7 +59,7 @@ class Datasource extends EventEmitter2 {
     // Say we aren't initializing yet
     this.initPromise = undefined
     // Kick off async initialization
-    this.init();
+    this.init()
   }
 
   // Returns a promise for the async object initialization, kicked off by the constructor.
@@ -122,12 +125,15 @@ class Datasource extends EventEmitter2 {
   // The request will be retried until it succeeds, so don't go asking for things that don't exist.
   //
   request(keypath) {
+  
+    console.log('Got request for ' + keypath)
     
     let promise = this.waitFor(keypath)
 
     if (this.isCachedInMemory(keypath)) {
       // We have it in memory so skip the stack and publish the value
-      this.resolveImmediately(keypath)
+      console.log('Request for ' + keypath + ' is fulfillable from memory at request time')
+      this.determine(keypath)
     }
 
     // Otherwise, we (may) need to wait for it
@@ -152,6 +158,7 @@ class Datasource extends EventEmitter2 {
 
   // Worker function which processes the top thing on the stack each call through.
   async processStack() {
+    console.log('Stack length: ' + this.stack.length)
     if (this.stack.length == 0) {
       this.running = false
       return
@@ -160,13 +167,13 @@ class Datasource extends EventEmitter2 {
     while (this.stack.length > 0 && this.isCachedInMemory(this.stack[this.stack.length - 1])) {
       // While things on the stack are cached, resolve them.
       // This returns a promise but will finish immediately.
-      this.resolveImmediately(this.stack.pop())
+      this.determine(this.stack.pop())
     }
 
     if (this.stack.length > 0) {
       // For the next thing we hit that isn't cached, resolve it.
       // This will take a while so we await.
-      await this.resolveImmediately(this.stack.pop())
+      await this.determine(this.stack.pop())
     }
 
     // Check again for things on the stack
@@ -194,7 +201,18 @@ class Datasource extends EventEmitter2 {
   // Return a promise that resolves with nothing when the result has been published.
   // Called as part of the processStack() loop.
   // But also called to retrieve dependency keys.
-  async resolveImmediately(keypath) {
+  async determine(keypath) {
+
+    console.log('Resolving ' + keypath + ' now')
+    
+    if (this.resolutionCounts[keypath] === undefined) {
+        this.resolutionCounts[keypath] = 1
+    } else {
+        this.resolutionCounts[keypath]++
+    }
+    if (this.resolutionCounts[keypath] == 100) {
+        throw new Error('Resolved ' + keypath + ' 100 times; somebody is forgetful')
+    }
 
     // See if we have it already in the first level of cache
     var found = getKeypath(this.memCache, keypath)
@@ -231,7 +249,7 @@ class Datasource extends EventEmitter2 {
         } catch (err) {
           // If it doesn't come in, try again
           console.log('Error getting ' + keypath, err)
-          //await this.resolveImmediately(keypath)
+          //await this.determine(keypath)
         }
       } else {
         // Otherwise it's a star number
@@ -239,19 +257,19 @@ class Datasource extends EventEmitter2 {
 
         if (parts.length < 4) {
           // If that's it, go get the whole star
-          await this.resolveStarProperty(x, y, z, star, '')
+          await this.determineStarProperty(x, y, z, star, '')
         } else {
           if (isNaN(parts[4])) {
             // Otherwise, if it's a property, get it
             let property = parts.slice(4).join('.')
             try {
               // If the next part is a property, go get it
-              await this.resolveStarProperty(x, y, z, star, property)
+              await this.determineStarProperty(x, y, z, star, property)
             } catch (err) {
               // If it doesn't come in, try again
               console.log('Error getting ' + keypath, err)
               throw err
-              //await this.resolveImmediately(keypath)
+              //await this.determine(keypath)
             }
           } else {
             // Otherwise, it is a planet number
@@ -259,19 +277,19 @@ class Datasource extends EventEmitter2 {
             
             if(parts.length < 5) {
               // If that's it, get the whole planet
-              await this.resolvePlanetProperty(x, y, z, star, planet, '')
+              await this.determinePlanetProperty(x, y, z, star, planet, '')
             } else {
               if (isNaN(parts[5])) {
                 // Otherwise, if it's a property, get it
                 let property = parts.slice(5).join('.')
                 try {
                   // If the next part is a property, go get it
-                  await this.resolvePlanetProperty(x, y, z, star, planet, property)
+                  await this.determinePlanetProperty(x, y, z, star, planet, property)
                 } catch (err) {
                   // If it doesn't come in, try again
                   console.log('Error getting ' + keypath, err)
                   throw err
-                  //await this.resolveImmediately(keypath)
+                  //await this.determine(keypath)
                 }
               } else {
                 // Otherwise, if it's a number, it's a moon number
@@ -279,19 +297,19 @@ class Datasource extends EventEmitter2 {
 
                 if (parts.length < 6) {
                   // If that's it, get the whole moon
-                  await this.resolveMoonProperty(x, y, z, star, planet, moon, '')
+                  await this.determineMoonProperty(x, y, z, star, planet, moon, '')
                 } else {
                   if (isNaN(parts[6])) {
                     // Otherwise, if it's a property, get it
                     let property = parts.slice(6).join('.')
                     try {
                       // If the next part is a property, go get it
-                      await this.resolveMoonProperty(x, y, z, star, planet, moon, property)
+                      await this.determineMoonProperty(x, y, z, star, planet, moon, property)
                     } catch (err) {
                       // If it doesn't come in, try again
                       console.log('Error getting ' + keypath, err)
                       throw err
-                      //await this.resolveImmediately(keypath)
+                      //await this.determine(keypath)
                     }
                   } else {
                     throw new Error("Moons have no children")
@@ -315,14 +333,14 @@ class Datasource extends EventEmitter2 {
     if (!this.isCachedInMemory(keypath)) {
       // It's not already cached, so cache it here and in local storage (where we may have read it from...)
       setKeypath(this.memCache, keypath, value)
-
+      
       if (value != null && (typeof value !== 'object' || value.constructor.name == 'BigNumber')) {
           // This isn't an internal node in the keypath tree. It is a real value to cache. Save it.
           // Note that BigNumber objects stringify as digit strings, which should be fine to hand back to web3, which is all we do with them.
           window.localStorage.setItem(keypath, JSON.stringify(value))
       }
     }
-
+    
     // Emit the value to anyone listening for it
     this.emit(keypath, value)
   }
@@ -355,7 +373,7 @@ class Datasource extends EventEmitter2 {
   // Publish its value.
   // Return a promise that resolves with nothing when done.
   // '' keypath = whole star
-  async resolveStarProperty(x, y, z, starNumber, keypath) {
+  async determineStarProperty(x, y, z, starNumber, keypath) {
     
     // Lots of star properties depend on other ones
     let starKey = x + '.' + y + '.' + z + '.' + starNumber
@@ -368,7 +386,7 @@ class Datasource extends EventEmitter2 {
     // And this to get one
     let get = async (prop) => {
       let promise = this.waitFor(starKey + '.' + prop)
-      await this.resolveImmediately(starKey + '.' + prop)
+      await this.determine(starKey + '.' + prop)
       return promise
     }
 
@@ -545,7 +563,7 @@ class Datasource extends EventEmitter2 {
   // Orbit properties are: periapsis, apoapsis, clearance, lan, inclination, aop, meanAnomalyAtEpoch, semimajor, semiminor, period,
   // realPeriapsis, realApoapsis, realClearance, realLan, realInclination, realAop, realMeanAnomalyAtEpoch
   // Spion properties are: isTidallyLocked, axisAngleY, axisAngleX, rate (which we convert to rad/sec), period (in seconds)
-  async resolvePlanetProperty(x, y, z, starNumber, planetNumber, keypath) {
+  async determinePlanetProperty(x, y, z, starNumber, planetNumber, keypath) {
     // Lots of planet properties depend on other ones
     let starKey = x + '.' + y + '.' + z + '.' + starNumber
     let planetKey = starKey + '.' + planetNumber
@@ -558,21 +576,21 @@ class Datasource extends EventEmitter2 {
     // And this to get one
     let get = async (prop) => {
       let promise = this.waitFor(planetKey + '.' + prop)
-      await this.resolveImmediately(planetKey + '.' + prop)
+      await this.determine(planetKey + '.' + prop)
       return promise
     }
 
     // And this to get star properties
     let getStar = async (prop) => {
       let promise = this.waitFor(starKey + '.' + prop)
-      await this.resolveImmediately(starKey + '.' + prop)
+      await this.determine(starKey + '.' + prop)
       return promise
     }
 
     // And this for properties of the previous planet
     let getPrevPlanet = async (prop) => {
       let promise = this.waitFor(starKey + '.' + (planetNumber - 1) + '.' + prop)
-      await this.resolveImmediately(starKey + '.' + (planetNumber - 1) + '.' + prop)
+      await this.determine(starKey + '.' + (planetNumber - 1) + '.' + prop)
       return promise
     }
 
@@ -845,7 +863,7 @@ class Datasource extends EventEmitter2 {
   // Orbit properties are: periapsis, apoapsis, clearance, lan, inclination, aop, meanAnomalyAtEpoch, semimajor, semiminor, period,
   // realPeriapsis, realApoapsis, realClearance, realLan, realInclination, realAop, realMeanAnomalyAtEpoch
   // Orbit is around the parent planet.
-  async resolveMoonProperty(x, y, z, starNumber, planetNumber, moonNumber, keypath) {
+  async determineMoonProperty(x, y, z, starNumber, planetNumber, moonNumber, keypath) {
     // Lots of planet properties depend on other ones
     let starKey = x + '.' + y + '.' + z + '.' + starNumber
     let planetKey = starKey + '.' + planetNumber
@@ -859,21 +877,21 @@ class Datasource extends EventEmitter2 {
     // And this to get one
     let get = async (prop) => {
       let promise = this.waitFor(moonKey + '.' + prop)
-      await this.resolveImmediately(moonKey + '.' + prop)
+      await this.determine(moonKey + '.' + prop)
       return promise
     }
 
     // And this to get star properties
     let getStar = async (prop) => {
       let promise = this.waitFor(starKey + '.' + prop)
-      await this.resolveImmediately(starKey + '.' + prop)
+      await this.determine(starKey + '.' + prop)
       return promise
     }
 
     // And this to get parent planet properties
     let getPlanet = async (prop) => {
       let promise = this.waitFor(planetKey + '.' + prop)
-      await this.resolveImmediately(planetKey + '.' + prop)
+      await this.determine(planetKey + '.' + prop)
       return promise
     }
 
@@ -881,7 +899,7 @@ class Datasource extends EventEmitter2 {
     let getPrevMoon = async (prop) => {
       let prevKeypath = planetKey + '.' + (moonNumber - 1) + '.' + prop
       let promise = this.waitFor(prevKeypath)
-      await this.resolveImmediately(prevKeypath)
+      await this.determine(prevKeypath)
       return promise
     }
 
