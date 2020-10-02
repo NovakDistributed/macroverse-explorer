@@ -47,9 +47,6 @@ class Datasource extends EventEmitter2 {
     // Set up an in-memory cache of the expanded objects for the keypaths
     this.memCache = {}
     
-    // For debugging/profiling, we want to track how many times eack keypath is resolved
-    this.resolutionCounts = {}
-
     // Remember our address to query from, as an options object to pass to every call
     if (typeof fromAddress == 'undefined') {
       throw new Error("Cannot create a Datasource that makes requests from an undefined address")
@@ -124,19 +121,19 @@ class Datasource extends EventEmitter2 {
   //
   // The request will be retried until it succeeds, so don't go asking for things that don't exist.
   //
-  request(keypath) {
+  async request(keypath) {
   
-    console.log('Got request for ' + keypath)
-    
-    let promise = this.waitFor(keypath)
-
     if (this.isCachedInMemory(keypath)) {
       // We have it in memory so skip the stack and publish the value
-      console.log('Request for ' + keypath + ' is fulfillable from memory at request time')
-      this.determine(keypath)
+      let value = this.getFromMemory(keypath)
+      // Publish for anyone waiting on it
+      this.publishKeypath(keypath, value)
+      // Return it (we are async so this wraps as a promise)
+      return value
     }
-
-    // Otherwise, we (may) need to wait for it
+    
+    // Otherwise we need to wait at least for disk
+    let promise = this.waitFor(keypath)
 
     // Just dump it into the stack.
     // TODO: It would be more debuggable to vet it here
@@ -158,7 +155,6 @@ class Datasource extends EventEmitter2 {
 
   // Worker function which processes the top thing on the stack each call through.
   async processStack() {
-    console.log('Stack length: ' + this.stack.length)
     if (this.stack.length == 0) {
       this.running = false
       return
@@ -188,142 +184,148 @@ class Datasource extends EventEmitter2 {
   // Objects (like entire planets) always show as not cached, because we don't know we have all the parts.
   isCachedInMemory(keypath) {
     // See if we have it already in the first level of cache
-    var found = getKeypath(this.memCache, keypath)
+    var found = this.getFromMemory(keypath)
 
     if (found === undefined || found === null || (typeof found == 'object' && found.constructor.name != 'BigNumber')) {
       return false
     }
     return true
   }
+  
+  // Return the value of a keypath cached in memory
+  getFromMemory(keypath) {
+    return getKeypath(this.memCache, keypath) 
+  }
 
-  // Resolve a particular keypath without queueing.
+  // Find the value of a particular keypath without queueing.
   // Publish the result.
-  // Return a promise that resolves with nothing when the result has been published.
+  // Return a promise that resolves (with possibly nothing) when the value is obtained
   // Called as part of the processStack() loop.
   // But also called to retrieve dependency keys.
   async determine(keypath) {
 
-    console.log('Resolving ' + keypath + ' now')
-    
-    if (this.resolutionCounts[keypath] === undefined) {
-        this.resolutionCounts[keypath] = 1
-    } else {
-        this.resolutionCounts[keypath]++
-    }
-    if (this.resolutionCounts[keypath] == 100) {
-        throw new Error('Resolved ' + keypath + ' 100 times; somebody is forgetful')
-    }
-
     // See if we have it already in the first level of cache
     var found = getKeypath(this.memCache, keypath)
 
-    if (found === undefined || found === null) {
-        // Try the second level of cache
-        found = JSON.parse(window.localStorage.getItem(keypath))
+    if (found !== undefined && found !== null  && (typeof found != 'object' || found.constructor.name == 'BN')) {
+      // We found something that isn't a non-BN object
+      // Found it in memory
+      this.publishKeypath(keypath, found)
+      return found
+    } else if (found !== undefined && found !== null) {
+      console.log('Found unacceptable object in memory: ' + found.constructor.name, found)
     }
 
-    if (found === undefined || found === null || (typeof found == 'object' && found.constructor.name != 'BigNumber')) {
-      // It's not found or it is an object (and we don't know that we have all the sub-keypaths).
-      // We have to go get it
+    // Try the second level of cache
+    found = JSON.parse(window.localStorage.getItem(keypath))
+    
+    if (found !== undefined && found !== null && (typeof found != 'object' || found.constructor.name == 'BN')) {
+      // We found something that isn't a non-BN object
+      // Found it on disk
+      this.publishKeypath(keypath, found)
+      return found
+    } else if (found !== undefined && found !== null) {
+      console.log('Found unacceptable object on disk: ' + found.constructor.name, found)
+    }
 
-      // Parse out the parts
-      let parts = keypath.split('.')
+    // If we get here we need to actually do work for this
+
+    // It's not found or it is an object (and we don't know that we have all the sub-keypaths).
+    // We have to go get it
+
+    // Parse out the parts
+    let parts = keypath.split('.')
+
+    if (parts.length < 4) {
+      // We need at least the sector position and the star number/property
+      throw new Error("Invalid keypath: " + keypath)
+    }
+
+    // Sector x (required)
+    let x = parts[0]
+    // Sector y (required)
+    let y = parts[1]
+    // Sector z (required)
+    let z = parts[2]
+
+    if (isNaN(parts[3])) {
+      // If the next part is a property, go get it
+      let property = parts.slice(3).join('.')
+      try {
+        await this.determineSectorProperty(x, y, z, parts[3])
+      } catch (err) {
+        // If it doesn't come in, try again
+        console.log('Error getting ' + keypath, err)
+        //await this.determine(keypath)
+      }
+    } else {
+      // Otherwise it's a star number
+      let star = parts[3]
 
       if (parts.length < 4) {
-        // We need at least the sector position and the star number/property
-        throw new Error("Invalid keypath: " + keypath)
-      }
-
-      // Sector x (required)
-      let x = parts[0]
-      // Sector y (required)
-      let y = parts[1]
-      // Sector z (required)
-      let z = parts[2]
-
-      if (isNaN(parts[3])) {
-        // If the next part is a property, go get it
-        let property = parts.slice(3).join('.')
-        try {
-          await this.resolveSectorProperty(x, y, z, parts[3])
-        } catch (err) {
-          // If it doesn't come in, try again
-          console.log('Error getting ' + keypath, err)
-          //await this.determine(keypath)
-        }
+        // If that's it, go get the whole star
+        await this.determineStarProperty(x, y, z, star, '')
       } else {
-        // Otherwise it's a star number
-        let star = parts[3]
-
-        if (parts.length < 4) {
-          // If that's it, go get the whole star
-          await this.determineStarProperty(x, y, z, star, '')
+        if (isNaN(parts[4])) {
+          // Otherwise, if it's a property, get it
+          let property = parts.slice(4).join('.')
+          try {
+            // If the next part is a property, go get it
+            await this.determineStarProperty(x, y, z, star, property)
+          } catch (err) {
+            // If it doesn't come in, try again
+            console.log('Error getting ' + keypath, err)
+            throw err
+            //await this.determine(keypath)
+          }
         } else {
-          if (isNaN(parts[4])) {
-            // Otherwise, if it's a property, get it
-            let property = parts.slice(4).join('.')
-            try {
-              // If the next part is a property, go get it
-              await this.determineStarProperty(x, y, z, star, property)
-            } catch (err) {
-              // If it doesn't come in, try again
-              console.log('Error getting ' + keypath, err)
-              throw err
-              //await this.determine(keypath)
-            }
+          // Otherwise, it is a planet number
+          let planet = parts[4]
+          
+          if(parts.length < 5) {
+            // If that's it, get the whole planet
+            await this.determinePlanetProperty(x, y, z, star, planet, '')
           } else {
-            // Otherwise, it is a planet number
-            let planet = parts[4]
-            
-            if(parts.length < 5) {
-              // If that's it, get the whole planet
-              await this.determinePlanetProperty(x, y, z, star, planet, '')
+            if (isNaN(parts[5])) {
+              // Otherwise, if it's a property, get it
+              let property = parts.slice(5).join('.')
+              try {
+                // If the next part is a property, go get it
+                await this.determinePlanetProperty(x, y, z, star, planet, property)
+              } catch (err) {
+                // If it doesn't come in, try again
+                console.log('Error getting ' + keypath, err)
+                throw err
+                //await this.determine(keypath)
+              }
             } else {
-              if (isNaN(parts[5])) {
-                // Otherwise, if it's a property, get it
-                let property = parts.slice(5).join('.')
-                try {
-                  // If the next part is a property, go get it
-                  await this.determinePlanetProperty(x, y, z, star, planet, property)
-                } catch (err) {
-                  // If it doesn't come in, try again
-                  console.log('Error getting ' + keypath, err)
-                  throw err
-                  //await this.determine(keypath)
-                }
-              } else {
-                // Otherwise, if it's a number, it's a moon number
-                let moon = parts[5]
+              // Otherwise, if it's a number, it's a moon number
+              let moon = parts[5]
 
-                if (parts.length < 6) {
-                  // If that's it, get the whole moon
-                  await this.determineMoonProperty(x, y, z, star, planet, moon, '')
-                } else {
-                  if (isNaN(parts[6])) {
-                    // Otherwise, if it's a property, get it
-                    let property = parts.slice(6).join('.')
-                    try {
-                      // If the next part is a property, go get it
-                      await this.determineMoonProperty(x, y, z, star, planet, moon, property)
-                    } catch (err) {
-                      // If it doesn't come in, try again
-                      console.log('Error getting ' + keypath, err)
-                      throw err
-                      //await this.determine(keypath)
-                    }
-                  } else {
-                    throw new Error("Moons have no children")
+              if (parts.length < 6) {
+                // If that's it, get the whole moon
+                await this.determineMoonProperty(x, y, z, star, planet, moon, '')
+              } else {
+                if (isNaN(parts[6])) {
+                  // Otherwise, if it's a property, get it
+                  let property = parts.slice(6).join('.')
+                  try {
+                    // If the next part is a property, go get it
+                    await this.determineMoonProperty(x, y, z, star, planet, moon, property)
+                  } catch (err) {
+                    // If it doesn't come in, try again
+                    console.log('Error getting ' + keypath, err)
+                    throw err
+                    //await this.determine(keypath)
                   }
+                } else {
+                  throw new Error("Moons have no children")
                 }
               }
             }
           }
         }
       }
-
-    } else {
-      // We did find it in one of the caches
-      this.publishKeypath(keypath, found)
     }
   }
 
@@ -349,7 +351,7 @@ class Datasource extends EventEmitter2 {
   // Save it and any properties retrieved at the same time in the cache.
   // Publish its value.
   // Return a promise that resolves with nothing when done.
-  async resolveSectorProperty(x, y, z, keypath) {
+  async determineSectorProperty(x, y, z, keypath) {
     switch(keypath) {
     case 'objectCount':
       let value = (await this.star.getSectorObjectCount.call(x, y, z, this.opts)).toNumber()
