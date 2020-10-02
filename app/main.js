@@ -128,7 +128,7 @@ async function showPlanet(ctx, keypath) {
   // Give it the desired inner and outer orbit sizes in 3d engine units
   // Note that the scale manager and orbits still work natively in AU
   // ScaleManager will give priority to the min scale.
-  let scaleManager = new sprites.ScaleManager(size + 0.3, 5)
+  let scaleManager = new sprites.ScaleManager(size + 0.3, 3)
 
   // Count up the moons
   let moonCount = await ctx.ds.request(keypath + '.moonCount')
@@ -261,8 +261,7 @@ async function showSystem(ctx, keypath) {
     }
 
     // Make a ScaleManager to let the planets tell each other how big the view scale should be
-    // We want the output between 1 and 100 units
-    let scaleManager = new sprites.ScaleManager(1, 100)
+    let scaleManager = new sprites.ScaleManager(10, 1000)
     
     // Each planet should report a min and max orbit param, on top of the habitable zone.
     // Until then scale so we can see the temp orbits.

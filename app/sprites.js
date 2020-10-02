@@ -522,6 +522,8 @@ function makeOrbitSprite(ctx, keypath, scaleManager, orbit) {
       
       circleNode.setAttribute('geometry', {
         primitive: 'ring',
+        segmentsTheta: 240,
+        segmentsPhi: 2,
         radiusInner: orbit.periapsis / mv.AU * scaleManager.get(),
         radiusOuter: orbit.apoapsis / mv.AU * scaleManager.get()
       })
@@ -674,8 +676,8 @@ async function computeWorldEquatorialRotation(ctx, keypath) {
 function getRenderTime() {
   let unixTime = (new Date()).getTime() / 1000
   let macroverseTime = unixTime - mv.EPOCH
-  // Show at 1000x speed
-  return macroverseTime * 1000
+  // Show at 1x speed
+  return macroverseTime * 1.0
 }
 
 // Make a sprite to represent the habitable zone around a star.
