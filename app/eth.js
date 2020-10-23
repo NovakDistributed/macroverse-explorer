@@ -23,7 +23,7 @@ const fetch = window.fetch
 function create_provider() {
   
   // This is for Metamask
-  //return window.ethereum
+  return window.ethereum
 
   const TRUFFLE_DEVELOP_URL='ws://localhost:9545'
   const GANACHE_DEVELOP_URL='ws://localhost:7545'
