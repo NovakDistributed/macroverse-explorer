@@ -217,15 +217,15 @@ class Registry extends EventEmitter2 {
       let key_hash = mv.getClaimKey(hash, owner)
 
       // Look it up on the chain. Should never throw; should just return zeroes
-      let [chain_hash, deposit, creation_time] = await this.reg.commitments(key_hash)
+      let results = await this.reg.commitments(key_hash)
 
       if (wanted == 'hash') {
-        return chain_hash
+        return results.hash
       } else if (wanted == 'deposit') {
-        return deposit
+        return results.deposit
       } else {
         // Must be the creation time
-        return creation_time
+        return results.creationTime
       }
     } else if (firstComponent(keypath) == 'mrv' && lastComponent(keypath) == 'balance' && lastComponent(parentOf(keypath)) != 'mrv') {
       let address = lastComponent(parentOf(keypath))
@@ -498,17 +498,16 @@ class Registry extends EventEmitter2 {
         let owner = parts[1]
         // For any change to the virtual real estate tokens of an owner, we need to watch the transfer events in and out
 
-        let in_events = await this.real.Transfer({to: owner})
-        let out_events = await this.real.Transfer({from: owner})
+        let in_events = await this.real.Transfer({filter: {'to': owner}})
+        let out_events = await this.real.Transfer({filter: {'from': owner}})
         
         // On either event, update everything
         let handle_event = async (event_report) => {
-          console.log('Saw event: ', event_report)
           if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
             // This transaction hasn't confirmed, so ignore it
             return
           }
-
+          
           if (parts.length == 3) {
             // We just want the total NFT count for this owner
             // Just query the balance again to update instead of doing real tracking.
@@ -531,6 +530,8 @@ class Registry extends EventEmitter2 {
             this.emit(keypath, val)
           }
         }
+        
+        
         this.addWatcher(keypath, in_events, handle_event)
         this.addWatcher(keypath, out_events, handle_event)
       } else {
@@ -554,6 +555,8 @@ class Registry extends EventEmitter2 {
       // We want the owner, deposit, or homesteading status of a token (not a claim)
       // Pack the token value
       let token = mv.keypathToToken(parentOf(keypath))
+      
+      console.log('Token for ', keypath, ' is ', token)
 
       let wanted = lastComponent(keypath)
 
@@ -580,7 +583,7 @@ class Registry extends EventEmitter2 {
 
         // Set up a subscription for the transfer of this token from here on out.
         // Note: this also catches any events in the current top block when we make it
-        let events = await this.real.Transfer({'tokenId': token})
+        let events = await this.real.Transfer({filter: {'tokenId': token}})
         let handle_event = async (event_report) => {
           console.log('Saw event: ', event_report)
           if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
@@ -589,7 +592,7 @@ class Registry extends EventEmitter2 {
           }
 
           if (event_report.args.tokenId.toString(10) != token.toString(10)) {
-            console.log('Wrong token: ' + event_report.args.tokenId.toString(10))
+            // It's for a different token than we want, actually.
             return
           }
 
@@ -621,7 +624,7 @@ class Registry extends EventEmitter2 {
         if (wanted == 'homesteading') {
           // Also watch the homesteading event
 
-          let events2 = await this.reg.Homesteading({'token': token})
+          let events2 = await this.reg.Homesteading({filter: {'token': token}})
           let handle_event2 = (event_report) => {
             console.log('Saw event: ', event_report)
             if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
@@ -690,7 +693,7 @@ class Registry extends EventEmitter2 {
       }
 
       // Watch for transfers on the token itself
-      let token_events = await this.real.Transfer({'tokenId': token})
+      let token_events = await this.real.Transfer({filter: {'tokenId': token}})
       this.addWatcher(keypath, token_events, handle_event)
 
       // Make a list of all the parent tokens
@@ -704,12 +707,12 @@ class Registry extends EventEmitter2 {
 
       for (let parent_token of parent_tokens) {
         // Watch for the transfer of any parent
-        let transfer_events = await this.real.Transfer({'tokenId': parent_token})
+        let transfer_events = await this.real.Transfer({filter: {'tokenId': parent_token}})
         // TODO: we will end up with a lot of watches on the same parents to update a lot of children.
         this.addWatcher(keypath, transfer_events, handle_event)
 
         // Watch for a change in the homesteading status of any parent
-        let homesteading_events = await this.reg.Homesteading({'token': parent_token})
+        let homesteading_events = await this.reg.Homesteading({filter: {'token': parent_token}})
         this.addWatcher(keypath, homesteading_events, handle_event)
       }
     } else {
@@ -724,6 +727,7 @@ class Registry extends EventEmitter2 {
     }
 
     for (let watcher of this.watchers[keypath]) {
+      console.log('Unwatching ' + keypath)
       // Stop all the watchers
       if (watcher.length == 3) {
         // Should be eventemitter, event, event listener tuple

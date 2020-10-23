@@ -106,7 +106,7 @@ class Wallet {
 
       // Otherwise it is a real token
       let keypath = mv.tokenToKeypath(token)
-      let hex = '0x' + token.toString(16)
+      let hex = '0x' + Web3Utils.toBN(token).toString(16)
 
       // Make throbbers
       let releaseThrobber = throbber.create()
@@ -644,6 +644,20 @@ class Wallet {
 
     // And a throbber for claim creation
     let claimThrobber = throbber.create()
+    
+    // We need to let claims be downloaded even if the user panics and hits cancel on the download.
+    let currentClaimData = undefined
+    let currentClaimKeypath = undefined
+    let promptForClaimDownload = () => {
+        FileSaver.saveAs(new Blob([JSON.stringify(currentClaimData)], {type: 'application/json;charset=utf-8'}), 'claim.' + currentClaimKeypath + '.json')
+    }
+    
+    let redownloadButton = document.createElement('button')
+    redownloadButton.innerText = 'I forgot to save my claim file! Prompt me to save it again so I do not LOSE MY DEPOSIT.'
+    redownloadButton.style.display = 'none'
+    redownloadButton.addEventListener('click', () => {
+      promptForClaimDownload()
+    })
 
     // And a button to go right to the claims view
     let extraClaimsButton = document.createElement('button')
@@ -669,11 +683,13 @@ class Wallet {
 
           // Parse the deposit
           try {
-            approveDeposit = Web3Utils.toWei(depositInput.value, 'ether')
+            // Make sure to get the deposit as a BN so we can compare it properly
+            approveDeposit = Web3Utils.toBN(Web3Utils.toWei(depositInput.value, 'ether'))
       
             // Make sure to do comparison using bignumber methods
             if (minDeposit.gt(approveDeposit)) {
               // Deposit is too small!
+              console.error('Deposit of ', approveDeposit, ' is smaller than ', minDeposit)
               throbber.fail(approveThrobber)
               // Fix it up
               depositInput.value = Web3Utils.fromWei(minDeposit.toString(10))
@@ -683,9 +699,9 @@ class Wallet {
             if (userBalance != 0) {
               // We know a user balance. See if this deposit would take the user below 100 MRV
               // TODO: don't hardcode this.
-              let minBalanceThreshold = Web3Utils.toWei('100', 'ether')
+              let minBalanceThreshold = Web3Utils.toBN(Web3Utils.toWei('100', 'ether'))
 
-              let newBalance = userBalance.minus(approveDeposit)
+              let newBalance = userBalance.sub(approveDeposit)
 
               if (newBalance.lt(minBalanceThreshold)) {
                 // They would not have enough MRV left to use this tool
@@ -743,9 +759,15 @@ class Wallet {
 
           // Make the claim with the chain
           this.ctx.reg.createClaim(keypath, Web3Utils.toWei(depositInput.value, 'ether')).then((claimData) => {
+            // Cache the claim data so the user can re-save it if they hit cancel
+            currentClaimData = claimData
+            currentClaimKeypath = keypath
+            redownloadButton.disabled = false
+            redownloadButton.style.display = 'block'
+          
             // Save the claim info including nonce. TODO: would be good to do this first.
-            FileSaver.saveAs(new Blob([JSON.stringify(claimData)], {type: 'application/json;charset=utf-8'}), 'claim.' + keypath + '.json')
-
+            promptForClaimDownload()
+            
             // Say we succeeded, assuming the user downloaded the data.
             // TODO: let them try downloading again if they forget/cancel
             throbber.succeed(claimThrobber)
@@ -760,6 +782,7 @@ class Wallet {
         return claimButton
       })}
       ${placeDomNode(claimThrobber)}
+      ${placeDomNode(redownloadButton)}
       <h2>Step 3: Wait</h2>
       <p>After broadcasting your claim, you must <strong>wait ${placeDomNode(this.createMaturationTimeDisplay(feed))} for your claim to mature</strong>, but <strong> no more than ${placeDomNode(this.createExpirationTimeDisplay(feed))} or your claim will expire</strong>. Maturation and expiration are required to prevent claim snipers from front-running your reveal transaction.</p>
       <h2>Step 4: Reveal</h2>
@@ -870,8 +893,8 @@ class Wallet {
                 if (creationTime == 0) {
                   // The commitment does not exist. Probably it has been revealed or canceled.
                   ageNode.innerText = 'Already revealed or not yet created. Does not need to be revealed or canceled.'
-                  ageNode.classList.remove('valid')
-                  ageNode.classList.add('invalid')
+                  ageNode.classList.remove('invalid')
+                  ageNode.classList.add('valid')
 
                   // Don't let them reveal or cancel
                   revealButton.disabled = true

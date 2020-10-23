@@ -23,15 +23,15 @@ const fetch = window.fetch
 function create_provider() {
   
   // This is for Metamask
-  return window.ethereum
+  //return window.ethereum
 
-  const TRUFFLE_DEVELOP_URL='http://localhost:9545'
-  const GANACHE_DEVELOP_URL='http://localhost:7545'
+  const TRUFFLE_DEVELOP_URL='ws://localhost:9545'
+  const GANACHE_DEVELOP_URL='ws://localhost:7545'
   let use = TRUFFLE_DEVELOP_URL
   // TODO: sometimes use real in-browser web3
   // TODO: Tell the difference between Truffle and Ganache
   console.log('Creating provider for url ' + use)
-  return new Web3.providers.HttpProvider(use)
+  return new Web3.providers.WebsocketProvider(use)
 }
 
 // Get the proivider in use
