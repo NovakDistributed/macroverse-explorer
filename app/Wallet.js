@@ -460,7 +460,7 @@ class Wallet {
         Receiving address:
         <span class="address-widget">
           <span class="address">${Web3Utils.toChecksumAddress(this.account)}</span>
-          <span class="blocky-holder">${placeDomNode(blockies.create({seed: this.account}))}</span>
+          <span class="blocky-holder">${placeDomNode(blockies.create({seed: this.account.toLowerCase()}))}</span>
         </span>
       </p>
       <h3>Send MRV</h3>
@@ -559,7 +559,7 @@ class Wallet {
         Receiving address:
         <span class="address-widget">
           <span class="address">${Web3Utils.toChecksumAddress(this.account)}</span>
-          <span class="blocky-holder">${placeDomNode(blockies.create({seed: this.account}))}</span>
+          <span class="blocky-holder">${placeDomNode(blockies.create({seed: this.account.toLowerCase()}))}</span>
         </span>
       </p>
     `, () => {
