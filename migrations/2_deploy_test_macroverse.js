@@ -64,7 +64,7 @@ module.exports = function(deployer, network, accounts) {
       return deployer.deploy(MacroverseExistenceChecker, MacroverseStarGenerator.address,
         MacroverseStarGeneratorPatch1.address, MacroverseSystemGenerator.address, MacroverseMoonGenerator.address)
     }).then(function() {
-      return deployer.deploy(MacroverseRealEstate)
+      return deployer.deploy(MacroverseRealEstate, "api.macroverse.io")
     }).then(function() {
       deployer.link(MacroverseNFTUtils, MacroverseUniversalRegistry)
       return deployer.deploy(MacroverseUniversalRegistry, MacroverseRealEstate.address,
