@@ -227,10 +227,18 @@ class Registry extends EventEmitter2 {
         // Must be the creation time
         return results.creationTime
       }
-    } else if (firstComponent(keypath) == 'mrv' && lastComponent(keypath) == 'balance' && lastComponent(parentOf(keypath)) != 'mrv') {
+    } else if (firstComponent(keypath) == 'mrv' && lastComponent(parentOf(keypath)) != 'mrv') {
       let address = lastComponent(parentOf(keypath))
-      let balance = await this.mrv.balanceOf(address)
-      return balance
+      let wanted = lastComponent(keypath)
+      if (wanted == 'balance') {
+        let balance = await this.mrv.balanceOf(address)
+        return balance
+      } else if (wanted == 'allowance') {
+        let allowance = await this.mrv.allowance(address, this.reg.address)
+        return allowance
+      } else {
+        throw new Error('Unsupported keypath ' + keypath)
+      }
     } else if (keypath == 'reg.commitmentMinWait') {
       // They want the min wait time of a commitment to mature.
       let wait_seconds = (await this.reg.commitmentMinWait()).toNumber()
@@ -459,32 +467,55 @@ class Registry extends EventEmitter2 {
       this.addWatcher(keypath, commit_events, handle_event)
       this.addWatcher(keypath, cancel_events, handle_event)
       this.addWatcher(keypath, reveal_events, handle_event)
-    } else if (firstComponent(keypath) == 'mrv' && lastComponent(keypath) == 'balance' && lastComponent(parentOf(keypath)) != 'mrv') {
-      // Format: mrv.{address}.balance
-
+    } else if (firstComponent(keypath) == 'mrv' && lastComponent(parentOf(keypath)) != 'mrv') {
+      let wanted = lastComponent(keypath)
+      // Format: mrv.{address}.{balance,allowance}
       let address = lastComponent(parentOf(keypath))
       
-      // Watch the user's MRV balance.
-      // We have to filter separately for in and out transactions
-      let in_events = await this.mrv.Transfer({to: address})
-      let out_events = await this.mrv.Transfer({from: address})
-      
-      // On either event, update the balance
-      let handle_event = async (event_report) => {
-        console.log('Saw event: ', event_report)
-        if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
-          // This transaction hasn't confirmed, so ignore it
-          return
+      if (wanted == 'balance') {
+        // Watch the user's MRV balance.
+        // We have to filter separately for in and out transactions
+        let in_events = await this.mrv.Transfer({to: address})
+        let out_events = await this.mrv.Transfer({from: address})
+        
+        // On either event, update the balance
+        let handle_event = async (event_report) => {
+          console.log('Saw event: ', event_report)
+          if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
+            // This transaction hasn't confirmed, so ignore it
+            return
+          }
+          // Just query the balance again to update instead of doing real tracking.
+          let val = await this.mrv.balanceOf(address)
+          this.cache[keypath] = val
+          this.emit(keypath, val)
         }
-        // Just query the balance again to update instead of doing real tracking.
-        let val = await this.mrv.balanceOf(address)
-        this.cache[keypath] = val
-        this.emit(keypath, val)
+        
+        // Remember the watchers for unregistration later.
+        this.addWatcher(keypath, in_events, handle_event)
+        this.addWatcher(keypath, out_events, handle_event)
+      } else if (wanted == 'allowance') {
+        // Watch the user's MRV allowance on the registry.
+        let events = await this.mrv.Approval({owner: address, spender: this.reg.address})
+        
+        // On event, update the allowance
+        let handle_event = async (event_report) => {
+          console.log('Saw event: ', event_report)
+          if (event_report.removed == true || (typeof event_report.type != 'undefined' && event_report.type != 'mined')) {
+            // This transaction hasn't confirmed, so ignore it
+            return
+          }
+          // Just query the allowance again to update instead of doing real tracking.
+          let val = await this.mrv.allowance(address, this.reg.address)
+          this.cache[keypath] = val
+          this.emit(keypath, val)
+        }
+        
+        // Remember the watcher for unregistration later.
+        this.addWatcher(keypath, events, handle_event)
+      } else {
+        throw new Error('Unsupported keypath ' + keypath)
       }
-      
-      // Remember the watchers for unregistration later.
-      this.addWatcher(keypath, in_events, handle_event)
-      this.addWatcher(keypath, out_events, handle_event)
     } else if (keypath == 'reg.commitmentMinWait') {
       // They want the min wait time of a commitment to mature.
       // This does not change.
@@ -781,12 +812,28 @@ class Registry extends EventEmitter2 {
     let account = await eth.get_account()
 
     console.log('Approving deposit transfer by ' + this.reg.address)
+    
+    // Problem: we need to set the approval to 0 first if it has any other
+    // value, because of a front-running mitigation in OZ 1
+    let oldApproval = await this.retrieveFromChain('mrv.' + account + '.allowance')
+    
+    if (oldApproval.gt(0) && oldApproval.lt(deposit)) {
+      console.log('Need to clear old approval first')
+      alert('You have an existing outstanding approval for a smaller amount. Making a setup transaction to clear it first...')
+      await this.mrv.approve(this.reg.address, 0, {from: account})
+    }
 
-    // Prompt for the approve transaction on the ERC20, for the deposit
-    // This always seems to work with the default gas.
-    await this.mrv.approve(this.reg.address, deposit, {from: account})
+    if ((oldApproval.gt(0) && oldApproval.lt(deposit)) || oldApproval.eq(0)) {
+      // The old approval won't do.
 
-    console.log('Approved deposit')
+      // Prompt for the approve transaction on the ERC20, for the deposit
+      // This always seems to work with the default gas.
+      await this.mrv.approve(this.reg.address, deposit, {from: account})
+      console.log('Approved deposit')
+    } else {
+      console.log('Existing approval is sufficient')
+    }
+
   }
 
   // Make a claim for the given keypath. Prompt the user to approve the transaction and send it to the chain.

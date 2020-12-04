@@ -669,7 +669,7 @@ class Wallet {
     dialog.showDialog('Commit for ' + keypath, `
       <p>This wizard will guide you through the process of claiming ownership of ${keypath}</p>
       <h2>Step 1: Choose and Authorize Deposit</h2>
-      <p>In order to own Macroverse virtual real estate, you need to put up a <strong>deposit</strong> in MRV. That deposit is locked up when you commit for an ownership claim, and returned when you cancel the commitment, or when you release your ownership of the claimed real estate. The minimum deposit value for the object you are trying to claim is <b>${placeDomNode(minDepositDisplay)} MRV</b>, but you may make a larger deposit. You must authorize the Macroverse registry to take this MRV from your account.</p>
+      <p>In order to own Macroverse virtual real estate, you need to put up a <strong>deposit</strong> in MRV. That deposit is locked up when you commit for an ownership claim, and returned when you cancel the commitment, or when you release your ownership of the claimed real estate. The minimum deposit value for the object you are trying to claim is <b>${placeDomNode(minDepositDisplay)} MRV</b>, but you may make a larger deposit. You must authorize the Macroverse registry to take this MRV from your account. If you have already made a sufficiently large authorization, no transaction will be needed here.</p>
       <label for="deposit">Deposit in MRV:</label>
       ${placeDomNode(depositInput)}
       ${placeDomNode(() => {
