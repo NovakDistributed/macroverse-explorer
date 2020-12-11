@@ -37,3 +37,15 @@ You will have to edit `create_provider()` in `app/eth.js` if you want to use a p
 ## Troubleshooting
 
 Sometimes, the Truffle contract files can get messed up, since we are pulling in built JSONs and we have no source. You can try running `node scripts/install.js` if you think that this may have happened to you.
+
+### Deploying
+
+To deploy the Macroverse Explorer in production:
+
+```
+npm install
+
+npm run build
+            
+npm run deploy
+```
