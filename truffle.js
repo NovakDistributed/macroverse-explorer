@@ -12,6 +12,11 @@ module.exports = {
       network_id: 5777,
       host: "127.0.0.1",
       port: 7545
+    },
+    ganacheFork: {
+      network_id: 1,
+      host: "127.0.0.1",
+      port: 8549
     }
   },
   compilers: {

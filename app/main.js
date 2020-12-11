@@ -496,7 +496,7 @@ async function main() {
     showNonce++
     let ourNonce = showNonce
 
-    document.title = 'Macroverse Explorer: ' + keypath
+    document.title = mv.keypathToDesignator(keypath) + ': Macroverse Explorer'
 
     // Register this as a navigation if we moved
     console.log(keypath + ' vs ' + location.hash.substr(1))

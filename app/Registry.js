@@ -13,6 +13,9 @@ const { getKeypath, setKeypath, firstComponent, lastComponent, parentOf, allPare
 // And the event emitter which we use to structure our API
 const { EventEmitter2 } = require('eventemitter2')
 
+// And the web3 utilities for the UI code we have crammed in here.
+const Web3Utils = require('web3-utils')
+
 const mv = require('macroverse')
 
 // The actual Registry class. External interface.
@@ -817,13 +820,14 @@ class Registry extends EventEmitter2 {
     // value, because of a front-running mitigation in OZ 1
     let oldApproval = await this.retrieveFromChain('mrv.' + account + '.allowance')
     
-    if (oldApproval.gt(0) && oldApproval.lt(deposit)) {
-      console.log('Need to clear old approval first')
-      alert('You have an existing outstanding approval for a smaller amount. Making a setup transaction to clear it first...')
+    if (oldApproval > 0 && oldApproval < deposit) {
+      console.log('Need to clear old approval first', oldApproval)
+      alert('You have an existing outstanding approval for a smaller amount: ' +
+        Web3Utils.fromWei(oldApproval) + ' MRV. Making a setup transaction to clear it first...')
       await this.mrv.approve(this.reg.address, 0, {from: account})
     }
 
-    if ((oldApproval.gt(0) && oldApproval.lt(deposit)) || oldApproval.eq(0)) {
+    if ((oldApproval > 0 && oldApproval < deposit) || oldApproval == 0) {
       // The old approval won't do.
 
       // Prompt for the approve transaction on the ERC20, for the deposit

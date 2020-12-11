@@ -213,7 +213,8 @@ class Datasource extends EventEmitter2 {
       this.publishKeypath(keypath, found)
       return found
     } else if (found !== undefined && found !== null) {
-      console.log('Found unacceptable object in memory: ' + found.constructor.name, found)
+      // It's an object but not a BN, so we can't rely on all its fields being set.
+      // Need to do work.
     }
 
     // Try the second level of cache
@@ -225,6 +226,9 @@ class Datasource extends EventEmitter2 {
       this.publishKeypath(keypath, found)
       return found
     } else if (found !== undefined && found !== null) {
+      // It's an object but not a BN, so we can't rely on all its fields being set.
+      // Need to do work.
+      // These shouldn't make it to disk...
       console.log('Found unacceptable object on disk: ' + found.constructor.name, found)
     }
 
@@ -241,12 +245,15 @@ class Datasource extends EventEmitter2 {
       throw new Error("Invalid keypath: " + keypath)
     }
 
+    // Get sector info out
+    // BN hates leading - signs in strings so we have to parse to int first.
+
     // Sector x (required)
-    let x = parts[0]
+    let x = parseInt(parts[0])
     // Sector y (required)
-    let y = parts[1]
+    let y = parseInt(parts[1])
     // Sector z (required)
-    let z = parts[2]
+    let z = parseInt(parts[2])
 
     if (isNaN(parts[3])) {
       // If the next part is a property, go get it
@@ -300,7 +307,8 @@ class Datasource extends EventEmitter2 {
               }
             } else {
               // Otherwise, if it's a number, it's a moon number
-              let moon = parts[5]
+              // Sometimes negative for land.
+              let moon = parseInt(parts[5])
 
               if (parts.length < 6) {
                 // If that's it, get the whole moon

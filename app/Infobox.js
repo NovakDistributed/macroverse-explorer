@@ -176,7 +176,14 @@ class Infobox {
     // Listen for owner updates, and remember that we're doing so
     this.feed.subscribeAll([keypath + '.owner', keypath + '.ultimateOwner', keypath + '.lowestOwnedParent', keypath + '.claimable'],
       ([owner, ultimate_owner, lowest_owned_parent, claimable]) => {
+     
+      // TODO: We aren't getting correct ultimateOwner events during claims.
+      // Hack it here for now.
+      if (ultimate_owner == 0 && owner != 0) {
+        ultimate_owner = owner;
+      }
       
+     
       if (ultimate_owner == this.ctx.wallet.account) {
         // It is owned by us
         root.innerHTML = 'You '
@@ -255,15 +262,19 @@ class Infobox {
     this.infobox.innerHTML = `
       <div class="infobox-header">
         <span class="infobox-title">
-          Sector ${keypath}
+          🌌 Sector Info
         </span>
       </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
+            <td>Designation</td>
+            <td>${mv.keypathToDesignator(keypath)}</td>
+          </tr>
+          <tr>
             <td>Children</td>
             <td>${this.when(keypath + '.objectCount', (x) => this.makeChildPicker(keypath, x, starDescriptionCallback))}</td>
-          </td> 
+          </tr> 
           <tr>
             <td>Number of Systems</td>
             <td>${this.when(keypath + '.objectCount')}</td>
@@ -288,15 +299,19 @@ class Infobox {
       <div class="infobox-header">
         <button class="infobox-back" id="infobox-back">&lt;</button>
         <span class="infobox-title">
-          Star ${keypath}
+          ☀️ Star Info
         </span>
       </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
+            <td>Designation</td>
+            <td>${mv.keypathToDesignator(keypath)}</td>
+          </tr>
+          <tr>
             <td>Children</td>
             <td>${this.when(keypath + '.planetCount', (x) => this.makeChildPicker(keypath, x, planetDescriptionCallback))}</td>
-          </td>
+          </tr>
           <tr>
             <td>Object Class</td>
             <td>${this.when(keypath + '.objClass', (x) => mv.objectClasses[x])}</td>
@@ -356,15 +371,19 @@ class Infobox {
       <div class="infobox-header">
         <button class="infobox-back" id="infobox-back">&lt;</button>
         <span class="infobox-title">
-          Planet ${keypath}
+          🪐 Planet Info
         </span>
       </div>
       <div class="infobox-body">
         <table class="infobox-table">
           <tr>
+            <td>Designation</td>
+            <td colspan="2">${mv.keypathToDesignator(keypath)}</td>
+          </tr>
+          <tr>
             <td>Children</td>
             <td colspan="2">${this.when(keypath + '.moonCount', (x) => this.makeChildPicker(keypath, x, moonDescriptionCallback))}</td>
-          </td>
+          </tr>
           <tr>
             <td>Planet Class</td>
             <td colspan="2">${this.when(keypath + '.worldClass', (x) => mv.worldClasses[x])}</td>
@@ -435,11 +454,15 @@ class Infobox {
       <div class="infobox-header">
         <button class="infobox-back" id="infobox-back">&lt;</button>
         <span class="infobox-title">
-          Moon ${keypath}
+          🌕 Moon Info
         </span>
       </div>
       <div class="infobox-body">
         <table class="infobox-table">
+          <tr>
+            <td>Designation</td>
+            <td colspan="2">${mv.keypathToDesignator(keypath)}</td>
+          </tr>
           <tr>
             <td>Planet Class</td>
             <td colspan="2">${this.when(keypath + '.worldClass', (x) => mv.worldClasses[x])}</td>

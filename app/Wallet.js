@@ -106,6 +106,7 @@ class Wallet {
 
       // Otherwise it is a real token
       let keypath = mv.tokenToKeypath(token)
+      let designator = mv.keypathToDesignator(keypath)
       let hex = '0x' + Web3Utils.toBN(token).toString(16)
 
       // Make throbbers
@@ -131,7 +132,7 @@ class Wallet {
       sendButton.innerText = '🎁 Give'
       sendButton.addEventListener('click', () => {
         let dest = sendDest.value
-        if (confirm('Are you sure you want to give away ' + keypath + ' to ' + dest + '?')) {
+        if (confirm('Are you sure you want to give away ' + designator + ' to ' + dest + '?')) {
           sendButton.disabled = true
           sendDest.disabled = true
           throbber.start(sendThrobber)
@@ -145,7 +146,7 @@ class Wallet {
             sendButton.disabled = false
             sendDest.disabled = false
           }).catch((e) => {
-            console.error('Could not give ' + keypath + ' to ' + dest, e)
+            console.error('Could not give ' + designator + ' to ' + dest, e)
             throbber.fail(sendThrobber)
             sendButton.disabled = false
             sendDest.disabled = false
@@ -199,7 +200,7 @@ class Wallet {
           let newState = homesteadingControl.value == 1
 
           if (newState && !confirm('Are you sure you want to allow other people ' +
-            'to claim virtual real estate within ' + keypath + ' for themselves? ' +
+            'to claim virtual real estate within ' + designator + ' for themselves? ' +
             'They, and not you, will own any real estate they claim.')) {
             
             // User aborted enabling homesteading
@@ -232,7 +233,7 @@ class Wallet {
       }
 
       tokenDisplay.innerHTML = `
-        ${keypath} (${hex})
+        ${designator} (${hex})
         ${placeDomNode(() => {
           let goToButton = document.createElement('button')
           goToButton.innerText = '🎯 Go To'
@@ -256,7 +257,7 @@ class Wallet {
           let releaseButton = document.createElement('button')
           releaseButton.innerText = '♻️ Release'
           releaseButton.addEventListener('click', () => {
-            if (confirm('Are you sure you want to release ' + keypath + ' to be claimed by others? You will no longer own it, but you will get your deposit back.')) {
+            if (confirm('Are you sure you want to release ' + designator + ' to be claimed by others? You will no longer own it, but you will get your deposit back.')) {
               releaseButton.disabled = true
               throbber.start(releaseThrobber)
               
@@ -601,6 +602,8 @@ class Wallet {
 
   /// Display a commit dialog/wizard to help people commit
   showCommitDialog(keypath) {
+    let designator = mv.keypathToDesignator(keypath)
+  
     // Prepare a feed to manage subscriptions for this dialog display
     let feed = this.ctx.reg.create_feed()
 
@@ -666,8 +669,8 @@ class Wallet {
       ctx.wallet.showClaimsDialog()
     })
 
-    dialog.showDialog('Commit for ' + keypath, `
-      <p>This wizard will guide you through the process of claiming ownership of ${keypath}</p>
+    dialog.showDialog('Commit for ' + designator, `
+      <p>This wizard will guide you through the process of claiming ownership of ${designator}</p>
       <h2>Step 1: Choose and Authorize Deposit</h2>
       <p>In order to own Macroverse virtual real estate, you need to put up a <strong>deposit</strong> in MRV. That deposit is locked up when you commit for an ownership claim, and returned when you cancel the commitment, or when you release your ownership of the claimed real estate. The minimum deposit value for the object you are trying to claim is <b>${placeDomNode(minDepositDisplay)} MRV</b>, but you may make a larger deposit. You must authorize the Macroverse registry to take this MRV from your account. If you have already made a sufficiently large authorization, no transaction will be needed here.</p>
       <label for="deposit">Deposit in MRV:</label>
@@ -718,7 +721,7 @@ class Wallet {
             return
           }
 
-          console.log('Approve ', approveDeposit, ' vs ', minDeposit.toString())
+          console.log('Approve ', approveDeposit.toString(), ' vs ', minDeposit.toString())
 
           // Otherwise, actually send the transaction.
           // Don't let the user fiddle while we do it.
@@ -843,6 +846,8 @@ class Wallet {
       let token = mv.keypathToToken(claimData.keypath)
       // Determine the claim hash
       let hash = mv.hashTokenAndNonce(token, claimData.nonce)
+      // Get the human-readable-ish designator
+      let designator = mv.keypathToDesignator(claimData.keypath)
 
       // Determine the keypath at which the Registry exposes info about the claim
       let claimKeypath = 'commitment.' + claimData.account + '.' + hash
@@ -862,6 +867,10 @@ class Wallet {
           <tr>
             <td>Nonce</td>
             <td>${placeText(claimData.nonce)}</td>
+          </tr>
+          <tr>
+            <td>Designator</td>
+            <td>${placeText(designator)}</td>
           </tr>
           <tr>
             <td>Claim Creation Time</td>
