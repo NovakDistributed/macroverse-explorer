@@ -46,6 +46,8 @@ To deploy the Macroverse Explorer in production:
 npm install
 
 npm run build
+
+git commit
             
 npm run deploy
 ```
