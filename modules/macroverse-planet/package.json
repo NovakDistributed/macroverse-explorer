@@ -1,0 +1,16 @@
+{
+    "name": "macroverse-planet",
+    "version": "0.1.0",
+    "description": "Planet scene node for Macroverse",
+    "dependencies": {},
+    "scripts": {
+        "build": "browserify app/main.js > build/bundle.js",
+        "watch": "watchify app/main.js -o build/bundle.js",
+        "dev": "budo app/main.js:bundle.js --dir build --live"
+    },
+    "devDependencies": {
+        "browserify": "^16.5.2",
+        "budo": "^11.6.4",
+        "watchify": "^3.11.1"
+    }
+}
