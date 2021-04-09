@@ -2,7 +2,9 @@
     "name": "macroverse-planet",
     "version": "0.1.0",
     "description": "Planet scene node for Macroverse",
-    "dependencies": {},
+    "dependencies": {
+        "three": "^0.127.0"
+    },
     "scripts": {
         "build": "browserify app/main.js > build/bundle.js",
         "watch": "watchify app/main.js -o build/bundle.js",
