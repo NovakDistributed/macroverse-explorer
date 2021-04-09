@@ -106,9 +106,9 @@ function make_basis_sextets() {
 // Get all the vertex positions for a tile with a given number of subdivisions.
 // Takes the top-level trixel as integer sextets, its vertex heights, and
 // the number of subdivision levels, as well as the corners of the global
-// sextet space in 3D (i.e. the octahedron corners). Returns a Javascript
-// array of vertex positions, and a JavaScript array of indexes. Needs the
-// current subdivision depth for height generation.
+// sextet space in 3D (i.e. the octahedron corners). Returns a JavaScript
+// array of vertex position components, and a JavaScript array of indexes.
+// Needs the current subdivision depth for height generation.
 function make_tile([trixel, heights], basis, subdivisions, current_depth) {
   
   // Find the sphere info again
@@ -129,10 +129,12 @@ function make_tile([trixel, heights], basis, subdivisions, current_depth) {
       let p = sextet_to_coord3(sextet, basis)
       p = snap_to_sphere(p, sphere_center, radius)
       p = add3(p, scale3(unit_normal_on_sphere(p, sphere_center), (height - 0.5) * radius / 2))
-      // Flatten into vertex buffer
+      // Flatten position into vertex buffer
       vertex_components.push(p[0])
       vertex_components.push(p[1])
       vertex_components.push(p[2])
+      
+      // Record where we put this point for generating indexes for triangles.
       sextet_to_index[key] = (vertex_components.length / 3) - 1
     }
     return sextet_to_index[key]
@@ -495,8 +497,9 @@ window.addEventListener('load', () => {
   let canvasElement = document.querySelector("#myCanvas")
   let gl = canvasElement.getContext("webgl2")
 
-  const CANVAS_SIZE = 800
+  const CANVAS_SIZE = canvasElement.width
   const SHOW_NORMALS = false
+  const SHOW_WIREFRAME = false
 
   // Define the octahedron corners
   let basis = make_octahedron([0, 0, 0], 1)
@@ -565,11 +568,16 @@ window.addEventListener('load', () => {
   let tile_uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.lights, {}])
 
   let tile_material = SHOW_NORMALS ? new THREE.MeshNormalMaterial() : 
-      new THREE.ShaderMaterial({
+      /*new THREE.ShaderMaterial({
         vertexShader: PLANET_VERTEX_SHADER, 
         fragmentShader: PLANET_FRAGMENT_SHADER, 
         uniforms: tile_uniforms, 
         lights: true
+      })*/
+      new THREE.MeshStandardMaterial({
+        color: 0xFF0000,
+        // Use face normals to shade
+        shading: THREE.FlatShading
       })
 
   for (let root_indices of topology) {
@@ -586,8 +594,9 @@ window.addEventListener('load', () => {
     let [vertex_components, indices] = make_tile(here, basis, 5, 0)
     let tile_geometry = new THREE.BufferGeometry()
     tile_geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertex_components), 3))
+    //tile_geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normal_components), 3))
     tile_geometry.setIndex(indices)
-    // Give it some smoothed normals
+    // Give it some normals
     tile_geometry.computeFaceNormals()
     tile_geometry.computeVertexNormals()
     
@@ -602,7 +611,9 @@ window.addEventListener('load', () => {
     tile_lines.material.depthTest = false
     tile_lines.material.opacity = 0.25
     tile_lines.material.transparent = true
-    //tile_node.add(tile_lines)
+    if (SHOW_WIREFRAME) {
+      tile_node.add(tile_lines)
+    }
     
     planet.add(tile_node)
   }
