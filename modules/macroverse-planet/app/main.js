@@ -411,7 +411,17 @@ function child_offsets(seed) {
 // actual final vertex height, and the other values are controlled by this
 // function (except that a single-element array must be accepted at depth 0).
 function compute_point_height_data(neighbor1, neighbor2, noise, depth) {
-  return [add_noise((neighbor1[0] + neighbor2[0]) / 2, noise - 0.5, depth)]
+  
+  if (neighbor1.length == 1) {
+    neighbor1 = [neighbor1[0], neighbor1[0]]
+  }
+  if (neighbor2.length == 1) {
+    neighbor2 = [neighbor2[0], neighbor2[0]]
+  }
+  
+  let fractal_noise = add_noise((neighbor1[1] + neighbor2[1]) / 2, noise - 0.5, depth)
+
+  return [Math.pow(fractal_noise, 1.5), fractal_noise]
 }
 
 /// Given a trixel (as sextets) and vertex height data (3 arrays where
