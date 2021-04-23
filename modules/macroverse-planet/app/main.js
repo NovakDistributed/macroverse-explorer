@@ -143,7 +143,7 @@ function make_tile([trixel, heights], basis, subdivisions, current_depth) {
   function recurse([trixel, heights], depth) {
     if (depth < current_depth + subdivisions) {
       // Keep recursing
-      let children = shatter([trixel, heights], depth)
+      let children = shatter([trixel, heights], depth + 1)
     
       for (let i = 0; i < 4; i++) {
         recurse(children[i], depth + 1)
@@ -405,6 +405,13 @@ function child_offsets(seed) {
   return offsets
 }
 
+// Compute the height of a point, given two neighbor heihgts, a noise value
+// from 0 to 1, and a depth value counting up as we get to finer levels of
+// detail.
+function compute_point_height(neighbor1, neighbor2, noise, depth) {
+  return add_noise((neighbor1 + neighbor2) / 2, noise - 0.5, depth)
+}
+
 /// Given a trixel (as sextets) and vertex heights (3 floats)
 /// return an array of 4 similar structures for the child trixels
 function shatter(trixel_heights, depth) {
@@ -415,15 +422,14 @@ function shatter(trixel_heights, depth) {
                    midpoint_sextets(parent[0], parent[2]),
                    midpoint_sextets(parent[0], parent[1])]
                    
-  // Compute heights for them from interpolation
-  let midpoint_heights = [(heights[1] + heights[2]) / 2,
-                          (heights[0] + heights[2]) / 2,
-                          (heights[0] + heights[1]) / 2]
+  // Define which neighbors to interpolate for each point
+  let neighbors = [[1, 2], [0, 2], [0, 1]]
   
-  
-  // Add in the fractal noise
+  let midpoint_heights = []
   for (let i = 0; i < 3; i++) {
-    midpoint_heights[i] = add_noise(midpoint_heights[i], seed_to_float(sextet_to_seed(midpoints[i])) - 0.5, depth)
+    // Compute all the heights
+    midpoint_heights.push(compute_point_height(heights[neighbors[i][0]], heights[neighbors[i][1]],
+                                               seed_to_float(sextet_to_seed(midpoints[i])), depth))
   }
   
   // Return a bunch of triangles and heights.
@@ -579,6 +585,13 @@ window.addEventListener('load', () => {
         // Use face normals to shade
         shading: THREE.FlatShading
       })
+      
+      
+  let root_heights = []
+  for (let i = 0; i < 8; i++) {
+    // Generate the heights of the original 8 corners.
+    root_heights.push(compute_point_height(0.5, 0.5, seed_to_float(sextet_to_seed(basis_sextets[i])), 0))
+  }
 
   for (let root_indices of topology) {
     // For each three vertices that form a face
@@ -588,10 +601,10 @@ window.addEventListener('load', () => {
                 basis_sextets[root_indices[1]],
                 basis_sextets[root_indices[2]]]
     
-    let here = [root, [0.5, 0.5, 0.5]]
+    let here = [root, [root_heights[root_indices[0]], root_heights[root_indices[1]], root_heights[root_indices[2]]]]
     let depth = 0
     
-    let [vertex_components, indices] = make_tile(here, basis, 5, 0)
+    let [vertex_components, indices] = make_tile(here, basis, 0, 0)
     let tile_geometry = new THREE.BufferGeometry()
     tile_geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertex_components), 3))
     //tile_geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normal_components), 3))
