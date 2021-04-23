@@ -409,6 +409,13 @@ function child_offsets(seed) {
 // from 0 to 1, and a depth value counting up as we get to finer levels of
 // detail.
 function compute_point_height(neighbor1, neighbor2, noise, depth) {
+  if (depth > 5) {
+    depth -= 1
+  }
+  return add_noise((neighbor1 + neighbor2) / 2, noise - 0.5, depth)
+}
+
+function compute_point_height_midpoint_displacement(neighbor1, neighbor2, noise, depth) {
   return add_noise((neighbor1 + neighbor2) / 2, noise - 0.5, depth)
 }
 
@@ -452,10 +459,6 @@ function sextet_to_seed(sextet) {
   }
   
   return seed
-  
-  // TODO: we'll need to do this with an awareness of face so we get consistent seeds along shared edges.
-  // TODO: better math than hashing the string oif the seed???
-  // TODO: what can we do here in a shader if our ints may be quite big?
 }
 
 /// Generate a 0-1 float from the given seed
@@ -473,7 +476,7 @@ function seed_to_float(seed) {
 
 /// Mix in a level of fractal noise (value) on top of base level base at depth depth
 function add_noise(base, value, depth) {
-  return Math.min(1, Math.max(0, base + value / (2 * Math.pow(2, depth))))
+  return Math.min(1, Math.max(0, base + value / Math.pow(2, depth)))
 }
 
 /// Get the hex color at a given height
@@ -481,8 +484,6 @@ function color_at(height) {
   const WATER_TO_BEACH = 0.35
   const BEACH_TO_LAND = 0.37
   const LAND_TO_MOUNTAIN = 0.4
-
-  //return to_hex(clerp([0, 0, 0], [1, 1, 1], height))
 
   if (height < WATER_TO_BEACH) {
     // Water
@@ -583,7 +584,7 @@ window.addEventListener('load', () => {
       new THREE.MeshStandardMaterial({
         color: 0xFF0000,
         // Use face normals to shade
-        shading: THREE.FlatShading
+        flatShading: true
       })
       
       
@@ -604,7 +605,7 @@ window.addEventListener('load', () => {
     let here = [root, [root_heights[root_indices[0]], root_heights[root_indices[1]], root_heights[root_indices[2]]]]
     let depth = 0
     
-    let [vertex_components, indices] = make_tile(here, basis, 0, 0)
+    let [vertex_components, indices] = make_tile(here, basis, 8, 0)
     let tile_geometry = new THREE.BufferGeometry()
     tile_geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertex_components), 3))
     //tile_geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normal_components), 3))
