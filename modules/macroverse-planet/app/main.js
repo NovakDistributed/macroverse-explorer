@@ -140,10 +140,10 @@ function make_tile([trixel, heights], basis, subdivisions, current_depth) {
     return sextet_to_index[key]
   }
   
-  function recurse([trixel, heights], depth) {
+  function recurse([trixel, height_datas], depth) {
     if (depth < current_depth + subdivisions) {
       // Keep recursing
-      let children = shatter([trixel, heights], depth + 1)
+      let children = shatter([trixel, height_datas], depth + 1)
     
       for (let i = 0; i < 4; i++) {
         recurse(children[i], depth + 1)
@@ -152,7 +152,7 @@ function make_tile([trixel, heights], basis, subdivisions, current_depth) {
       // Actually generate geometry at the bottom
       for (let i = 0; i < 3; i++) {
         // Only generate one vertex per unique sextet.
-        let v_index = get_sextet_index(trixel[i], heights[i])
+        let v_index = get_sextet_index(trixel[i], height_datas[i][0])
         indices.push(v_index)
       }
     }
@@ -405,24 +405,20 @@ function child_offsets(seed) {
   return offsets
 }
 
-// Compute the height of a point, given two neighbor heihgts, a noise value
-// from 0 to 1, and a depth value counting up as we get to finer levels of
-// detail.
-function compute_point_height(neighbor1, neighbor2, noise, depth) {
-  if (depth > 5) {
-    depth -= 1
-  }
-  return add_noise((neighbor1 + neighbor2) / 2, noise - 0.5, depth)
+// Compute the height data for a point, given two neighbor height datas, a
+// noise value from 0 to 1, and a depth value counting up as we get to finer
+// levels of detail. A height data is an array where the 0th element is the
+// actual final vertex height, and the other values are controlled by this
+// function (except that a single-element array must be accepted at depth 0).
+function compute_point_height_data(neighbor1, neighbor2, noise, depth) {
+  return [add_noise((neighbor1[0] + neighbor2[0]) / 2, noise - 0.5, depth)]
 }
 
-function compute_point_height_midpoint_displacement(neighbor1, neighbor2, noise, depth) {
-  return add_noise((neighbor1 + neighbor2) / 2, noise - 0.5, depth)
-}
-
-/// Given a trixel (as sextets) and vertex heights (3 floats)
-/// return an array of 4 similar structures for the child trixels
+/// Given a trixel (as sextets) and vertex height data (3 arrays where
+/// height is 0) return an array of 4 similar structures for the 
+/// child trixels
 function shatter(trixel_heights, depth) {
-  let [parent, heights] = trixel_heights
+  let [parent, height_datas] = trixel_heights
   
   // Number the midpoints as in the paper
   let midpoints = [midpoint_sextets(parent[1], parent[2]),
@@ -432,18 +428,18 @@ function shatter(trixel_heights, depth) {
   // Define which neighbors to interpolate for each point
   let neighbors = [[1, 2], [0, 2], [0, 1]]
   
-  let midpoint_heights = []
+  let midpoint_height_datas = []
   for (let i = 0; i < 3; i++) {
-    // Compute all the heights
-    midpoint_heights.push(compute_point_height(heights[neighbors[i][0]], heights[neighbors[i][1]],
-                                               seed_to_float(sextet_to_seed(midpoints[i])), depth))
+    // Compute all the height datas
+    midpoint_height_datas.push(compute_point_height_data(height_datas[neighbors[i][0]], height_datas[neighbors[i][1]],
+                                                         seed_to_float(sextet_to_seed(midpoints[i])), depth))
   }
   
-  // Return a bunch of triangles and heights.
-  return [[[parent[0], midpoints[2], midpoints[1]], [heights[0], midpoint_heights[2], midpoint_heights[1]]],
-          [[parent[1], midpoints[0], midpoints[2]], [heights[1], midpoint_heights[0], midpoint_heights[2]]],
-          [[parent[2], midpoints[1], midpoints[0]], [heights[2], midpoint_heights[1], midpoint_heights[0]]],
-          [[midpoints[0], midpoints[1], midpoints[2]], [midpoint_heights[0], midpoint_heights[1], midpoint_heights[2]]]]
+  // Return a bunch of triangles and height datas.
+  return [[[parent[0], midpoints[2], midpoints[1]], [height_datas[0], midpoint_height_datas[2], midpoint_height_datas[1]]],
+          [[parent[1], midpoints[0], midpoints[2]], [height_datas[1], midpoint_height_datas[0], midpoint_height_datas[2]]],
+          [[parent[2], midpoints[1], midpoints[0]], [height_datas[2], midpoint_height_datas[1], midpoint_height_datas[0]]],
+          [[midpoints[0], midpoints[1], midpoints[2]], [midpoint_height_datas[0], midpoint_height_datas[1], midpoint_height_datas[2]]]]
 }
 
 const BASE_SEED = 7
@@ -588,10 +584,10 @@ window.addEventListener('load', () => {
       })
       
       
-  let root_heights = []
+  let root_height_datas = []
   for (let i = 0; i < 8; i++) {
     // Generate the heights of the original 8 corners.
-    root_heights.push(compute_point_height(0.5, 0.5, seed_to_float(sextet_to_seed(basis_sextets[i])), 0))
+    root_height_datas.push(compute_point_height_data([0.5], [0.5], seed_to_float(sextet_to_seed(basis_sextets[i])), 0))
   }
 
   for (let root_indices of topology) {
@@ -602,7 +598,9 @@ window.addEventListener('load', () => {
                 basis_sextets[root_indices[1]],
                 basis_sextets[root_indices[2]]]
     
-    let here = [root, [root_heights[root_indices[0]], root_heights[root_indices[1]], root_heights[root_indices[2]]]]
+    let here = [root, [root_height_datas[root_indices[0]],
+                       root_height_datas[root_indices[1]],
+                       root_height_datas[root_indices[2]]]]
     let depth = 0
     
     let [vertex_components, indices] = make_tile(here, basis, 8, 0)
